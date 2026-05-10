@@ -1,0 +1,51 @@
+version: '3.9'
+services:
+  postgres:
+    image: postgres:16
+    container_name: mwos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mwos_db
+      POSTGRES_USER: mwos_user
+      POSTGRES_PASSWORD: mwos_password_2024
+    ports:
+      - '5432:5432'
+    volumes:
+      - mwos-postgres-data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mwos-backend
+    restart: unless-stopped
+    environment:
+      PORT: 5000
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: mwos_db
+      DB_USER: mwos_user
+      DB_PASSWORD: mwos_password_2024
+      JWT_SECRET: change_me_access
+      JWT_REFRESH_SECRET: change_me_refresh
+      FRONTEND_URL: http://localhost:3000
+      BACKUP_DIR: backups
+    depends_on:
+      - postgres
+    ports:
+      - '5000:5000'
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mwos-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '3000:80'
+
+volumes:
+  mwos-postgres-data:

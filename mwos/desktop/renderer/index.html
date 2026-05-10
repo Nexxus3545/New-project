@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MWOS Desktop</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>MWOS Desktop Console</h1>
+        <p>Connected platform: <span id="platform"></span></p>
+      </div>
+      <button id="theme-btn">Toggle Theme</button>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2>Login</h2>
+        <form id="login-form">
+          <input id="email" placeholder="Email" required />
+          <input id="password" type="password" placeholder="Password" required />
+          <button type="submit">Sign in</button>
+        </form>
+        <p id="login-result"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Dashboard Snapshot</h2>
+        <button id="fetch-dashboard">Fetch Reports Dashboard</button>
+        <pre id="dashboard-output">No data yet.</pre>
+      </section>
+
+      <section class="panel">
+        <h2>Offline Notes (local)</h2>
+        <textarea id="offline-note" rows="6" placeholder="Type notes while offline..."></textarea>
+        <div class="row">
+          <button id="save-note">Save local draft</button>
+          <button id="load-note">Load draft</button>
+        </div>
+        <p id="offline-result"></p>
+      </section>
+    </main>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
