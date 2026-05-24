@@ -11,6 +11,7 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import DownloadPage from './pages/DownloadPage'
 
 // Staff pages
 import DashboardPage from './pages/DashboardPage'
@@ -25,6 +26,7 @@ import ReportsPage from './pages/ReportsPage'
 import EducationPage from './pages/EducationPage'
 import UsersPage from './pages/UsersPage'
 import AccountCenterPage from './pages/AccountCenterPage'
+import InteractionsPage from './pages/InteractionsPage'
 
 // Patient portal pages
 import PatientDashboardPage from './pages/patient/PatientDashboardPage'
@@ -32,6 +34,15 @@ import PatientAppointmentsPage from './pages/patient/PatientAppointmentsPage'
 import PatientVitalsPage from './pages/patient/PatientVitalsPage'
 import PatientRecordsPage from './pages/patient/PatientRecordsPage'
 import PatientEducationPage from './pages/patient/PatientEducationPage'
+import PatientDoctorsPage from './pages/patient/PatientDoctorsPage'
+import PatientDoctorDetailPage from './pages/patient/PatientDoctorDetailPage'
+import PatientPharmacyPage from './pages/patient/PatientPharmacyPage'
+import PatientMedicineDetailPage from './pages/patient/PatientMedicineDetailPage'
+import PatientCheckoutPage from './pages/patient/PatientCheckoutPage'
+import PatientCheckoutSuccessPage from './pages/patient/PatientCheckoutSuccessPage'
+import PatientNotificationsPage from './pages/patient/PatientNotificationsPage'
+import PatientReportsPage from './pages/patient/PatientReportsPage'
+import PatientEmergencyPage from './pages/patient/PatientEmergencyPage'
 
 const ProtectedRoute = ({ children, roles }) => {
   const user = useAuthStore((s) => s.user)
@@ -42,11 +53,11 @@ const ProtectedRoute = ({ children, roles }) => {
   return children
 }
 
-const RoleRedirect = () => {
+const EntryRoute = () => {
   const user = useAuthStore((s) => s.user)
   const isHydrating = useAuthStore((s) => s.isHydrating)
   if (isHydrating && !user) return <div className="flex min-h-screen items-center justify-center"><div className="loading-spinner w-10 h-10" /></div>
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <DownloadPage />
   if (user.role === 'patient') return <Navigate to="/my/dashboard" replace />
   return <Navigate to="/dashboard" replace />
 }
@@ -69,8 +80,8 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>
 
-        {/* Root redirect */}
-        <Route path="/" element={<RoleRedirect />} />
+        <Route path="/" element={<EntryRoute />} />
+        <Route path="/download" element={<DownloadPage />} />
 
         {/* Staff portal */}
         <Route element={
@@ -88,6 +99,7 @@ export default function App() {
           <Route path="/billing" element={<BillingPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/education" element={<EducationPage />} />
+          <Route path="/interactions" element={<InteractionsPage />} />
           <Route path="/account" element={<AccountCenterPage />} />
           <Route path="/users" element={
             <ProtectedRoute roles={['admin']}>
@@ -103,10 +115,20 @@ export default function App() {
           </ProtectedRoute>
         }>
           <Route path="/my/dashboard" element={<PatientDashboardPage />} />
+          <Route path="/my/doctors" element={<PatientDoctorsPage />} />
+          <Route path="/my/doctors/:id" element={<PatientDoctorDetailPage />} />
+          <Route path="/my/pharmacy" element={<PatientPharmacyPage />} />
+          <Route path="/my/pharmacy/checkout" element={<PatientCheckoutPage />} />
+          <Route path="/my/pharmacy/success" element={<PatientCheckoutSuccessPage />} />
+          <Route path="/my/pharmacy/:id" element={<PatientMedicineDetailPage />} />
+          <Route path="/my/notifications" element={<PatientNotificationsPage />} />
+          <Route path="/my/reports" element={<PatientReportsPage />} />
           <Route path="/my/appointments" element={<PatientAppointmentsPage />} />
           <Route path="/my/vitals" element={<PatientVitalsPage />} />
           <Route path="/my/records" element={<PatientRecordsPage />} />
           <Route path="/my/education" element={<PatientEducationPage />} />
+          <Route path="/my/interactions" element={<InteractionsPage />} />
+          <Route path="/my/emergency" element={<PatientEmergencyPage />} />
           <Route path="/my/profile" element={<AccountCenterPage />} />
         </Route>
 

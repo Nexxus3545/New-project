@@ -12,6 +12,8 @@ export default function RegisterPage() {
     lastName: '',
     email: '',
     phone: '',
+    city: '',
+    dateOfBirth: '',
     role: 'patient',
     password: '',
   })
@@ -43,6 +45,12 @@ export default function RegisterPage() {
         </div>
         <input name="email" type="email" value={form.email} onChange={onChange} className="input" placeholder="Email" required />
         <input name="phone" value={form.phone} onChange={onChange} className="input" placeholder="Phone (optional)" />
+        {form.role === 'patient' ? (
+          <>
+            <input name="city" value={form.city} onChange={onChange} className="input" placeholder="City (optional)" />
+            <input name="dateOfBirth" type="date" value={form.dateOfBirth} onChange={onChange} className="input" required />
+          </>
+        ) : null}
 
         <select name="role" value={form.role} onChange={onChange} className="input">
           {roles.map((role) => (

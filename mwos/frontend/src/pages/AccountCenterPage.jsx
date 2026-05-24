@@ -1,7 +1,8 @@
-import React, { startTransition, useEffect, useState } from 'react'
+import React, { startTransition, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import api from '../utils/api'
+import { uploadResumableFile } from '../utils/chunkedUpload'
 import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
 import { accentPresets, appearanceOptions, normalizeAppearance } from '../utils/appearance'
@@ -14,6 +15,20 @@ const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
 })
 
 const initialsFromName = (firstName, lastName) => `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase()
+
+const normalizeNumberInput = (value) => {
+  if (value === '' || value === null || value === undefined) return ''
+  const next = Number(value)
+  return Number.isFinite(next) ? next : ''
+}
+
+const deriveBmi = (heightCm, weightKg) => {
+  const height = Number(heightCm)
+  const weight = Number(weightKg)
+  if (!height || !weight) return ''
+  const meters = height / 100
+  return (weight / (meters * meters)).toFixed(2)
+}
 
 const AppearanceGroup = ({ label, description, field, value, options, onChange }) => (
   <div className="space-y-3">
@@ -36,6 +51,13 @@ const AppearanceGroup = ({ label, description, field, value, options, onChange }
   </div>
 )
 
+const ProfileMetric = ({ label, value }) => (
+  <div className="rounded-2xl border border-white/50 bg-white/70 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-slate-900/50">
+    <p className="text-[11px] uppercase tracking-[0.22em] text-gray-500 dark:text-slate-400">{label}</p>
+    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{value || 'Not yet assigned'}</p>
+  </div>
+)
+
 export default function AccountCenterPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -52,12 +74,24 @@ export default function AccountCenterPage() {
     phone: '',
     avatarUrl: '',
   })
+
   const [patientForm, setPatientForm] = useState({
+    patientCode: '',
+    birthingId: '',
+    middleName: '',
+    suffix: '',
     dateOfBirth: '',
     civilStatus: '',
+    religion: '',
+    nationality: '',
+    occupation: '',
+    placeOfBirth: '',
     bloodType: '',
     address: '',
+    barangay: '',
     city: '',
+    province: '',
+    postalCode: '',
     allergies: '',
     existingConditions: '',
     currentMedications: '',
@@ -65,17 +99,33 @@ export default function AccountCenterPage() {
     emergencyContactPhone: '',
     emergencyContactRelation: '',
     philhealthId: '',
+    philhealthType: '',
+    validIdType: '',
+    validIdNumber: '',
+    pregnancyBookletNumber: '',
+    biometricHeightCm: '',
+    biometricWeightKg: '',
+    biometricBmi: '',
+    biometricNotes: '',
+    credentialNotes: '',
   })
+
   const [appearanceForm, setAppearanceForm] = useState(normalizeAppearance(user?.uiPreferences || themePreferences))
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   })
+  const [documentForm, setDocumentForm] = useState({
+    documentType: 'PhilHealth ID',
+    file: null,
+  })
   const [profileNotice, setProfileNotice] = useState('')
   const [patientNotice, setPatientNotice] = useState('')
   const [appearanceNotice, setAppearanceNotice] = useState('')
   const [securityNotice, setSecurityNotice] = useState('')
+  const [documentNotice, setDocumentNotice] = useState('')
+  const [documentUploadState, setDocumentUploadState] = useState({ progress: 0, status: '' })
   const [localError, setLocalError] = useState('')
 
   const { data: account, isLoading } = useQuery({
@@ -90,6 +140,12 @@ export default function AccountCenterPage() {
     enabled: account?.role === 'patient',
   })
 
+  const { data: documents = [] } = useQuery({
+    queryKey: ['patient-documents'],
+    queryFn: () => api.get('/documents/my').then((response) => response.data.data),
+    enabled: account?.role === 'patient',
+  })
+
   useEffect(() => {
     if (!account) return
 
@@ -100,6 +156,7 @@ export default function AccountCenterPage() {
       phone: account.phone || '',
       avatarUrl: account.avatarUrl || '',
     })
+
     const nextAppearance = normalizeAppearance(account.uiPreferences || {})
     setAppearanceForm(nextAppearance)
     setThemePreferences(nextAppearance)
@@ -109,11 +166,22 @@ export default function AccountCenterPage() {
     if (!patientProfile) return
 
     setPatientForm({
+      patientCode: patientProfile.patient_code || '',
+      birthingId: patientProfile.birthing_id || '',
+      middleName: patientProfile.middle_name || '',
+      suffix: patientProfile.suffix || '',
       dateOfBirth: patientProfile.date_of_birth?.slice(0, 10) || '',
       civilStatus: patientProfile.civil_status || '',
+      religion: patientProfile.religion || '',
+      nationality: patientProfile.nationality || '',
+      occupation: patientProfile.occupation || '',
+      placeOfBirth: patientProfile.place_of_birth || '',
       bloodType: patientProfile.blood_type || '',
       address: patientProfile.address || '',
+      barangay: patientProfile.barangay || '',
       city: patientProfile.city || '',
+      province: patientProfile.province || '',
+      postalCode: patientProfile.postal_code || '',
       allergies: patientProfile.allergies || '',
       existingConditions: patientProfile.existing_conditions || '',
       currentMedications: patientProfile.current_medications || '',
@@ -121,6 +189,15 @@ export default function AccountCenterPage() {
       emergencyContactPhone: patientProfile.emergency_contact_phone || '',
       emergencyContactRelation: patientProfile.emergency_contact_relation || '',
       philhealthId: patientProfile.philhealth_id || '',
+      philhealthType: patientProfile.philhealth_type || '',
+      validIdType: patientProfile.valid_id_type || '',
+      validIdNumber: patientProfile.valid_id_number || '',
+      pregnancyBookletNumber: patientProfile.pregnancy_booklet_number || '',
+      biometricHeightCm: patientProfile.biometric_height_cm || '',
+      biometricWeightKg: patientProfile.biometric_weight_kg || '',
+      biometricBmi: patientProfile.biometric_bmi || '',
+      biometricNotes: patientProfile.biometric_notes || '',
+      credentialNotes: patientProfile.credential_notes || '',
     })
   }, [patientProfile])
 
@@ -141,7 +218,7 @@ export default function AccountCenterPage() {
     mutationFn: (payload) => api.patch('/patients/me', payload).then((response) => response.data.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['patients-me-settings'] })
-      setPatientNotice('Personal and medical details saved.')
+      setPatientNotice('Identity, biometrics, and credentials saved.')
       setLocalError('')
     },
     onError: (error) => {
@@ -173,6 +250,40 @@ export default function AccountCenterPage() {
     },
   })
 
+  const documentMutation = useMutation({
+    onMutate: () => {
+      setDocumentUploadState({ progress: 0, status: 'Preparing upload session...' })
+      setLocalError('')
+    },
+    mutationFn: async () => {
+      if (!documentForm.file) {
+        throw new Error('Please choose a document file to upload.')
+      }
+
+      return uploadResumableFile({
+        targetType: 'patient_document',
+        file: documentForm.file,
+        fields: { documentType: documentForm.documentType },
+        onProgress: ({ progress }) => setDocumentUploadState((current) => ({ ...current, progress })),
+        onStatus: (status) => setDocumentUploadState((current) => ({ ...current, status })),
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patient-documents'] })
+      setDocumentForm({ documentType: 'PhilHealth ID', file: null })
+      setDocumentNotice('Document uploaded successfully and queued for verification.')
+      setDocumentUploadState({ progress: 0, status: '' })
+      setLocalError('')
+    },
+    onError: (error) => {
+      setDocumentUploadState((current) => ({
+        ...current,
+        status: current.status || 'Upload paused. Choose the same file and upload again to resume.',
+      }))
+      setLocalError(error.response?.data?.message || error.message || 'Unable to upload document.')
+    },
+  })
+
   const handleAvatarChange = async (event) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -191,6 +302,24 @@ export default function AccountCenterPage() {
     } catch (error) {
       setLocalError(error.message)
     }
+  }
+
+  const updatePatientField = (field, value) => {
+    setPatientForm((current) => {
+      const next = { ...current, [field]: value }
+
+      if (field === 'biometricHeightCm') {
+        next.biometricHeightCm = normalizeNumberInput(value)
+        next.biometricBmi = deriveBmi(next.biometricHeightCm, next.biometricWeightKg)
+      }
+
+      if (field === 'biometricWeightKg') {
+        next.biometricWeightKg = normalizeNumberInput(value)
+        next.biometricBmi = deriveBmi(next.biometricHeightCm, next.biometricWeightKg)
+      }
+
+      return next
+    })
   }
 
   const handleProfileSubmit = async (event) => {
@@ -217,6 +346,20 @@ export default function AccountCenterPage() {
     } catch {}
   }
 
+  const handleDocumentSubmit = async (event) => {
+    event.preventDefault()
+    setDocumentNotice('')
+
+    if (!documentForm.file) {
+      setLocalError('Please choose a document file to upload.')
+      return
+    }
+
+    try {
+      await documentMutation.mutateAsync()
+    } catch {}
+  }
+
   const handlePasswordSubmit = async (event) => {
     event.preventDefault()
     setSecurityNotice('')
@@ -240,11 +383,16 @@ export default function AccountCenterPage() {
     } catch {}
   }
 
+  const previewPalette = accentPresets[appearanceForm.accent] || accentPresets.teal
+  const deliveries = Array.isArray(patientProfile?.deliveries) ? patientProfile.deliveries.filter(Boolean) : []
+  const latestDelivery = useMemo(
+    () => deliveries.slice().sort((left, right) => new Date(right.delivery_date || 0) - new Date(left.delivery_date || 0))[0],
+    [deliveries]
+  )
+
   if (isLoading) {
     return <div className="flex justify-center py-20"><div className="loading-spinner h-10 w-10" /></div>
   }
-
-  const previewPalette = accentPresets[appearanceForm.accent] || accentPresets.teal
 
   return (
     <div className="space-y-6">
@@ -266,8 +414,8 @@ export default function AccountCenterPage() {
               <div>
                 <p className="text-sm uppercase tracking-[0.3em] text-white/70">Account Center</p>
                 <h1 className="mt-2 text-3xl font-semibold">{profileForm.firstName || 'Your'} {profileForm.lastName || 'Profile'}</h1>
-                <p className="mt-2 text-sm text-white/80">
-                  Manage personal details, secure your login, and make the interface feel like your own.
+                <p className="mt-2 max-w-2xl text-sm text-white/80">
+                  Manage personal details, secure your login, and keep clinic credentials like Birthing ID, PhilHealth, and biometrics current.
                 </p>
               </div>
             </div>
@@ -307,7 +455,7 @@ export default function AccountCenterPage() {
                     initialsFromName(profileForm.firstName, profileForm.lastName)
                   )}
                 </div>
-                <label className="btn-secondary w-full justify-center cursor-pointer">
+                <label className="btn-secondary w-full cursor-pointer justify-center">
                   Upload photo
                   <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
                 </label>
@@ -350,69 +498,256 @@ export default function AccountCenterPage() {
           </form>
 
           {account?.role === 'patient' ? (
-            <form className="card space-y-5" onSubmit={handlePatientSubmit}>
+            <form className="card space-y-6" onSubmit={handlePatientSubmit}>
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="section-title mb-1">Personal & Medical Details</h2>
-                  <p className="text-sm text-gray-500 dark:text-slate-400">Keep your profile, address, and care details up to date for staff and future visits.</p>
+                  <h2 className="section-title mb-1">Personal, Biometrics & Credentials</h2>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Keep the clinic-facing record complete with IDs, personal information, and care-ready biometrics.</p>
                 </div>
                 {patientNotice ? <span className="badge badge-success">{patientNotice}</span> : null}
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="label">Date of birth</label>
-                  <input className="input" type="date" value={patientForm.dateOfBirth} onChange={(event) => setPatientForm((current) => ({ ...current, dateOfBirth: event.target.value }))} />
+              <div className="grid gap-3 md:grid-cols-3">
+                <ProfileMetric label="Patient Code" value={patientForm.patientCode} />
+                <ProfileMetric label="Birthing ID" value={patientForm.birthingId} />
+                <ProfileMetric label="Latest Delivery ID" value={latestDelivery?.delivery_code} />
+              </div>
+
+              <div className="rounded-3xl border border-white/50 bg-white/65 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/45">
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Personal Information</h3>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Basic identity details used across the patient portal, staff chart, and printed records.</p>
                 </div>
-                <div>
-                  <label className="label">Civil status</label>
-                  <input className="input" value={patientForm.civilStatus} onChange={(event) => setPatientForm((current) => ({ ...current, civilStatus: event.target.value }))} />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="label">Middle name</label>
+                    <input className="input" value={patientForm.middleName} onChange={(event) => updatePatientField('middleName', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Suffix</label>
+                    <input className="input" value={patientForm.suffix} onChange={(event) => updatePatientField('suffix', event.target.value)} placeholder="Jr., III, etc." />
+                  </div>
+                  <div>
+                    <label className="label">Date of birth</label>
+                    <input className="input" type="date" value={patientForm.dateOfBirth} onChange={(event) => updatePatientField('dateOfBirth', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Civil status</label>
+                    <input className="input" value={patientForm.civilStatus} onChange={(event) => updatePatientField('civilStatus', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Religion</label>
+                    <input className="input" value={patientForm.religion} onChange={(event) => updatePatientField('religion', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Nationality</label>
+                    <input className="input" value={patientForm.nationality} onChange={(event) => updatePatientField('nationality', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Occupation</label>
+                    <input className="input" value={patientForm.occupation} onChange={(event) => updatePatientField('occupation', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Place of birth</label>
+                    <input className="input" value={patientForm.placeOfBirth} onChange={(event) => updatePatientField('placeOfBirth', event.target.value)} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="label">Address</label>
+                    <input className="input" value={patientForm.address} onChange={(event) => updatePatientField('address', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Barangay</label>
+                    <input className="input" value={patientForm.barangay} onChange={(event) => updatePatientField('barangay', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">City / Municipality</label>
+                    <input className="input" value={patientForm.city} onChange={(event) => updatePatientField('city', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Province</label>
+                    <input className="input" value={patientForm.province} onChange={(event) => updatePatientField('province', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Postal code</label>
+                    <input className="input" value={patientForm.postalCode} onChange={(event) => updatePatientField('postalCode', event.target.value)} />
+                  </div>
                 </div>
-                <div>
-                  <label className="label">Blood type</label>
-                  <input className="input" value={patientForm.bloodType} onChange={(event) => setPatientForm((current) => ({ ...current, bloodType: event.target.value }))} />
+              </div>
+
+              <div className="rounded-3xl border border-white/50 bg-white/65 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/45">
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Clinic Credentials</h3>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Facility IDs and supporting references for admissions, billing, and document verification.</p>
                 </div>
-                <div>
-                  <label className="label">PhilHealth ID</label>
-                  <input className="input" value={patientForm.philhealthId} onChange={(event) => setPatientForm((current) => ({ ...current, philhealthId: event.target.value }))} />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="label">PhilHealth ID</label>
+                    <input className="input" value={patientForm.philhealthId} onChange={(event) => updatePatientField('philhealthId', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">PhilHealth type</label>
+                    <input className="input" value={patientForm.philhealthType} onChange={(event) => updatePatientField('philhealthType', event.target.value)} placeholder="Member, Dependent, Sponsored..." />
+                  </div>
+                  <div>
+                    <label className="label">Valid ID type</label>
+                    <input className="input" value={patientForm.validIdType} onChange={(event) => updatePatientField('validIdType', event.target.value)} placeholder="PhilSys, Passport, Driver License..." />
+                  </div>
+                  <div>
+                    <label className="label">Valid ID number</label>
+                    <input className="input" value={patientForm.validIdNumber} onChange={(event) => updatePatientField('validIdNumber', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Pregnancy booklet number</label>
+                    <input className="input" value={patientForm.pregnancyBookletNumber} onChange={(event) => updatePatientField('pregnancyBookletNumber', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Blood type</label>
+                    <input className="input" value={patientForm.bloodType} onChange={(event) => updatePatientField('bloodType', event.target.value)} placeholder="A+, O-, AB+" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="label">Credential notes</label>
+                    <textarea className="input min-h-[96px]" value={patientForm.credentialNotes} onChange={(event) => updatePatientField('credentialNotes', event.target.value)} placeholder="Add notes about submitted IDs, verified documents, or pending requirements." />
+                  </div>
                 </div>
-                <div className="md:col-span-2">
-                  <label className="label">Address</label>
-                  <input className="input" value={patientForm.address} onChange={(event) => setPatientForm((current) => ({ ...current, address: event.target.value }))} />
+              </div>
+
+              <div className="rounded-3xl border border-white/50 bg-white/65 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/45">
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Biometrics & Care Details</h3>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Clinical biometrics only. This stores care-related measurements, not raw fingerprint or facial authentication data.</p>
                 </div>
-                <div>
-                  <label className="label">City</label>
-                  <input className="input" value={patientForm.city} onChange={(event) => setPatientForm((current) => ({ ...current, city: event.target.value }))} />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="label">Height (cm)</label>
+                    <input className="input" type="number" step="0.01" value={patientForm.biometricHeightCm} onChange={(event) => updatePatientField('biometricHeightCm', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Weight (kg)</label>
+                    <input className="input" type="number" step="0.01" value={patientForm.biometricWeightKg} onChange={(event) => updatePatientField('biometricWeightKg', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">BMI</label>
+                    <input className="input" value={patientForm.biometricBmi} readOnly />
+                  </div>
+                  <div>
+                    <label className="label">Allergies</label>
+                    <input className="input" value={patientForm.allergies} onChange={(event) => updatePatientField('allergies', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Existing conditions</label>
+                    <input className="input" value={patientForm.existingConditions} onChange={(event) => updatePatientField('existingConditions', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Current medications</label>
+                    <input className="input" value={patientForm.currentMedications} onChange={(event) => updatePatientField('currentMedications', event.target.value)} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="label">Biometric notes</label>
+                    <textarea className="input min-h-[96px]" value={patientForm.biometricNotes} onChange={(event) => updatePatientField('biometricNotes', event.target.value)} placeholder="Baseline observations, special handling notes, or physical chart references." />
+                  </div>
                 </div>
-                <div>
-                  <label className="label">Allergies</label>
-                  <input className="input" value={patientForm.allergies} onChange={(event) => setPatientForm((current) => ({ ...current, allergies: event.target.value }))} />
+              </div>
+
+              <div className="rounded-3xl border border-white/50 bg-white/65 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/45">
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Secure Document Uploads</h3>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Upload PhilHealth ID, Birthing ID, and medical documents for staff verification.</p>
+                  </div>
+                  {documentNotice ? <span className="badge badge-success">{documentNotice}</span> : null}
                 </div>
-                <div>
-                  <label className="label">Existing conditions</label>
-                  <input className="input" value={patientForm.existingConditions} onChange={(event) => setPatientForm((current) => ({ ...current, existingConditions: event.target.value }))} />
+
+                <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr_auto]">
+                  <div>
+                    <label className="label">Document type</label>
+                    <select className="input" value={documentForm.documentType} onChange={(event) => setDocumentForm((current) => ({ ...current, documentType: event.target.value }))}>
+                      <option>PhilHealth ID</option>
+                      <option>Birthing ID</option>
+                      <option>Medical Document</option>
+                      <option>Lab Result</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Choose file</label>
+                    <input className="input" type="file" accept="image/*,application/pdf" onChange={(event) => setDocumentForm((current) => ({ ...current, file: event.target.files?.[0] || null }))} />
+                  </div>
+                  <div className="flex items-end">
+                    <button type="button" className="btn-primary w-full justify-center" disabled={documentMutation.isPending} onClick={handleDocumentSubmit}>
+                      {documentMutation.isPending ? 'Uploading...' : 'Upload'}
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="label">Current medications</label>
-                  <input className="input" value={patientForm.currentMedications} onChange={(event) => setPatientForm((current) => ({ ...current, currentMedications: event.target.value }))} />
+
+                {(documentMutation.isPending || documentUploadState.status) ? (
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-sm font-medium text-slate-900">
+                        {documentUploadState.status || 'Preparing upload...'}
+                      </p>
+                      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        {documentUploadState.progress}%
+                      </span>
+                    </div>
+                    <div className="mt-3 h-2 rounded-full bg-slate-200">
+                      <div
+                        className="h-2 rounded-full bg-[var(--accent)] transition-all duration-300"
+                        style={{ width: `${documentUploadState.progress}%` }}
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">
+                      Large uploads are sent in safe chunks and can resume after a dropped connection.
+                    </p>
+                  </div>
+                ) : null}
+
+                <div className="mt-5 space-y-3">
+                  {documents.length === 0 ? (
+                    <p className="text-sm text-slate-400">No uploaded documents yet.</p>
+                  ) : (
+                    documents.map((document) => (
+                      <div key={document.id} className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="font-medium text-slate-900">{document.document_type}</p>
+                          <p className="text-xs text-slate-500">{document.original_name}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`badge ${document.verification_status === 'verified' ? 'badge-success' : document.verification_status === 'rejected' ? 'badge-danger' : 'badge-warning'}`}>
+                            {document.verification_status}
+                          </span>
+                          <a href={document.file_url} target="_blank" rel="noreferrer" className="text-sm font-medium text-[var(--accent)]">
+                            Open
+                          </a>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
-                <div>
-                  <label className="label">Emergency contact</label>
-                  <input className="input" value={patientForm.emergencyContactName} onChange={(event) => setPatientForm((current) => ({ ...current, emergencyContactName: event.target.value }))} />
+              </div>
+
+              <div className="rounded-3xl border border-white/50 bg-white/65 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/45">
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Emergency Contact</h3>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">These details help the team reach the right person quickly during care or admission changes.</p>
                 </div>
-                <div>
-                  <label className="label">Emergency phone</label>
-                  <input className="input" value={patientForm.emergencyContactPhone} onChange={(event) => setPatientForm((current) => ({ ...current, emergencyContactPhone: event.target.value }))} />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="label">Emergency relationship</label>
-                  <input className="input" value={patientForm.emergencyContactRelation} onChange={(event) => setPatientForm((current) => ({ ...current, emergencyContactRelation: event.target.value }))} />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="label">Emergency contact name</label>
+                    <input className="input" value={patientForm.emergencyContactName} onChange={(event) => updatePatientField('emergencyContactName', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Emergency phone</label>
+                    <input className="input" value={patientForm.emergencyContactPhone} onChange={(event) => updatePatientField('emergencyContactPhone', event.target.value)} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="label">Relationship</label>
+                    <input className="input" value={patientForm.emergencyContactRelation} onChange={(event) => updatePatientField('emergencyContactRelation', event.target.value)} />
+                  </div>
                 </div>
               </div>
 
               <div className="flex justify-end">
                 <button type="submit" className="btn-primary" disabled={patientMutation.isPending}>
-                  {patientMutation.isPending ? 'Saving details...' : 'Save personal info'}
+                  {patientMutation.isPending ? 'Saving details...' : 'Save patient record'}
                 </button>
               </div>
             </form>

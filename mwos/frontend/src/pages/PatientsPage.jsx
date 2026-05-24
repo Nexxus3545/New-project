@@ -4,11 +4,48 @@ import { Link } from 'react-router-dom'
 import api from '../utils/api'
 
 const EMPTY_FORM = {
-  firstName: '', lastName: '', dateOfBirth: '', civilStatus: '', phone: '',
-  email: '', address: '', city: '', philhealthId: '', bloodType: '',
-  allergies: '', existingConditions: '', emergencyContactName: '',
-  emergencyContactPhone: '', riskLevel: 'low',
+  firstName: '',
+  middleName: '',
+  lastName: '',
+  suffix: '',
+  dateOfBirth: '',
+  civilStatus: '',
+  religion: '',
+  nationality: 'Filipino',
+  occupation: '',
+  placeOfBirth: '',
+  phone: '',
+  email: '',
+  address: '',
+  barangay: '',
+  city: '',
+  province: '',
+  postalCode: '',
+  birthingId: '',
+  philhealthId: '',
+  philhealthType: '',
+  validIdType: '',
+  validIdNumber: '',
+  pregnancyBookletNumber: '',
+  bloodType: '',
+  biometricHeightCm: '',
+  biometricWeightKg: '',
+  allergies: '',
+  existingConditions: '',
+  currentMedications: '',
+  emergencyContactName: '',
+  emergencyContactPhone: '',
+  emergencyContactRelation: '',
+  credentialNotes: '',
+  riskLevel: 'low',
 }
+
+const SectionTitle = ({ title, description }) => (
+  <div className="col-span-2 mt-2 border-t border-slate-200/80 pt-4 first:mt-0 first:border-t-0 first:pt-0">
+    <p className="text-sm font-semibold text-slate-900">{title}</p>
+    <p className="mt-1 text-xs text-slate-500">{description}</p>
+  </div>
+)
 
 export default function PatientsPage() {
   const qc = useQueryClient()
@@ -34,7 +71,7 @@ export default function PatientsPage() {
     onError: (err) => setFormError(err.response?.data?.message || 'Failed to register patient'),
   })
 
-  const handleChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }))
+  const handleChange = (e) => setForm((current) => ({ ...current, [e.target.name]: e.target.value }))
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -59,34 +96,29 @@ export default function PatientsPage() {
         </button>
       </div>
 
-      {/* Search */}
       <div className="card mb-4">
         <input
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="input"
-          placeholder="🔍 Search by name, phone, or PhilHealth ID..."
+          placeholder="Search by name, birthing ID, patient code, phone, or PhilHealth ID..."
         />
       </div>
 
-      {/* Error */}
       {error && (
         <div className="alert-critical mb-4">
-          <span>⚠️</span>
-          <span>{error.response?.data?.message || 'Failed to load patients'}</span>
+          <span>Failed to load patients</span>
         </div>
       )}
 
-      {/* Table */}
       <div className="table-container">
         {isLoading ? (
           <div className="flex justify-center py-12">
             <div className="loading-spinner w-8 h-8" />
           </div>
         ) : patients.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
-            <p className="text-3xl mb-2">👩‍⚕️</p>
+          <div className="py-12 text-center text-gray-400">
             <p>No patients found</p>
           </div>
         ) : (
@@ -102,34 +134,37 @@ export default function PatientsPage() {
               </tr>
             </thead>
             <tbody>
-              {patients.map((p) => (
-                <tr key={p.id}>
+              {patients.map((patient) => (
+                <tr key={patient.id}>
                   <td>
                     <div>
-                      <p className="font-medium text-gray-900">{p.first_name} {p.last_name}</p>
-                      <p className="text-xs text-gray-400">{new Date(p.date_of_birth).toLocaleDateString('en-PH')}</p>
+                      <p className="font-medium text-gray-900">{patient.first_name} {patient.last_name}</p>
+                      <p className="text-xs text-gray-400">{new Date(patient.date_of_birth).toLocaleDateString('en-PH')}</p>
+                      <p className="text-xs text-gray-400">{patient.patient_code || 'Patient code pending'} · {patient.birthing_id || 'Birthing ID pending'}</p>
                     </div>
                   </td>
                   <td>
-                    <p>{p.phone || '—'}</p>
-                    <p className="text-xs text-gray-400">{p.city || ''}</p>
+                    <p>{patient.phone || '-'}</p>
+                    <p className="text-xs text-gray-400">{patient.city || ''}</p>
                   </td>
-                  <td>{p.philhealth_id || <span className="text-gray-400">—</span>}</td>
+                  <td>{patient.philhealth_id || <span className="text-gray-400">-</span>}</td>
                   <td>
                     <span className={`badge ${
-                      p.risk_level === 'high' ? 'badge-danger' :
-                      p.risk_level === 'moderate' ? 'badge-warning' : 'badge-success'
-                    }`}>
-                      {p.risk_level}
+                      patient.risk_level === 'high' ? 'badge-danger'
+                        : patient.risk_level === 'moderate' ? 'badge-warning'
+                          : 'badge-success'
+                    }`}
+                    >
+                      {patient.risk_level}
                     </span>
                   </td>
                   <td>
-                    {p.pregnancy_status === 'active' ? (
+                    {patient.pregnancy_status === 'active' ? (
                       <span className="badge badge-info">Active</span>
-                    ) : <span className="text-gray-400 text-xs">—</span>}
+                    ) : <span className="text-xs text-gray-400">-</span>}
                   </td>
                   <td>
-                    <Link to={`/patients/${p.id}`} className="btn-secondary btn-sm">
+                    <Link to={`/patients/${patient.id}`} className="btn-secondary btn-sm">
                       View
                     </Link>
                   </td>
@@ -140,102 +175,66 @@ export default function PatientsPage() {
         )}
       </div>
 
-      {/* Registration modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b">
-              <h2 className="text-lg font-bold">Register New Patient</h2>
-              <button onClick={() => { setShowForm(false); setFormError('') }} className="btn-ghost p-2">✕</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b p-5">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Register New Patient</h2>
+                <p className="text-sm text-slate-500">Create a complete identity, biometrics, and credentials record for the clinic.</p>
+              </div>
+              <button onClick={() => { setShowForm(false); setFormError('') }} className="btn-ghost p-2">Close</button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              {formError && (
-                <div className="alert-critical text-sm">
-                  <span>⚠️</span><span>{formError}</span>
-                </div>
-              )}
+            <form onSubmit={handleSubmit} className="space-y-4 p-5">
+              {formError ? <div className="alert-critical text-sm">{formError}</div> : null}
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">First Name *</label>
-                  <input name="firstName" value={form.firstName} onChange={handleChange} className="input" required />
-                </div>
-                <div>
-                  <label className="label">Last Name *</label>
-                  <input name="lastName" value={form.lastName} onChange={handleChange} className="input" required />
-                </div>
-                <div>
-                  <label className="label">Date of Birth *</label>
-                  <input name="dateOfBirth" type="date" value={form.dateOfBirth} onChange={handleChange} className="input" required />
-                </div>
-                <div>
-                  <label className="label">Civil Status</label>
-                  <select name="civilStatus" value={form.civilStatus} onChange={handleChange} className="input">
-                    <option value="">Select...</option>
-                    <option>Single</option><option>Married</option>
-                    <option>Widowed</option><option>Separated</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Phone</label>
-                  <input name="phone" value={form.phone} onChange={handleChange} className="input" placeholder="09XXXXXXXXX" />
-                </div>
-                <div>
-                  <label className="label">Email</label>
-                  <input name="email" type="email" value={form.email} onChange={handleChange} className="input" />
-                </div>
-                <div className="col-span-2">
-                  <label className="label">Address</label>
-                  <input name="address" value={form.address} onChange={handleChange} className="input" />
-                </div>
-                <div>
-                  <label className="label">City</label>
-                  <input name="city" value={form.city} onChange={handleChange} className="input" placeholder="Tabaco City" />
-                </div>
-                <div>
-                  <label className="label">PhilHealth ID</label>
-                  <input name="philhealthId" value={form.philhealthId} onChange={handleChange} className="input" />
-                </div>
-                <div>
-                  <label className="label">Blood Type</label>
-                  <select name="bloodType" value={form.bloodType} onChange={handleChange} className="input">
-                    <option value="">Unknown</option>
-                    {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(bt => <option key={bt}>{bt}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Risk Level</label>
-                  <select name="riskLevel" value={form.riskLevel} onChange={handleChange} className="input">
-                    <option value="low">Low</option>
-                    <option value="moderate">Moderate</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Emergency Contact Name</label>
-                  <input name="emergencyContactName" value={form.emergencyContactName} onChange={handleChange} className="input" />
-                </div>
-                <div>
-                  <label className="label">Emergency Contact Phone</label>
-                  <input name="emergencyContactPhone" value={form.emergencyContactPhone} onChange={handleChange} className="input" />
-                </div>
-                <div className="col-span-2">
-                  <label className="label">Known Allergies</label>
-                  <input name="allergies" value={form.allergies} onChange={handleChange} className="input" placeholder="None known" />
-                </div>
-                <div className="col-span-2">
-                  <label className="label">Existing Conditions</label>
-                  <textarea name="existingConditions" value={form.existingConditions} onChange={handleChange} className="input" rows={2} />
-                </div>
+                <SectionTitle title="Identity" description="Required identity and demographic details." />
+                <div><label className="label">First Name *</label><input name="firstName" value={form.firstName} onChange={handleChange} className="input" required /></div>
+                <div><label className="label">Middle Name</label><input name="middleName" value={form.middleName} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Last Name *</label><input name="lastName" value={form.lastName} onChange={handleChange} className="input" required /></div>
+                <div><label className="label">Suffix</label><input name="suffix" value={form.suffix} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Date of Birth *</label><input name="dateOfBirth" type="date" value={form.dateOfBirth} onChange={handleChange} className="input" required /></div>
+                <div><label className="label">Civil Status</label><input name="civilStatus" value={form.civilStatus} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Religion</label><input name="religion" value={form.religion} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Nationality</label><input name="nationality" value={form.nationality} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Occupation</label><input name="occupation" value={form.occupation} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Place of Birth</label><input name="placeOfBirth" value={form.placeOfBirth} onChange={handleChange} className="input" /></div>
+
+                <SectionTitle title="Contact & Address" description="Home and emergency communication details." />
+                <div><label className="label">Phone</label><input name="phone" value={form.phone} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Email</label><input name="email" type="email" value={form.email} onChange={handleChange} className="input" /></div>
+                <div className="col-span-2"><label className="label">Address</label><input name="address" value={form.address} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Barangay</label><input name="barangay" value={form.barangay} onChange={handleChange} className="input" /></div>
+                <div><label className="label">City / Municipality</label><input name="city" value={form.city} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Province</label><input name="province" value={form.province} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Postal Code</label><input name="postalCode" value={form.postalCode} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Emergency Contact Name</label><input name="emergencyContactName" value={form.emergencyContactName} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Emergency Contact Phone</label><input name="emergencyContactPhone" value={form.emergencyContactPhone} onChange={handleChange} className="input" /></div>
+                <div className="col-span-2"><label className="label">Emergency Contact Relationship</label><input name="emergencyContactRelation" value={form.emergencyContactRelation} onChange={handleChange} className="input" /></div>
+
+                <SectionTitle title="Credentials" description="Birthing, insurance, and supporting identity references." />
+                <div><label className="label">Birthing ID</label><input name="birthingId" value={form.birthingId} onChange={handleChange} className="input" placeholder="Leave blank to auto-generate" /></div>
+                <div><label className="label">PhilHealth ID</label><input name="philhealthId" value={form.philhealthId} onChange={handleChange} className="input" /></div>
+                <div><label className="label">PhilHealth Type</label><input name="philhealthType" value={form.philhealthType} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Valid ID Type</label><input name="validIdType" value={form.validIdType} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Valid ID Number</label><input name="validIdNumber" value={form.validIdNumber} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Pregnancy Booklet Number</label><input name="pregnancyBookletNumber" value={form.pregnancyBookletNumber} onChange={handleChange} className="input" /></div>
+                <div className="col-span-2"><label className="label">Credential Notes</label><textarea name="credentialNotes" value={form.credentialNotes} onChange={handleChange} className="input" rows={2} /></div>
+
+                <SectionTitle title="Biometrics & Clinical Profile" description="Care-relevant measurements and baseline health context." />
+                <div><label className="label">Blood Type</label><input name="bloodType" value={form.bloodType} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Risk Level</label><select name="riskLevel" value={form.riskLevel} onChange={handleChange} className="input"><option value="low">Low</option><option value="moderate">Moderate</option><option value="high">High</option></select></div>
+                <div><label className="label">Height (cm)</label><input name="biometricHeightCm" type="number" step="0.01" value={form.biometricHeightCm} onChange={handleChange} className="input" /></div>
+                <div><label className="label">Weight (kg)</label><input name="biometricWeightKg" type="number" step="0.01" value={form.biometricWeightKg} onChange={handleChange} className="input" /></div>
+                <div className="col-span-2"><label className="label">Known Allergies</label><input name="allergies" value={form.allergies} onChange={handleChange} className="input" placeholder="None known" /></div>
+                <div className="col-span-2"><label className="label">Existing Conditions</label><textarea name="existingConditions" value={form.existingConditions} onChange={handleChange} className="input" rows={2} /></div>
+                <div className="col-span-2"><label className="label">Current Medications</label><textarea name="currentMedications" value={form.currentMedications} onChange={handleChange} className="input" rows={2} /></div>
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button
-                  type="submit"
-                  disabled={createMutation.isPending}
-                  className="btn-primary flex-1 justify-center"
-                >
+                <button type="submit" disabled={createMutation.isPending} className="btn-primary flex-1 justify-center">
                   {createMutation.isPending ? 'Registering...' : 'Register Patient'}
                 </button>
                 <button type="button" onClick={() => { setShowForm(false); setFormError('') }} className="btn-secondary">

@@ -1,5 +1,6 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import api from '../../utils/api'
 import { useAuthStore } from '../../store/authStore'
 
@@ -26,7 +27,7 @@ export function PatientDashboardPage() {
       </div>
 
       {/* Quick stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
         <div className="card bg-rose-50 border-rose-100">
           <p className="text-xs text-rose-600 font-medium mb-1">Next Appointment</p>
           <p className="font-bold text-gray-900 text-sm">
@@ -54,6 +55,17 @@ export function PatientDashboardPage() {
             {d.unpaidAmount > 0 ? `₱${d.unpaidAmount.toLocaleString()}` : 'None'}
           </p>
         </div>
+      </div>
+
+      <div className="card mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 className="section-title mb-1">Care Team Messages</h3>
+          <p className="text-sm text-gray-500">Stay in touch with the clinic and review the latest follow-up instructions.</p>
+          <p className="text-xs text-gray-400 mt-1">{d.unreadMessages ?? 0} unread message threads and {d.openCareTasks ?? 0} active care tasks.</p>
+        </div>
+        <Link to="/my/interactions" className="btn-primary">
+          Open Care Team
+        </Link>
       </div>
 
       {/* Health education preview */}

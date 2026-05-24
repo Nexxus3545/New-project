@@ -1,0 +1,7 @@
+MWOS Windows Desktop Guide
+
+1. Install Node.js LTS.
+2. Open the MWOS project folder.
+3. Run the desktop package build or development script.
+4. Connect to the shared backend API.
+5. Sign in with your assigned clinic account.

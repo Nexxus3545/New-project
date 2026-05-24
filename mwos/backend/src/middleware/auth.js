@@ -37,6 +37,14 @@ const authenticate = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Account deactivated' });
     }
 
+    await query(
+      `UPDATE users
+       SET last_seen_at = NOW(), updated_at = NOW()
+       WHERE id = $1
+         AND (last_seen_at IS NULL OR last_seen_at < NOW() - INTERVAL '60 seconds')`,
+      [user.id]
+    );
+
     req.user = user;
     next();
   } catch (err) {

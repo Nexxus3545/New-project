@@ -1,0 +1,18 @@
+<svg width="960" height="1200" viewBox="0 0 960 1200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="960" height="1200" rx="64" fill="#EFF6FF"/>
+  <rect x="92" y="88" width="776" height="1024" rx="52" fill="white"/>
+  <rect x="148" y="148" width="664" height="254" rx="40" fill="#2563EB"/>
+  <rect x="148" y="456" width="664" height="598" rx="36" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="8"/>
+  <circle cx="266" cy="274" r="84" fill="#DBEAFE"/>
+  <path d="M244 248H288V300H244V248Z" fill="#1D4ED8"/>
+  <path d="M266 228V320" stroke="#1E3A8A" stroke-width="18" stroke-linecap="round"/>
+  <text x="394" y="242" fill="white" font-family="Arial, sans-serif" font-size="56" font-weight="700">Mefenamic Acid</text>
+  <text x="394" y="306" fill="#DBEAFE" font-family="Arial, sans-serif" font-size="34">Pain relief support</text>
+  <rect x="204" y="530" width="540" height="30" rx="15" fill="#1E3A8A"/>
+  <rect x="204" y="590" width="574" height="20" rx="10" fill="#60A5FA"/>
+  <rect x="204" y="646" width="502" height="20" rx="10" fill="#93C5FD"/>
+  <rect x="204" y="730" width="548" height="168" rx="28" fill="white"/>
+  <text x="234" y="796" fill="#1D4ED8" font-family="Arial, sans-serif" font-size="30" font-weight="700">Take after meals with water</text>
+  <text x="234" y="840" fill="#1E3A8A" font-family="Arial, sans-serif" font-size="22">Short-term use for pain or cramping as advised.</text>
+  <text x="204" y="978" fill="#1E3A8A" font-family="Arial, sans-serif" font-size="54" font-weight="700">Keep stomach safety in mind</text>
+</svg>

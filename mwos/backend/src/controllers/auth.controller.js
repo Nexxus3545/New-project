@@ -1,12 +1,13 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { query } = require('../config/database');
+const { query, getClient } = require('../config/database');
+const { generateUniqueCode } = require('../utils/identifiers');
 const { sendMail } = require('../utils/mailer');
 
 const DEFAULT_UI_PREFERENCES = {
-  theme: 'system',
-  accent: 'teal',
+  theme: 'light',
+  accent: 'rose',
   density: 'comfortable',
   surface: 'solid',
   motion: 'full',
@@ -102,7 +103,7 @@ const login = async (req, res, next) => {
     const { accessToken, refreshToken } = generateTokens(user.id, user.role);
 
     await query(
-      'UPDATE users SET refresh_token = $1, last_login_at = NOW(), updated_at = NOW() WHERE id = $2',
+      'UPDATE users SET refresh_token = $1, last_login_at = NOW(), last_seen_at = NOW(), updated_at = NOW() WHERE id = $2',
       [refreshToken, user.id]
     );
 
@@ -122,7 +123,16 @@ const login = async (req, res, next) => {
 
 const register = async (req, res, next) => {
   try {
-    const { email, password, role, firstName, lastName, phone } = req.body;
+    const {
+      email,
+      password,
+      role,
+      firstName,
+      lastName,
+      phone,
+      dateOfBirth,
+      city,
+    } = req.body;
 
     if (!email || !password || !role || !firstName || !lastName) {
       return res.status(400).json({ success: false, message: 'All fields are required' });
@@ -136,33 +146,79 @@ const register = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
     }
 
-    const existing = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase().trim()]);
+    if (role === 'patient' && !dateOfBirth) {
+      return res.status(400).json({ success: false, message: 'dateOfBirth is required for patient registration' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedFirstName = firstName.trim();
+    const normalizedLastName = lastName.trim();
+    const normalizedPhone = phone?.trim() || null;
+    const normalizedCity = city?.trim() || null;
+
+    const existing = await query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ success: false, message: 'Email already registered' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
+    const client = await getClient();
+    let user;
 
-    const result = await query(
-      `INSERT INTO users (email, password, role, first_name, last_name, phone, ui_preferences)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, email, role, first_name, last_name, phone, avatar_url, ui_preferences, created_at`,
-      [email.toLowerCase().trim(), hashedPassword, role, firstName, lastName, phone || null, DEFAULT_UI_PREFERENCES]
-    );
+    try {
+      await client.query('BEGIN');
 
-    const user = result.rows[0];
-    const { accessToken, refreshToken } = generateTokens(user.id, user.role);
-    await query('UPDATE users SET refresh_token = $1 WHERE id = $2', [refreshToken, user.id]);
+      const result = await client.query(
+        `INSERT INTO users (email, password, role, first_name, last_name, phone, ui_preferences)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, email, role, first_name, last_name, phone, avatar_url, ui_preferences, created_at`,
+        [normalizedEmail, hashedPassword, role, normalizedFirstName, normalizedLastName, normalizedPhone, DEFAULT_UI_PREFERENCES]
+      );
 
-    res.status(201).json({
-      success: true,
-      message: 'Registration successful',
-      data: {
-        accessToken,
-        refreshToken,
-        user: await buildUserPayload(user),
-      },
-    });
+      user = result.rows[0];
+
+      if (role === 'patient') {
+        const patientCode = await generateUniqueCode({ table: 'patients', column: 'patient_code', prefix: 'MWOS-PAT' });
+        const birthingId = await generateUniqueCode({ table: 'patients', column: 'birthing_id', prefix: 'TMC-BIR' });
+
+        await client.query(
+          `INSERT INTO patients (
+            user_id, patient_code, birthing_id, first_name, last_name, date_of_birth, city, phone, email, created_by
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          [
+            user.id,
+            patientCode,
+            birthingId,
+            normalizedFirstName,
+            normalizedLastName,
+            dateOfBirth,
+            normalizedCity,
+            normalizedPhone,
+            normalizedEmail,
+            user.id,
+          ]
+        );
+      }
+
+      const { accessToken, refreshToken } = generateTokens(user.id, user.role);
+      await client.query('UPDATE users SET refresh_token = $1, last_seen_at = NOW() WHERE id = $2', [refreshToken, user.id]);
+      await client.query('COMMIT');
+
+      res.status(201).json({
+        success: true,
+        message: 'Registration successful',
+        data: {
+          accessToken,
+          refreshToken,
+          user: await buildUserPayload(user),
+        },
+      });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     next(err);
   }

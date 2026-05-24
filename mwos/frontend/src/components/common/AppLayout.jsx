@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
+import BrandMark from './BrandMark'
 
 const staffNav = [
   { to: '/dashboard', icon: 'DB', label: 'Dashboard' },
@@ -9,9 +10,10 @@ const staffNav = [
   { to: '/appointments', icon: 'AP', label: 'Appointments' },
   { to: '/vitals', icon: 'VT', label: 'Vitals' },
   { to: '/deliveries', icon: 'DL', label: 'Deliveries' },
-  { to: '/inventory', icon: 'IN', label: 'Inventory' },
+  { to: '/inventory', icon: 'MD', label: 'Medicines' },
   { to: '/billing', icon: 'BL', label: 'Billing' },
   { to: '/reports', icon: 'RP', label: 'Reports' },
+  { to: '/interactions', icon: 'CH', label: 'Care Hub' },
   { to: '/education', icon: 'ED', label: 'Education' },
   { to: '/account', icon: 'AC', label: 'Account' },
 ]
@@ -20,10 +22,16 @@ const adminNav = [{ to: '/users', icon: 'US', label: 'Users' }]
 
 const patientNav = [
   { to: '/my/dashboard', icon: 'HM', label: 'Home' },
+  { to: '/my/doctors', icon: 'DR', label: 'Doctors' },
+  { to: '/my/pharmacy', icon: 'RX', label: 'Pharmacy' },
+  { to: '/my/notifications', icon: 'NT', label: 'Notifications' },
+  { to: '/my/reports', icon: 'RP', label: 'Reports' },
   { to: '/my/appointments', icon: 'AP', label: 'Appointments' },
   { to: '/my/vitals', icon: 'VT', label: 'My Vitals' },
   { to: '/my/records', icon: 'RC', label: 'My Records' },
+  { to: '/my/interactions', icon: 'CT', label: 'Care Team' },
   { to: '/my/education', icon: 'ED', label: 'Health Tips' },
+  { to: '/my/emergency', icon: 'EM', label: 'Emergency' },
   { to: '/my/profile', icon: 'AC', label: 'Account' },
 ]
 
@@ -43,7 +51,9 @@ export default function AppLayout({ patient = false }) {
   const navLinks = patient ? patientNav : [...staffNav, ...(user?.role === 'admin' ? adminNav : [])]
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
+    <div className="futuristic-shell flex h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
+      <div className="shell-orb shell-orb-a" />
+      <div className="shell-orb shell-orb-b" />
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-20 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
@@ -60,14 +70,8 @@ export default function AppLayout({ patient = false }) {
           style={{ background: 'linear-gradient(145deg, var(--hero-start), var(--hero-end))' }}
         >
           <div className="absolute inset-y-0 right-0 w-28 rounded-full bg-white/10 blur-2xl" />
-          <div className="relative flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-white text-xs font-semibold">
-              MW
-            </div>
-            <div>
-              <p className="text-white font-semibold tracking-wide text-sm leading-tight">TMC Copino</p>
-              <p className="text-white/75 text-xs">{patient ? 'Patient experience' : 'Operations workspace'}</p>
-            </div>
+          <div className="relative">
+            <BrandMark compact sublabel={patient ? 'Patient experience' : 'Operations workspace'} />
           </div>
         </div>
 
@@ -133,7 +137,7 @@ export default function AppLayout({ patient = false }) {
           <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800">
             Menu
           </button>
-          <span className="font-semibold text-gray-800 dark:text-slate-100">MWOS</span>
+          <BrandMark compact sublabel="Shared care workspace" />
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">

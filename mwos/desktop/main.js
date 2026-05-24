@@ -7,6 +7,9 @@ const createWindow = () => {
     height: 760,
     minWidth: 980,
     minHeight: 640,
+    title: 'TMC Copino MWOS Desktop',
+    backgroundColor: '#f7edf0',
+    icon: path.join(__dirname, 'assets', 'tmc-copino-logo.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

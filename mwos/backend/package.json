@@ -6,6 +6,7 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "migrate": "node src/utils/migrate.js",
+    "migrate:reset": "node src/utils/migrate.js --reset",
     "seed": "node src/utils/seed.js"
   },
   "dependencies": {

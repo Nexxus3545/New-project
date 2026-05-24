@@ -12,6 +12,14 @@ const deliveryCtrl = require('../controllers/delivery.controller');
 const reportCtrl = require('../controllers/report.controller');
 const notificationCtrl = require('../controllers/notification.controller');
 const operationsCtrl = require('../controllers/operations.controller');
+const interactionCtrl = require('../controllers/interaction.controller');
+const mediaCtrl = require('../controllers/media.controller');
+const documentCtrl = require('../controllers/document.controller');
+const reviewCtrl = require('../controllers/review.controller');
+const medicineCtrl = require('../controllers/medicine.controller');
+const aiCtrl = require('../controllers/ai.controller');
+const uploadSessionCtrl = require('../controllers/upload.controller');
+const { uploadVideo, uploadDocument, uploadMedicineImage } = require('../middleware/uploads');
 
 // ── AUTH ──────────────────────────────────────────────────────
 router.post('/auth/login', authCtrl.login);
@@ -25,8 +33,41 @@ router.patch('/auth/profile', authenticate, authCtrl.updateProfile);
 router.patch('/auth/preferences', authenticate, authCtrl.updatePreferences);
 router.patch('/auth/change-password', authenticate, authCtrl.changePassword);
 
+// ── PUBLIC CONTENT ──────────────────────────────────────────────────────────────
+router.get('/media-feed/posts', mediaCtrl.list);
+router.post('/media-feed/posts/:id/view', mediaCtrl.recordView);
+router.get('/reviews/summary', reviewCtrl.getSummary);
+router.post('/reviews', reviewCtrl.create);
+
 // Audit/activity logging for state-changing authenticated actions
 router.use(authenticate, activityLogger);
+
+router.post('/uploads/sessions', uploadSessionCtrl.createSession);
+router.get('/uploads/sessions/:id', uploadSessionCtrl.getSession);
+router.put(
+  '/uploads/sessions/:id/chunks/:chunkIndex',
+  express.raw({ type: 'application/octet-stream', limit: '12mb' }),
+  uploadSessionCtrl.uploadChunk
+);
+router.post('/uploads/sessions/:id/complete', uploadSessionCtrl.completeSession);
+
+// ── DASHBOARD CONTENT & MEDIA ──────────────────────────────────────────────────
+router.post('/media-feed/posts', authorize('admin','doctor','midwife'), uploadVideo.single('video'), mediaCtrl.create);
+
+// ── PATIENT DOCUMENTS ──────────────────────────────────────────────────────────
+router.get('/documents/my', authorize('patient'), documentCtrl.getMine);
+router.post('/documents/my', authorize('patient'), uploadDocument.single('file'), documentCtrl.uploadMine);
+router.get('/documents', authorize('admin','doctor','midwife','nurse'), documentCtrl.list);
+router.patch('/documents/:id/verify', authorize('admin','doctor','midwife','nurse'), documentCtrl.verify);
+
+// ── MEDICINES ──────────────────────────────────────────────────────────────────
+router.get('/medicines', medicineCtrl.getAll);
+router.post('/medicines', authorize('admin','doctor','nurse'), uploadMedicineImage.single('image'), medicineCtrl.create);
+router.patch('/medicines/:id', authorize('admin','doctor','nurse'), uploadMedicineImage.single('image'), medicineCtrl.update);
+
+// AI
+router.get('/ai/recommendations', aiCtrl.getRecommendations);
+router.get('/ai/search', aiCtrl.search);
 
 // ── PATIENTS ──────────────────────────────────────────────────
 router.get('/patients', authenticate, authorize('admin','doctor','midwife','nurse'), patientCtrl.getAll);
@@ -325,8 +366,66 @@ router.get('/reports/audit-logs', authenticate, authorize('admin'), reportCtrl.g
 // ── USERS (admin) ─────────────────────────────────────────────
 router.get('/users', authenticate, authorize('admin'), async (req, res, next) => {
   try {
+    const { search, role, status } = req.query;
+    const params = [];
+    const conditions = [];
+    let idx = 1;
+
+    if (search) {
+      conditions.push(`(
+        u.first_name ILIKE $${idx}
+        OR u.last_name ILIKE $${idx}
+        OR u.email ILIKE $${idx}
+        OR COALESCE(u.phone, '') ILIKE $${idx}
+      )`);
+      params.push(`%${String(search).trim()}%`);
+      idx += 1;
+    }
+
+    if (role) {
+      conditions.push(`u.role = $${idx}`);
+      params.push(role);
+      idx += 1;
+    }
+
+    if (status === 'active') {
+      conditions.push('u.is_active = true');
+    } else if (status === 'inactive') {
+      conditions.push('u.is_active = false');
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const result = await query(
-      'SELECT id, email, role, first_name, last_name, phone, is_active, created_at FROM users ORDER BY role, last_name'
+      `SELECT
+         u.id,
+         u.email,
+         u.role,
+         u.first_name,
+         u.last_name,
+         u.phone,
+         u.is_active,
+         u.created_at,
+         u.last_login_at,
+         u.last_seen_at,
+         CASE
+           WHEN u.is_active = false THEN 'inactive'
+           WHEN u.last_seen_at IS NOT NULL AND u.last_seen_at >= NOW() - INTERVAL '5 minutes' THEN 'online'
+           WHEN u.last_seen_at IS NOT NULL AND u.last_seen_at >= NOW() - INTERVAL '60 minutes' THEN 'recent'
+           ELSE 'offline'
+         END AS activity_status
+       FROM users u
+       ${whereClause}
+       ORDER BY
+         CASE
+           WHEN u.is_active = false THEN 4
+           WHEN u.last_seen_at IS NOT NULL AND u.last_seen_at >= NOW() - INTERVAL '5 minutes' THEN 1
+           WHEN u.last_seen_at IS NOT NULL AND u.last_seen_at >= NOW() - INTERVAL '60 minutes' THEN 2
+           ELSE 3
+         END,
+         u.role,
+         u.last_name,
+         u.first_name`,
+      params
     );
     res.json({ success: true, data: result.rows });
   } catch (err) { next(err); }
@@ -348,9 +447,21 @@ router.get('/notifications', authenticate, notificationCtrl.getMine);
 router.patch('/notifications/:id/read', authenticate, notificationCtrl.markRead);
 router.post('/notifications', authenticate, authorize('admin','doctor','midwife','nurse'), notificationCtrl.create);
 
+// ── INTERACTION CENTER ────────────────────────────────────────────────────────
+router.get('/interactions/directory', authenticate, interactionCtrl.getDirectory);
+router.get('/interactions/threads', authenticate, interactionCtrl.getThreads);
+router.post('/interactions/threads', authenticate, interactionCtrl.createThread);
+router.get('/interactions/threads/:id', authenticate, interactionCtrl.getThreadById);
+router.post('/interactions/threads/:id/messages', authenticate, interactionCtrl.addMessage);
+router.patch('/interactions/threads/:id/read', authenticate, interactionCtrl.markThreadRead);
+router.get('/interactions/tasks', authenticate, interactionCtrl.getTasks);
+router.post('/interactions/tasks', authenticate, interactionCtrl.createTask);
+router.patch('/interactions/tasks/:id', authenticate, interactionCtrl.updateTask);
+
 // ── OPERATIONS (backup & restore) ─────────────────────────────────────────────
 router.post('/admin/backup', authenticate, authorize('admin'), operationsCtrl.createBackup);
 router.post('/admin/restore', authenticate, authorize('admin'), operationsCtrl.restoreBackup);
 router.get('/admin/backup-logs', authenticate, authorize('admin'), operationsCtrl.getBackupLogs);
 
 module.exports = router;
+

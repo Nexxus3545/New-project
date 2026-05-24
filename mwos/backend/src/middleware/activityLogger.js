@@ -2,6 +2,25 @@ const { query } = require('../config/database');
 
 const ACTION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
+const normalizeBodyForAudit = (body) => {
+  if (Buffer.isBuffer(body)) {
+    return {
+      bodyType: 'binary',
+      sizeBytes: body.length,
+    };
+  }
+
+  if (Array.isArray(body)) {
+    return body.slice(0, 50);
+  }
+
+  if (body && typeof body === 'object') {
+    return body;
+  }
+
+  return body || {};
+};
+
 const activityLogger = async (req, res, next) => {
   if (!ACTION_METHODS.has(req.method)) return next();
   if (!req.user) return next();
@@ -18,7 +37,7 @@ const activityLogger = async (req, res, next) => {
           req.method,
           req.originalUrl.split('/')[2] || 'unknown',
           null,
-          req.body || {},
+          normalizeBodyForAudit(req.body),
           req.ip,
           req.headers['user-agent'] || null,
         ]

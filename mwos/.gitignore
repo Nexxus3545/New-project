@@ -1,0 +1,13 @@
+.idea/
+.DS_Store
+
+**/node_modules/
+frontend/dist/
+mobile/dist-export/
+mobile/.expo/
+
+backend/uploads/
+review_frames/
+
+*.log
+mobile/bugreport-*.zip

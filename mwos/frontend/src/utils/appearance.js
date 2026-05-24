@@ -1,6 +1,6 @@
 export const defaultAppearance = {
-  theme: 'system',
-  accent: 'teal',
+  theme: 'light',
+  accent: 'rose',
   density: 'comfortable',
   surface: 'solid',
   motion: 'full',
