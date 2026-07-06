@@ -4,9 +4,9 @@ import { useAuthStore } from '../../store/authStore'
 import BrandMark from './BrandMark'
 
 const trustPoints = [
-  'Unified web, mobile, and desktop experience',
-  'Profile, security, and appearance settings in one place',
-  'Shared backend with audit logging and role-based access',
+  'Birthing charts, medicines, media, and records in one calm interface',
+  'Live presence, audit trails, and role access stay easy to scan',
+  'Emergency transport, barangay support, and clinic follow-up are one tap away',
 ]
 
 export default function AuthLayout() {
@@ -31,14 +31,14 @@ export default function AuthLayout() {
           <div className="auth-aurora auth-aurora-right" />
 
           <div className="relative space-y-6">
-            <BrandMark sublabel="Maternal care platform" />
+            <BrandMark sublabel="Birthing home & medical clinic" />
             <div className="max-w-xl">
-              <p className="text-sm uppercase tracking-[0.35em] text-white/70">Future-ready care operations</p>
+              <p className="text-sm uppercase tracking-[0.35em] text-white/70">Modern clinic operations</p>
               <h1 className="mt-4 text-5xl font-semibold leading-tight">
-                A softer identity with a sharper system behind it.
+                A modern birthing-home workspace built for clarity, speed, and calm.
               </h1>
               <p className="mt-5 max-w-lg text-base leading-7 text-white/80">
-                One login unlocks a cinematic shared workspace for staff, patients, mobile teams, and desktop operations.
+                One login unlocks a visually richer workspace for staff, patients, mobile teams, and emergency coordination.
               </p>
             </div>
           </div>
@@ -59,8 +59,8 @@ export default function AuthLayout() {
                 className="auth-mobile-hero rounded-[28px] px-6 py-7 text-white shadow-lg"
                 style={{ background: 'linear-gradient(145deg, var(--hero-start), var(--hero-end))' }}
               >
-                <BrandMark compact sublabel="Shared care workspace" />
-                <p className="mt-4 text-sm text-white/80">Sign in to manage care, records, and your workspace preferences.</p>
+                <BrandMark compact sublabel="Birthing home clinic workspace" />
+                <p className="mt-4 text-sm text-white/80">Sign in to manage care, records, medicines, and emergency support from one place.</p>
               </div>
             </div>
 

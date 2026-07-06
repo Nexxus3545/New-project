@@ -18,7 +18,10 @@ const staffNav = [
   { to: '/account', icon: 'AC', label: 'Account' },
 ]
 
-const adminNav = [{ to: '/users', icon: 'US', label: 'Users' }]
+const adminNav = [
+  { to: '/users', icon: 'US', label: 'Users' },
+  { to: '/compliance', icon: 'CM', label: 'Compliance' },
+]
 
 const patientNav = [
   { to: '/my/dashboard', icon: 'HM', label: 'Home' },
@@ -35,6 +38,20 @@ const patientNav = [
   { to: '/my/profile', icon: 'AC', label: 'Account' },
 ]
 
+const staffNavSections = [
+  { title: 'Overview', items: staffNav.slice(0, 3) },
+  { title: 'Clinical', items: staffNav.slice(3, 7) },
+  { title: 'Reference', items: staffNav.slice(7, 10) },
+  { title: 'Account', items: staffNav.slice(10) },
+]
+
+const patientNavSections = [
+  { title: 'Home', items: patientNav.slice(0, 4) },
+  { title: 'Care', items: patientNav.slice(4, 10) },
+  { title: 'Support', items: patientNav.slice(10, 11) },
+  { title: 'Account', items: patientNav.slice(11) },
+]
+
 export default function AppLayout({ patient = false }) {
   const { user, logout } = useAuthStore()
   const appearance = useThemeStore((state) => state.preferences)
@@ -48,7 +65,12 @@ export default function AppLayout({ patient = false }) {
     navigate('/login')
   }
 
-  const navLinks = patient ? patientNav : [...staffNav, ...(user?.role === 'admin' ? adminNav : [])]
+  const navSections = patient
+    ? patientNavSections
+    : [
+        ...staffNavSections,
+        ...(user?.role === 'admin' ? [{ title: 'Admin', items: adminNav }] : []),
+      ]
 
   return (
     <div className="futuristic-shell flex h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
@@ -71,25 +93,39 @@ export default function AppLayout({ patient = false }) {
         >
           <div className="absolute inset-y-0 right-0 w-28 rounded-full bg-white/10 blur-2xl" />
           <div className="relative">
-            <BrandMark compact sublabel={patient ? 'Patient experience' : 'Operations workspace'} />
+            <BrandMark compact sublabel={patient ? 'Patient experience' : 'Birthing home operations'} />
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="hero-chip border-white/10 bg-white/10 text-white">Live care</span>
+              <span className="hero-chip border-white/10 bg-white/10 text-white">{patient ? 'Patient view' : 'Clinic control'}</span>
+              <span className="hero-chip border-white/10 bg-white/10 text-white">Emergency ready</span>
+            </div>
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {navLinks.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `sidebar-link ${isActive ? (patient ? 'sidebar-link-patient active' : 'active') : ''}`
-              }
-            >
-              <span className="text-[11px] font-semibold w-7 h-7 rounded-md bg-gray-100 dark:bg-slate-800 inline-flex items-center justify-center">
-                {link.icon}
-              </span>
-              <span>{link.label}</span>
-            </NavLink>
+        <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
+          {navSections.map((section) => (
+            <div key={section.title} className="space-y-2">
+              <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.26em] text-gray-400 dark:text-slate-500">
+                {section.title}
+              </p>
+              <div className="space-y-1">
+                {section.items.map((link) => (
+                  <NavLink
+                    key={link.to}
+                    to={link.to}
+                    onClick={() => setSidebarOpen(false)}
+                    className={({ isActive }) =>
+                      `sidebar-link ${isActive ? (patient ? 'sidebar-link-patient active' : 'active') : ''}`
+                    }
+                  >
+                    <span className="text-[11px] font-semibold inline-flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 dark:bg-slate-800">
+                      {link.icon}
+                    </span>
+                    <span>{link.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
@@ -137,7 +173,7 @@ export default function AppLayout({ patient = false }) {
           <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800">
             Menu
           </button>
-          <BrandMark compact sublabel="Shared care workspace" />
+          <BrandMark compact sublabel="Birthing home clinic workspace" />
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">

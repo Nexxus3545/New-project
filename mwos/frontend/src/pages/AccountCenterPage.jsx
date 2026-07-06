@@ -64,6 +64,11 @@ export default function AccountCenterPage() {
   const user = useAuthStore((state) => state.user)
   const updateCurrentUser = useAuthStore((state) => state.updateCurrentUser)
   const logout = useAuthStore((state) => state.logout)
+  const stepUpToken = useAuthStore((state) => state.stepUpToken)
+  const requestOtp = useAuthStore((state) => state.requestOtp)
+  const verifyOtp = useAuthStore((state) => state.verifyOtp)
+  const registerPasskey = useAuthStore((state) => state.registerPasskey)
+  const clearStepUp = useAuthStore((state) => state.clearStepUp)
   const themePreferences = useThemeStore((state) => state.preferences)
   const setThemePreferences = useThemeStore((state) => state.setPreferences)
 
@@ -115,6 +120,11 @@ export default function AccountCenterPage() {
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
+  })
+  const [stepUpForm, setStepUpForm] = useState({
+    purpose: 'critical',
+    code: '',
+    challengeId: '',
   })
   const [documentForm, setDocumentForm] = useState({
     documentType: 'PhilHealth ID',
@@ -249,6 +259,60 @@ export default function AccountCenterPage() {
       setLocalError(error.response?.data?.message || 'Unable to change password.')
     },
   })
+
+  const isStaff = ['admin', 'doctor', 'midwife', 'nurse'].includes(account?.role)
+
+  const handleRequestStepUp = async () => {
+    const result = await requestOtp(stepUpForm.purpose)
+    if (!result.success) {
+      setLocalError(result.error)
+      return
+    }
+
+    setStepUpForm((current) => ({
+      ...current,
+      challengeId: result.challengeId || '',
+      code: '',
+    }))
+    setSecurityNotice(`Verification code sent to ${result.destination || 'your clinic contact'}.`)
+    setLocalError('')
+  }
+
+  const handleVerifyStepUp = async (event) => {
+    event.preventDefault()
+    if (!stepUpForm.code.trim()) return
+
+    const result = await verifyOtp({
+      challengeId: stepUpForm.challengeId,
+      code: stepUpForm.code.trim(),
+      purpose: stepUpForm.purpose,
+    })
+
+    if (!result.success) {
+      setLocalError(result.error)
+      return
+    }
+
+    setSecurityNotice('Step-up authentication is active for protected actions.')
+    setLocalError('')
+    setStepUpForm((current) => ({ ...current, code: '' }))
+  }
+
+  const handleRegisterPasskey = async () => {
+    const result = await registerPasskey(stepUpForm.purpose)
+    if (!result.success) {
+      setLocalError(result.error)
+      return
+    }
+
+    setSecurityNotice('Passkey registered successfully.')
+    setLocalError('')
+  }
+
+  const handleClearStepUp = async () => {
+    await clearStepUp()
+    setSecurityNotice('Step-up token cleared.')
+  }
 
   const documentMutation = useMutation({
     onMutate: () => {
@@ -433,6 +497,31 @@ export default function AccountCenterPage() {
         </div>
       </section>
 
+      {account?.staffProfile ? (
+        <section className="card space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="section-title mb-1">Staff Credential Status</h2>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Live credential details used by the staff permission evaluator.</p>
+            </div>
+            <span className={`badge ${account.staffProfile.isVerified ? 'badge-success' : account.staffProfile.licenseStatus === 'suspended' ? 'badge-danger' : 'badge-warning'}`}>
+              {account.staffProfile.licenseStatus || 'pending'}
+            </span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            <ProfileMetric label="Title" value={account.staffProfile.professionalTitle} />
+            <ProfileMetric label="Department" value={account.staffProfile.department} />
+            <ProfileMetric label="License number" value={account.staffProfile.licenseNumber || 'Not assigned'} />
+            <ProfileMetric label="Verified at" value={account.staffProfile.verifiedAt ? new Date(account.staffProfile.verifiedAt).toLocaleString('en-PH') : 'Pending review'} />
+          </div>
+          {account.staffProfile.credentialNotes ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
+              {account.staffProfile.credentialNotes}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       {localError ? <div className="alert-critical text-sm">{localError}</div> : null}
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
@@ -513,7 +602,7 @@ export default function AccountCenterPage() {
                 <ProfileMetric label="Latest Delivery ID" value={latestDelivery?.delivery_code} />
               </div>
 
-              <div className="rounded-3xl border border-white/50 bg-white/65 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/45">
+              <div className="rounded-3xl border border-white/50 bg-white/60 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
                 <div className="mb-4">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Personal Information</h3>
                   <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Basic identity details used across the patient portal, staff chart, and printed records.</p>
@@ -574,7 +663,7 @@ export default function AccountCenterPage() {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/50 bg-white/65 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/45">
+              <div className="rounded-3xl border border-white/50 bg-white/60 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
                 <div className="mb-4">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Clinic Credentials</h3>
                   <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Facility IDs and supporting references for admissions, billing, and document verification.</p>
@@ -611,7 +700,7 @@ export default function AccountCenterPage() {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/50 bg-white/65 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/45">
+              <div className="rounded-3xl border border-white/50 bg-white/60 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
                 <div className="mb-4">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Biometrics & Care Details</h3>
                   <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Clinical biometrics only. This stores care-related measurements, not raw fingerprint or facial authentication data.</p>
@@ -648,7 +737,7 @@ export default function AccountCenterPage() {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/50 bg-white/65 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/45">
+              <div className="rounded-3xl border border-white/50 bg-white/60 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Secure Document Uploads</h3>
@@ -724,7 +813,7 @@ export default function AccountCenterPage() {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/50 bg-white/65 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/45">
+              <div className="rounded-3xl border border-white/50 bg-white/60 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
                 <div className="mb-4">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Emergency Contact</h3>
                   <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">These details help the team reach the right person quickly during care or admission changes.</p>
@@ -862,6 +951,70 @@ export default function AccountCenterPage() {
               </button>
             </div>
           </form>
+
+          {isStaff ? (
+            <div className="card space-y-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="section-title mb-1">Step-up access</h2>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">
+                    Request an OTP or register a passkey before protected clinical or admin actions.
+                  </p>
+                </div>
+                {stepUpToken ? <span className="badge badge-success">Step-up active</span> : <span className="badge badge-gray">Step-up inactive</span>}
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="label">Purpose</label>
+                  <select
+                    className="input"
+                    value={stepUpForm.purpose}
+                    onChange={(event) => setStepUpForm((current) => ({ ...current, purpose: event.target.value }))}
+                  >
+                    <option value="critical">Critical actions</option>
+                    <option value="clinical-signature">Clinical signature</option>
+                    <option value="billing">Billing</option>
+                    <option value="backup-restore">Backup / restore</option>
+                    <option value="license-change">License change</option>
+                    <option value="record-delete">Record deletion</option>
+                    <option value="export-sensitive">Sensitive export</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Challenge ID</label>
+                  <input className="input" value={stepUpForm.challengeId} readOnly placeholder="Send an OTP to generate a challenge" />
+                </div>
+                <div>
+                  <label className="label">Verification code</label>
+                  <input
+                    className="input"
+                    value={stepUpForm.code}
+                    onChange={(event) => setStepUpForm((current) => ({ ...current, code: event.target.value }))}
+                    placeholder="Enter the six-digit code"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button type="button" onClick={handleRequestStepUp} className="btn-secondary">
+                  Send OTP
+                </button>
+                <button type="button" onClick={handleRegisterPasskey} className="btn-secondary">
+                  Register passkey
+                </button>
+                <button type="button" onClick={handleClearStepUp} className="btn-ghost">
+                  Clear step-up
+                </button>
+              </div>
+
+              <div className="flex justify-end">
+                <button type="button" onClick={handleVerifyStepUp} className="btn-primary" disabled={!stepUpForm.code.trim()}>
+                  Verify OTP
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <form className="card space-y-5" onSubmit={handlePasswordSubmit}>
             <div className="flex items-center justify-between gap-4">

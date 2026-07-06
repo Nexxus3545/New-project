@@ -79,7 +79,7 @@ const FeedCard = ({ post, onSeen }) => {
             onPlay={() => onSeen(post.id)}
           />
         )}
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent px-5 pb-5 pt-16 text-white">
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent px-5 pb-5 pt-16 text-white">
           <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-white/70">
             <span>{post.category || 'General'}</span>
             <span>{isImage ? 'Image' : 'Video'}</span>
@@ -87,7 +87,7 @@ const FeedCard = ({ post, onSeen }) => {
           </div>
           <h4 className="text-xl font-semibold">{post.title}</h4>
           <p className="mt-2 text-sm text-white/80">{post.description || 'Clinic educational post'}</p>
-          <div className="mt-3 flex items-center justify-between text-xs text-white/65">
+          <div className="mt-3 flex items-center justify-between text-xs text-white/70">
             <span>{post.created_by_name || 'MWOS Team'}</span>
             <span>{post.engagement_views || 0} views</span>
           </div>
@@ -272,6 +272,49 @@ export default function DashboardPage() {
         <div className="flex flex-wrap gap-2">
           {canUploadMedia ? <button onClick={() => setShowUpload(true)} className="btn-primary btn-sm">Upload Feed Media</button> : null}
           <button onClick={refetch} className="btn-secondary btn-sm">Refresh</button>
+        </div>
+      </div>
+
+      <div className="clinic-hero rounded-[34px] p-6 md:p-8 mb-6">
+        <div className="clinic-hero-grid lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="space-y-5">
+            <p className="section-kicker text-white/70">Modern birthing home control room</p>
+            <h2 className="max-w-3xl text-4xl font-semibold leading-tight md:text-5xl">
+              A calmer, premium workspace for maternal care, medicines, and emergency response.
+            </h2>
+            <p className="max-w-2xl text-sm leading-7 text-white/80">
+              Unified search, media publishing, document review, and emergency tracking live in one polished interface for the clinic team.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <span className="hero-chip">Birthing home</span>
+              <span className="hero-chip">Emergency transport</span>
+              <span className="hero-chip">Medication safety</span>
+              <span className="hero-chip">Patient support</span>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+            <div className="clinic-metric">
+              <p className="clinic-metric-label">High-risk patients</p>
+              <p className="clinic-metric-value">{stats.highRiskPatients ?? 0}</p>
+              <p className="clinic-metric-meta">Currently flagged for closer review.</p>
+            </div>
+            <div className="clinic-metric">
+              <p className="clinic-metric-label">Open care tasks</p>
+              <p className="clinic-metric-value">{stats.openCareTasks ?? 0}</p>
+              <p className="clinic-metric-meta">Priority items waiting in the workflow.</p>
+            </div>
+            <div className="clinic-metric">
+              <p className="clinic-metric-label">Today&apos;s appointments</p>
+              <p className="clinic-metric-value">{stats.todayAppointments ?? 0}</p>
+              <p className="clinic-metric-meta">Scheduled visits for the clinic day.</p>
+            </div>
+            <div className="clinic-metric">
+              <p className="clinic-metric-label">Clinic rating</p>
+              <p className="clinic-metric-value">{reviewSummary?.averageRating?.toFixed?.(2) || '0.00'}</p>
+              <p className="clinic-metric-meta">{reviewSummary?.totalReviews || 0} published reviews.</p>
+            </div>
+          </div>
         </div>
       </div>
 

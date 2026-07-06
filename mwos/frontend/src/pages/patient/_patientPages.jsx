@@ -26,6 +26,51 @@ export function PatientDashboardPage() {
         </div>
       </div>
 
+      <div className="clinic-hero rounded-[34px] p-6 md:p-8 mb-6">
+        <div className="clinic-hero-grid lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="space-y-5">
+            <p className="section-kicker text-white/70">Your care, at a glance</p>
+            <h2 className="max-w-3xl text-4xl font-semibold leading-tight md:text-5xl">
+              A brighter patient portal for visits, medicines, vitals, and emergency support.
+            </h2>
+            <p className="max-w-2xl text-sm leading-7 text-white/80">
+              Track appointments, monitor vitals, browse medicines, and reach clinic support from a more polished home screen.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <span className="hero-chip">Appointments</span>
+              <span className="hero-chip">Pharmacy</span>
+              <span className="hero-chip">Vitals</span>
+              <span className="hero-chip">Emergency</span>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+            <div className="clinic-metric">
+              <p className="clinic-metric-label">Next appointment</p>
+              <p className="clinic-metric-value">
+                {d.nextAppointment ? new Date(d.nextAppointment.scheduled_date).toLocaleDateString('en-PH') : 'None'}
+              </p>
+              <p className="clinic-metric-meta">{d.nextAppointment ? `${d.nextAppointment.appointment_type} appointment` : 'No visit scheduled yet.'}</p>
+            </div>
+            <div className="clinic-metric">
+              <p className="clinic-metric-label">Active pregnancy</p>
+              <p className="clinic-metric-value">{d.activePregnancy ? 'Active' : 'None'}</p>
+              <p className="clinic-metric-meta">{d.activePregnancy ? `EDD ${new Date(d.activePregnancy.edd).toLocaleDateString('en-PH')}` : 'Waiting for the next prenatal record.'}</p>
+            </div>
+            <div className="clinic-metric">
+              <p className="clinic-metric-label">Latest BP</p>
+              <p className="clinic-metric-value">{d.latestVitals?.bp_systolic ? `${d.latestVitals.bp_systolic}/${d.latestVitals.bp_diastolic}` : '--'}</p>
+              <p className="clinic-metric-meta">{d.latestVitals ? new Date(d.latestVitals.visit_date).toLocaleDateString('en-PH') : 'No reading yet.'}</p>
+            </div>
+            <div className="clinic-metric">
+              <p className="clinic-metric-label">Open tasks</p>
+              <p className="clinic-metric-value">{d.openCareTasks ?? 0}</p>
+              <p className="clinic-metric-meta">{d.unreadMessages ?? 0} unread thread(s) with the clinic.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Quick stats */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
         <div className="card bg-rose-50 border-rose-100">
