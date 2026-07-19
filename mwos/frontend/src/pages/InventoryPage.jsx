@@ -296,8 +296,8 @@ export default function InventoryPage() {
                   <input className="input" value={form.purpose} onChange={(event) => setForm((current) => ({ ...current, purpose: event.target.value }))} placeholder="Supports iron intake during pregnancy" />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="label">Description</label>
-                  <textarea className="input min-h-[96px]" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Short patient-friendly overview of the medicine." />
+                  <label className="label">Overview</label>
+                  <textarea className="input min-h-[96px]" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Short patient-friendly summary of the medicine." />
                 </div>
                 <div className="md:col-span-2">
                   <label className="label">Usage instructions</label>

@@ -86,7 +86,6 @@ const FeedCard = ({ post, onSeen }) => {
             <span>{formatDate(post.created_at)}</span>
           </div>
           <h4 className="text-xl font-semibold">{post.title}</h4>
-          <p className="mt-2 text-sm text-white/80">{post.description || 'Clinic educational post'}</p>
           <div className="mt-3 flex items-center justify-between text-xs text-white/70">
             <span>{post.created_by_name || 'MWOS Team'}</span>
             <span>{post.engagement_views || 0} views</span>
@@ -323,7 +322,7 @@ export default function DashboardPage() {
           <div>
             <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Unified Care Search</p>
             <h3 className="section-title mt-2">Search medicines, feed posts, patients, and records</h3>
-            <p className="mt-1 text-sm text-slate-500">A single lookup flow for daily operations without the old chatbot framing.</p>
+            <p className="mt-1 text-sm text-slate-500">A single lookup flow for daily operations with guided actions.</p>
             <input
               className="input mt-4"
               placeholder="Try: ferrous sulfate, PhilHealth, high risk, prenatal guide"
@@ -577,8 +576,8 @@ export default function DashboardPage() {
                 </select>
               </div>
               <div className="md:col-span-2">
-                <label className="label">Description</label>
-                <textarea className="input" rows={3} value={uploadForm.description} onChange={(e) => setUploadForm((current) => ({ ...current, description: e.target.value }))} />
+                <label className="label">Caption</label>
+                <textarea className="input" rows={3} value={uploadForm.description} onChange={(e) => setUploadForm((current) => ({ ...current, description: e.target.value }))} placeholder="Short patient-friendly caption for the media post." />
               </div>
               <div>
                 <label className="label">{uploadForm.mediaType === 'image' ? 'Image File' : 'Video File'}</label>

@@ -76,7 +76,9 @@ $candidatePorts = $CandidatePorts | Select-Object -Unique
 Stop-StaleExpoProcesses -ports $candidatePorts
 $metroPort = Get-AvailableMetroPort -ports $CandidatePorts
 $previousCi = $env:CI
+$previousExpoOffline = $env:EXPO_OFFLINE
 $env:CI = '1'
+$env:EXPO_OFFLINE = '1'
 
 Write-Step "Starting MWOS mobile Metro on port $metroPort..."
 Push-Location $projectRoot
@@ -91,5 +93,10 @@ try {
     $env:CI = $previousCi
   } else {
     Remove-Item Env:CI -ErrorAction SilentlyContinue
+  }
+  if ($null -ne $previousExpoOffline -and $previousExpoOffline -ne '') {
+    $env:EXPO_OFFLINE = $previousExpoOffline
+  } else {
+    Remove-Item Env:EXPO_OFFLINE -ErrorAction SilentlyContinue
   }
 }

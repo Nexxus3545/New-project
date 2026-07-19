@@ -253,6 +253,10 @@ Write-Step "Preparing MWOS mobile Android launch for $resolvedAvdName..."
 Write-Step "Using Metro port $metroPort."
 Clear-ProxyEnvironment
 Push-Location $projectRoot
+$previousExpoOffline = $env:EXPO_OFFLINE
+if ($Offline) {
+  $env:EXPO_OFFLINE = '1'
+}
 
 try {
   Write-Step 'Resetting adb and preparing the Android bridge...'
@@ -307,4 +311,9 @@ try {
   & npx @expoArgs
 } finally {
   Pop-Location
+  if ($null -ne $previousExpoOffline -and $previousExpoOffline -ne '') {
+    $env:EXPO_OFFLINE = $previousExpoOffline
+  } else {
+    Remove-Item Env:EXPO_OFFLINE -ErrorAction SilentlyContinue
+  }
 }
