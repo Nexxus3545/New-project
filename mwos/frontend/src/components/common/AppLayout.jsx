@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
 import BrandMark from './BrandMark'
@@ -55,6 +55,7 @@ const patientNavSections = [
 export default function AppLayout({ patient = false }) {
   const { user, logout } = useAuthStore()
   const appearance = useThemeStore((state) => state.preferences)
+  const location = useLocation()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
@@ -71,6 +72,50 @@ export default function AppLayout({ patient = false }) {
         ...staffNavSections,
         ...(user?.role === 'admin' ? [{ title: 'Admin', items: adminNav }] : []),
       ]
+
+  const currentPage = (() => {
+    const titleMap = patient
+      ? [
+          ['/my/dashboard', ['Patient Home', 'Your visits, records, pharmacy, and emergency support in one view.']],
+          ['/my/doctors', ['Care Team', 'Browse the clinic providers available to you.']],
+          ['/my/pharmacy', ['Pharmacy', 'Review medicines with images, usage, and precautions.']],
+          ['/my/appointments', ['Appointments', 'Track visits and upcoming clinic schedules.']],
+          ['/my/vitals', ['My Vitals', 'View your latest monitoring and trend history.']],
+          ['/my/records', ['Medical Records', 'Keep important lab results and prescriptions close.']],
+          ['/my/emergency', ['Emergency', 'Quick access to urgent clinic and barangay support.']],
+        ]
+      : [
+          ['/dashboard', ['Control Center', 'A clinic-wide workspace for appointments, medicine flow, and care tasks.']],
+          ['/patients', ['Patient Intake', 'Register and track patient records in a structured layout.']],
+          ['/appointments', ['Appointments', 'Calendar-style scheduling for staff and patients.']],
+          ['/vitals', ['3D Vitals', 'Fast maternal monitoring with visual body cues and trends.']],
+          ['/deliveries', ['Labor and Delivery', 'Record delivery outcomes and post-delivery notes.']],
+          ['/inventory', ['Medicine Management', 'Organize medication by image, purpose, and usage.']],
+          ['/reports', ['Reports & Analytics', 'Operational summaries and export-ready statistics.']],
+        ]
+
+    const found = titleMap.find(([prefix]) => location.pathname.startsWith(prefix))
+    return found ? { title: found[1][0], description: found[1][1] } : { title: 'MWOS', description: 'Maternal Wellness and Operations Management System' }
+  })()
+
+  const quickActions = patient
+    ? [
+        { to: '/my/appointments', label: 'Appointments' },
+        { to: '/my/pharmacy', label: 'Pharmacy' },
+        { to: '/my/emergency', label: 'Emergency' },
+      ]
+    : [
+        { to: '/patients', label: 'New patient' },
+        { to: '/appointments', label: 'Schedule' },
+        { to: '/reports', label: 'Analytics' },
+      ]
+
+  const todayLabel = new Date().toLocaleDateString('en-PH', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
 
   return (
     <div className="futuristic-shell flex h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
@@ -177,7 +222,31 @@ export default function AppLayout({ patient = false }) {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <Outlet />
+          <div className="mb-5 rounded-[30px] border border-white/80 bg-white/80 px-4 py-4 shadow-[0_24px_48px_rgba(15,118,110,0.08)] backdrop-blur">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="min-w-0">
+                <p className="section-kicker">{patient ? 'Patient Portal' : 'Clinic Workspace'}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-3">
+                  <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">{currentPage.title}</h1>
+                  <span className="badge badge-gray">{user?.role || 'guest'}</span>
+                </div>
+                <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">{currentPage.description}</p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                <span className="hero-chip">{todayLabel}</span>
+                {quickActions.map((action) => (
+                  <Link key={action.to} to={action.to} className="btn-secondary btn-sm">
+                    {action.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
