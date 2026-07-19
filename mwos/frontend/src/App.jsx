@@ -25,6 +25,7 @@ import BillingPage from './pages/BillingPage'
 import ReportsPage from './pages/ReportsPage'
 import EducationPage from './pages/EducationPage'
 import UsersPage from './pages/UsersPage'
+import CompliancePage from './pages/CompliancePage'
 import AccountCenterPage from './pages/AccountCenterPage'
 import InteractionsPage from './pages/InteractionsPage'
 
@@ -101,6 +102,11 @@ export default function App() {
           <Route path="/education" element={<EducationPage />} />
           <Route path="/interactions" element={<InteractionsPage />} />
           <Route path="/account" element={<AccountCenterPage />} />
+          <Route path="/compliance" element={
+            <ProtectedRoute roles={['admin']}>
+              <CompliancePage />
+            </ProtectedRoute>
+          } />
           <Route path="/users" element={
             <ProtectedRoute roles={['admin']}>
               <UsersPage />

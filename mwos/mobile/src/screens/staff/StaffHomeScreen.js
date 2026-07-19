@@ -73,7 +73,6 @@ function FeedPreviewCard({ post }) {
       <View style={styles.feedCopy}>
         <Text style={styles.feedTitle} numberOfLines={2}>{post.title}</Text>
         <Text style={styles.feedMeta}>{post.category || 'General'} | {post.engagement_views || 0} views</Text>
-        <Text style={styles.feedBody} numberOfLines={2}>{post.description || 'Clinic educational media.'}</Text>
       </View>
     </View>
   )
@@ -474,7 +473,7 @@ const styles = StyleSheet.create({
   },
   feedCopy: {
     padding: spacing.md,
-    gap: 4,
+    gap: 2,
   },
   feedTitle: {
     fontSize: 14,
@@ -486,11 +485,6 @@ const styles = StyleSheet.create({
     color: colors.gray[400],
     textTransform: 'uppercase',
     letterSpacing: 1,
-  },
-  feedBody: {
-    fontSize: 12,
-    lineHeight: 18,
-    color: colors.gray[600],
   },
   searchResultCard: {
     flexDirection: 'row',

@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 const { query } = require('../config/database');
+const { getStaffSecurityContext, recordSecurityAudit } = require('../utils/security');
 
 const backupDir = path.resolve(process.cwd(), process.env.BACKUP_DIR || 'backups');
 
@@ -27,11 +28,23 @@ const createBackup = async (req, res, next) => {
 
     const command = `pg_dump -h ${process.env.DB_HOST} -p ${process.env.DB_PORT} -U ${process.env.DB_USER} -d ${process.env.DB_NAME} -f "${filePath}"`;
     await run(command);
+    const staffProfile = await getStaffSecurityContext(req.user.id);
 
     await query(
       'INSERT INTO backup_logs (initiated_by, backup_file, status, notes) VALUES ($1, $2, $3, $4)',
       [req.user.id, filePath, 'success', 'Backup created via API']
     );
+    await recordSecurityAudit({
+      staffId: staffProfile?.staffId || null,
+      actionPerformed: 'BACKUP_CREATED',
+      entityType: 'backup',
+      entityId: null,
+      deviceIp: req.ip,
+      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
+      credentialStrength: 'Step_Up',
+      requestId: req.requestId || null,
+      details: { filePath },
+    });
 
     res.json({ success: true, message: 'Backup created', data: { filePath } });
   } catch (err) {
@@ -61,11 +74,23 @@ const restoreBackup = async (req, res, next) => {
 
     const command = `psql -h ${process.env.DB_HOST} -p ${process.env.DB_PORT} -U ${process.env.DB_USER} -d ${process.env.DB_NAME} -f "${resolved}"`;
     await run(command);
+    const staffProfile = await getStaffSecurityContext(req.user.id);
 
     await query(
       'INSERT INTO backup_logs (initiated_by, backup_file, status, notes) VALUES ($1, $2, $3, $4)',
       [req.user.id, resolved, 'success', 'Restore executed via API']
     );
+    await recordSecurityAudit({
+      staffId: staffProfile?.staffId || null,
+      actionPerformed: 'BACKUP_RESTORED',
+      entityType: 'backup',
+      entityId: null,
+      deviceIp: req.ip,
+      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
+      credentialStrength: 'Step_Up',
+      requestId: req.requestId || null,
+      details: { filePath: resolved },
+    });
 
     res.json({ success: true, message: 'Restore completed', data: { filePath: resolved } });
   } catch (err) {

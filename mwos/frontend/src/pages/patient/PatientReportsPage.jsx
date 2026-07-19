@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts'
 import api from '../../utils/api'
+import PregnancyWireframeScene from '../../components/patient/PregnancyWireframeScene'
+import RealtimeVitalsPanel from '../../components/patient/RealtimeVitalsPanel'
 
 const formatDate = (value) => new Date(value).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
 
@@ -23,7 +25,12 @@ export default function PatientReportsPage() {
     enabled: !!patient?.id,
   })
 
-  if (patientLoading || dashboardLoading || vitalsLoading) {
+  const { data: education = [], isLoading: educationLoading } = useQuery({
+    queryKey: ['patient-education-reports'],
+    queryFn: () => api.get('/education').then((response) => response.data.data),
+  })
+
+  if (patientLoading || dashboardLoading || vitalsLoading || educationLoading) {
     return <div className="flex justify-center py-16"><div className="loading-spinner h-8 w-8" /></div>
   }
 
@@ -33,12 +40,15 @@ export default function PatientReportsPage() {
     diastolic: item.bp_diastolic || 0,
   }))
 
+  const latestVitals = (vitals || [])[0]
+  const featuredTips = education.slice(0, 3)
+
   return (
     <div className="space-y-6">
       <div className="page-header">
         <div>
           <h1 className="page-title">Reports</h1>
-          <p className="page-sub">Vitals, summaries, and patient record highlights without changing the existing portal UI.</p>
+          <p className="page-sub">Moving vitals, a 3D pregnancy guide, and record highlights in the same patient portal.</p>
         </div>
       </div>
 
@@ -49,7 +59,20 @@ export default function PatientReportsPage() {
         <div className="card"><p className="text-xs font-medium uppercase tracking-[0.18em] text-gray-500">Clinic rating</p><p className="mt-3 text-3xl font-semibold text-gray-900">{Number(dashboard?.reviewSummary?.average_rating || 0).toFixed(2)}</p></div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <RealtimeVitalsPanel
+          latestVitals={latestVitals}
+          activePregnancy={dashboard?.activePregnancy}
+          title="Realtime vitals report"
+        />
+        <PregnancyWireframeScene
+          dashboard={dashboard}
+          latestVitals={latestVitals}
+          tips={featuredTips}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <div className="card">
           <h3 className="section-title">Vitals trend</h3>
           {!chartData.length ? (
@@ -77,7 +100,25 @@ export default function PatientReportsPage() {
               <p>Next appointment: <span className="font-medium text-gray-900">{dashboard?.nextAppointment ? new Date(dashboard.nextAppointment.scheduled_date).toLocaleDateString('en-PH') : 'None scheduled'}</span></p>
               <p>Due date: <span className="font-medium text-gray-900">{dashboard?.activePregnancy?.edd ? new Date(dashboard.activePregnancy.edd).toLocaleDateString('en-PH') : 'Not available'}</span></p>
               <p>Pending documents: <span className="font-medium text-gray-900">{dashboard?.documentSummary?.pending || 0}</span></p>
+              <p>Latest fetal heart rate: <span className="font-medium text-gray-900">{latestVitals?.fetal_heart_rate ? `${latestVitals.fetal_heart_rate} bpm` : 'Not recorded'}</span></p>
             </div>
+          </div>
+
+          <div className="card">
+            <h3 className="section-title">Pregnancy tip highlights</h3>
+            {featuredTips.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-500">No pregnancy tip highlights are available yet.</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {featuredTips.map((tip) => (
+                  <div key={tip.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{tip.category || 'General'}</p>
+                    <p className="mt-2 font-semibold text-slate-900">{tip.title}</p>
+                    <p className="mt-2 text-sm text-slate-500">{tip.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="card">

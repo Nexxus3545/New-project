@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/authStore'
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' })
   const [showPass, setShowPass] = useState(false)
-  const { login, isLoading, error, clearError } = useAuthStore()
+  const { login, loginWithPasskey, isLoading, error, clearError } = useAuthStore()
   const navigate = useNavigate()
 
   const handleChange = (event) => {
@@ -18,6 +18,14 @@ export default function LoginPage() {
     if (!form.email || !form.password) return
 
     const result = await login(form.email.trim(), form.password)
+    if (result.success) {
+      navigate(result.user.role === 'patient' ? '/my/dashboard' : '/dashboard')
+    }
+  }
+
+  const handlePasskeyLogin = async () => {
+    if (!form.email) return
+    const result = await loginWithPasskey(form.email.trim())
     if (result.success) {
       navigate(result.user.role === 'patient' ? '/my/dashboard' : '/dashboard')
     }
@@ -89,6 +97,15 @@ export default function LoginPage() {
               Signing in...
             </>
           ) : 'Sign in'}
+        </button>
+
+        <button
+          type="button"
+          disabled={isLoading || !form.email}
+          onClick={handlePasskeyLogin}
+          className="btn-secondary w-full justify-center"
+        >
+          Sign in with passkey
         </button>
       </form>
 

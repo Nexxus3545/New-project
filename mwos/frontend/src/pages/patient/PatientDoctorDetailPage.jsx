@@ -12,18 +12,24 @@ const specialtyCopy = {
 
 export default function PatientDoctorDetailPage() {
   const { id } = useParams()
+  const [teleconsultResult, setTeleconsultResult] = React.useState(null)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['patient-directory-doctor-detail'],
     queryFn: () => api.get('/interactions/directory').then((response) => response.data.data),
   })
 
-  const supportMutation = useMutation({
-    mutationFn: (doctor) => api.post('/interactions/threads', {
-      title: `${doctor.first_name} ${doctor.last_name} consultation request`,
-      initialMessage: `Hello care team, I would like to request a consultation with ${doctor.first_name} ${doctor.last_name}.`,
-      priority: 'high',
-    }),
+  const teleconsultMutation = useMutation({
+    mutationFn: (doctor) => api.post('/interactions/teleconsults', {
+      clinicianId: doctor.id,
+      title: `${doctor.first_name} ${doctor.last_name} tele-consult`,
+      reason: `Patient requested a tele-consult with ${doctor.first_name} ${doctor.last_name}.`,
+      initialMessage: `Hello care team, I would like to request a tele-consult with ${doctor.first_name} ${doctor.last_name}.`,
+      triggerSource: 'manual',
+    }).then((response) => response.data.data),
+    onSuccess: (result) => {
+      setTeleconsultResult(result)
+    },
   })
 
   const doctor = (data?.staff || []).find((member) => member.id === id)
@@ -43,11 +49,19 @@ export default function PatientDoctorDetailPage() {
         </div>
       </div>
 
-      {supportMutation.isSuccess ? (
-        <div className="alert-success"><span>Consultation request sent to the care team.</span></div>
+      {teleconsultMutation.isSuccess ? (
+        <div className="alert-success">
+          <span>Tele-consult request sent to the care team.</span>
+          {teleconsultResult?.meetingUrl ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a href={teleconsultResult.meetingUrl} target="_blank" rel="noreferrer" className="btn-primary btn-sm">Open tele-consult</a>
+              <Link to="/my/interactions" state={{ threadId: teleconsultResult.thread?.id }} className="btn-secondary btn-sm">Open messages</Link>
+            </div>
+          ) : null}
+        </div>
       ) : null}
-      {supportMutation.isError ? (
-        <div className="alert-critical"><span>{supportMutation.error.response?.data?.message || 'Unable to create consultation request.'}</span></div>
+      {teleconsultMutation.isError ? (
+        <div className="alert-critical"><span>{teleconsultMutation.error.response?.data?.message || 'Unable to create tele-consult request.'}</span></div>
       ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -84,10 +98,10 @@ export default function PatientDoctorDetailPage() {
               <button
                 type="button"
                 className="btn-secondary justify-center"
-                disabled={supportMutation.isPending}
-                onClick={() => supportMutation.mutate(doctor)}
+                disabled={teleconsultMutation.isPending}
+                onClick={() => teleconsultMutation.mutate(doctor)}
               >
-                {supportMutation.isPending ? 'Sending request...' : 'Open support thread'}
+                {teleconsultMutation.isPending ? 'Sending request...' : 'Start tele-consult'}
               </button>
               <Link to="/my/doctors" className="btn-ghost justify-center">Back to doctors</Link>
             </div>

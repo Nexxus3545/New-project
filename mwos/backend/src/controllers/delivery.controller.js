@@ -1,5 +1,6 @@
 const { query } = require('../config/database');
 const { generateUniqueCode } = require('../utils/identifiers');
+const { signClinicalRecord } = require('../utils/security');
 
 const create = async (req, res, next) => {
   try {
@@ -56,6 +57,15 @@ const create = async (req, res, next) => {
       'UPDATE pregnancies SET status = $1, updated_at = NOW() WHERE id = $2',
       ['delivered', pregnancyId]
     );
+
+    await signClinicalRecord({
+      staffId: req.user.id,
+      entityType: 'deliveries',
+      entityId: result.rows[0].id,
+      actionType: 'create',
+      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
+      requestId: req.requestId || null,
+    });
 
     res.status(201).json({ success: true, message: 'Delivery recorded', data: result.rows[0] });
   } catch (err) {
@@ -131,6 +141,15 @@ const addLaborProgress = async (req, res, next) => {
         alertFlag, actionFlag, notes || null, req.user.id
       ]
     );
+
+    await signClinicalRecord({
+      staffId: req.user.id,
+      entityType: 'labor_progress',
+      entityId: result.rows[0].id,
+      actionType: 'create',
+      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
+      requestId: req.requestId || null,
+    });
 
     const warnings = [];
     if (alertFlag) warnings.push({ type: 'alert', message: 'Alert line crossed — labor progress needs monitoring' });

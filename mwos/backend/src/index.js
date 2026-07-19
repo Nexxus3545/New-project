@@ -10,6 +10,8 @@ const { testConnection } = require('./config/database');
 const { setupSwagger } = require('./config/swagger');
 const routes = require('./routes/index');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
+const { requestContext } = require('./middleware/requestContext');
+const { migrate } = require('./utils/migrate');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -27,6 +29,7 @@ const handleServerError = (error) => {
 };
 
 app.use(helmet());
+app.use(requestContext);
 app.use(
   cors({
     origin: [
@@ -78,8 +81,19 @@ app.get('/health', async (_req, res) => {
   });
 });
 
+app.get('/ready', async (_req, res) => {
+  const dbOk = await testConnection().catch(() => false);
+  res.status(dbOk ? 200 : 503).json({
+    success: dbOk,
+    status: dbOk ? 'ready' : 'degraded',
+    requestId: _req.requestId || null,
+    database: dbOk ? 'connected' : 'disconnected',
+  });
+});
+
 setupSwagger(app);
 app.use('/api', routes);
+app.use('/api/v1', routes);
 
 app.use(notFound);
 app.use(errorHandler);
@@ -87,6 +101,12 @@ app.use(errorHandler);
 const start = async () => {
   console.log('\nTMC Copino MWOS Backend');
   console.log('============================');
+
+  if (process.env.AUTO_MIGRATE_ON_START !== 'false') {
+    await migrate({ closePool: false });
+  } else {
+    console.log('Automatic migrations are disabled (AUTO_MIGRATE_ON_START=false).');
+  }
 
   const dbConnected = await testConnection();
   if (!dbConnected) {

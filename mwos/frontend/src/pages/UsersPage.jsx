@@ -17,6 +17,13 @@ const activityMeta = {
   inactive: { label: 'Inactive', tone: 'badge-danger' },
 }
 
+const staffLicenseMeta = {
+  pending: { label: 'Pending review', tone: 'badge-warning' },
+  verified: { label: 'Verified', tone: 'badge-success' },
+  suspended: { label: 'Suspended', tone: 'badge-danger' },
+  expired: { label: 'Expired', tone: 'badge-gray' },
+}
+
 const formatDateTime = (value) => {
   if (!value) return 'No activity recorded'
   return new Date(value).toLocaleString('en-PH', {
@@ -74,6 +81,18 @@ export default function UsersPage() {
 
   const toggleMutation = useMutation({
     mutationFn: (id) => api.patch(`/users/${id}/toggle`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users-admin'] }),
+  })
+
+  const licenseMutation = useMutation({
+    mutationFn: ({ userId, status, staffProfile }) => api.patch(`/staff/registry/${userId}/license`, {
+      status,
+      professionalTitle: staffProfile?.staff_professional_title,
+      department: staffProfile?.staff_department,
+      licenseNumber: staffProfile?.staff_license_number,
+      licenseType: staffProfile?.staff_license_type,
+      credentialNotes: staffProfile?.staff_credential_notes,
+    }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users-admin'] }),
   })
 
@@ -154,6 +173,8 @@ export default function UsersPage() {
           {users.map((user) => {
             const role = roleMeta[user.role] || roleMeta.patient
             const activity = activityMeta[user.activity_status] || activityMeta.offline
+            const staffLicense = staffLicenseMeta[user.staff_license_status || 'pending'] || staffLicenseMeta.pending
+            const isStaff = user.role !== 'patient'
 
             return (
               <article key={user.id} className="card-hover flex flex-col gap-5">
@@ -186,6 +207,38 @@ export default function UsersPage() {
                     <p className="mt-1 text-xs text-slate-500">{formatDateTime(user.last_login_at)}</p>
                   </div>
                 </div>
+
+                {isStaff ? (
+                  <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Credential status</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className={`badge ${staffLicense.tone}`}>{staffLicense.label}</span>
+                        <span className="text-sm font-semibold text-slate-900">{user.staff_professional_title || 'Unassigned title'}</span>
+                      </div>
+                      <p className="mt-2 text-xs text-slate-500">{user.staff_license_number || 'No license number on file'}</p>
+                      <p className="mt-1 text-xs text-slate-500">{user.staff_department || 'No department assigned'}</p>
+                    </div>
+                    <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Admin action</p>
+                      <p className="mt-2 text-sm font-medium text-slate-900">Keep the staff credential in sync with the current license review.</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="btn-primary btn-sm"
+                          disabled={licenseMutation.isPending}
+                          onClick={() => licenseMutation.mutate({
+                            userId: user.id,
+                            status: user.staff_license_status === 'verified' ? 'suspended' : 'verified',
+                            staffProfile: user,
+                          })}
+                        >
+                          {user.staff_license_status === 'verified' ? 'Suspend license' : 'Verify license'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-slate-200 px-4 py-3">
                   <div>

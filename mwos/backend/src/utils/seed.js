@@ -1,6 +1,8 @@
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const { pool } = require('../config/database');
+const { ROLE_PERMISSION_MATRIX } = require('../config/permissions');
+const { recordLicenseEvent, upsertStaffRegistry } = require('./staff');
 
 async function seed() {
   console.log('🌱 Seeding MWOS database...');
@@ -37,6 +39,91 @@ async function seed() {
     const nurseUser = users.rows.find(u => u.email === 'nurse@tmccopino.com');
     const joyUser = users.rows.find(u => u.email === 'patient@example.com');
     const anaUser = users.rows.find(u => u.email === 'ana@example.com');
+
+    const rolePermissionRows = Object.entries(ROLE_PERMISSION_MATRIX).flatMap(([role, permissions]) => (
+      permissions.map((permissionKey) => [role, permissionKey, true])
+    ));
+
+    if (rolePermissionRows.length > 0) {
+      const placeholders = rolePermissionRows.map((_, index) => {
+        const offset = index * 3;
+        return `($${offset + 1}, $${offset + 2}, $${offset + 3})`;
+      }).join(', ');
+
+      await client.query(
+        `INSERT INTO role_permissions (role, permission_key, is_allowed)
+         VALUES ${placeholders}
+         ON CONFLICT (role, permission_key) DO UPDATE SET is_allowed = EXCLUDED.is_allowed`,
+        rolePermissionRows.flat()
+      );
+    }
+
+    const staffSeeds = [
+      {
+        userId: adminUser?.id,
+        title: 'Clinic Administrator',
+        department: 'Administration',
+        licenseNumber: 'TMC-ADM-0001',
+        licenseType: 'Administrative clearance',
+        status: 'verified',
+        notes: 'System administration and compliance oversight.',
+      },
+      {
+        userId: doctorUser?.id,
+        title: 'Doctor',
+        department: 'Obstetrics and Gynecology',
+        licenseNumber: 'LIC-DR-2026-0001',
+        licenseType: 'Professional license',
+        status: 'verified',
+        notes: 'Licensed physician responsible for prenatal and delivery oversight.',
+      },
+      {
+        userId: midwifeUser?.id,
+        title: 'Midwife',
+        department: 'Maternal Care',
+        licenseNumber: 'LIC-MW-2026-0001',
+        licenseType: 'Professional license',
+        status: 'verified',
+        notes: 'Licensed midwife assigned to prenatal and labor support.',
+      },
+      {
+        userId: nurseUser?.id,
+        title: 'Nurse',
+        department: 'Maternal Nursing',
+        licenseNumber: 'LIC-NR-2026-0001',
+        licenseType: 'Professional license',
+        status: 'verified',
+        notes: 'Licensed nurse assigned to monitoring and inventory support.',
+      },
+    ];
+
+    for (const staffSeed of staffSeeds) {
+      if (!staffSeed.userId) continue;
+
+      const staffProfile = await upsertStaffRegistry({
+        client,
+        userId: staffSeed.userId,
+        professionalTitle: staffSeed.title,
+        department: staffSeed.department,
+        licenseNumber: staffSeed.licenseNumber,
+        licenseType: staffSeed.licenseType,
+        licenseStatus: staffSeed.status,
+        credentialNotes: staffSeed.notes,
+        verifiedBy: adminUser?.id || staffSeed.userId,
+        verifiedAt: staffSeed.status === 'verified' ? new Date() : null,
+        lastReviewedAt: new Date(),
+      });
+
+      await recordLicenseEvent({
+        client,
+        staffId: staffProfile.staffId,
+        eventType: staffSeed.status === 'verified' ? 'verified' : 'created',
+        previousStatus: null,
+        nextStatus: staffSeed.status,
+        notes: staffSeed.notes,
+        performedBy: adminUser?.id || staffSeed.userId,
+      });
+    }
 
     // Seed patients
     const patients = await client.query(`

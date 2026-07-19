@@ -30,14 +30,15 @@ const activityLogger = async (req, res, next) => {
 
     try {
       await query(
-        `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_values, ip_address, user_agent)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_values, request_id, ip_address, user_agent)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           req.user.id,
           req.method,
           req.originalUrl.split('/')[2] || 'unknown',
           null,
           normalizeBodyForAudit(req.body),
+          req.requestId || null,
           req.ip,
           req.headers['user-agent'] || null,
         ]

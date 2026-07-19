@@ -226,14 +226,12 @@ Production checklist:
 5. Run migrations in CI/CD before app rollout
 6. Monitor logs, API latency, and backup success/failure
 
----
-
-## Use Case Diagram (Text)
+## 13. Use Case Diagram (Text)
 - Admin: manage users, backups, reports, notifications
 - Staff (Doctor/Midwife/Nurse): clinical CRUD, appointments, EMR, inventory
 - Patient/User: own dashboard, appointments, records, profile
 
-## Class Diagram (Core Domain)
+## 14. Class Diagram (Core Domain)
 ```mermaid
 classDiagram
   class User {+id +email +role +is_active}
@@ -250,7 +248,7 @@ classDiagram
   User "1" --> "0..*" Notification
 ```
 
-## Flowchart (High-level)
+## 15. Flowchart (High-level)
 ```mermaid
 flowchart LR
   A[Login/Register] --> B{Role}
@@ -261,3 +259,8 @@ flowchart LR
   D --> G[Manage Patients, Visits, EMR, Billing]
   E --> H[View Records, Appointments, Education]
 ```
+
+## 16. Scope Notes and Final Statement
+This manuscript is the canonical system-level reference for MWOS. It captures the shared backend contract, platform responsibilities, domain model, deployment path, and operating principles for the current repository.
+
+If implementation changes introduce new workflows, security controls, or data domains, update this manuscript first so the web, mobile, desktop, and backend surfaces remain aligned.

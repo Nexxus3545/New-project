@@ -4,6 +4,8 @@ const crypto = require('crypto');
 const { query, getClient } = require('../config/database');
 const { generateUniqueCode } = require('../utils/identifiers');
 const { sendMail } = require('../utils/mailer');
+const { fetchStaffProfileByUserId, recordLicenseEvent, upsertStaffRegistry } = require('../utils/staff');
+const { generateSessionTokens } = require('../utils/tokens');
 
 const DEFAULT_UI_PREFERENCES = {
   theme: 'light',
@@ -34,13 +36,16 @@ const sanitizeUiPreferences = (input = {}) => {
 };
 
 const buildUserPayload = async (user) => {
-  let patientId = null;
-  if (user.role === 'patient') {
-    const patientResult = await query('SELECT id FROM patients WHERE user_id = $1', [user.id]);
-    if (patientResult.rows.length > 0) {
-      patientId = patientResult.rows[0].id;
-    }
-  }
+  const [patientResult, staffProfile] = await Promise.all([
+    user.role === 'patient'
+      ? query('SELECT id FROM patients WHERE user_id = $1', [user.id])
+      : Promise.resolve({ rows: [] }),
+    user.role === 'patient'
+      ? Promise.resolve(null)
+      : fetchStaffProfileByUserId(user.id),
+  ]);
+
+  const patientId = patientResult.rows[0]?.id || null;
 
   return {
     id: user.id,
@@ -52,22 +57,9 @@ const buildUserPayload = async (user) => {
     avatarUrl: user.avatar_url || null,
     uiPreferences: sanitizeUiPreferences(user.ui_preferences || {}),
     patientId,
+    staffProfile,
     createdAt: user.created_at,
   };
-};
-
-const generateTokens = (userId, role) => {
-  const accessToken = jwt.sign(
-    { userId, role },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
-  );
-  const refreshToken = jwt.sign(
-    { userId, role },
-    process.env.JWT_REFRESH_SECRET,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
-  );
-  return { accessToken, refreshToken };
 };
 
 const login = async (req, res, next) => {
@@ -100,7 +92,7 @@ const login = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
-    const { accessToken, refreshToken } = generateTokens(user.id, user.role);
+    const { accessToken, refreshToken } = generateSessionTokens(user.id, user.role);
 
     await query(
       'UPDATE users SET refresh_token = $1, last_login_at = NOW(), last_seen_at = NOW(), updated_at = NOW() WHERE id = $2',
@@ -177,6 +169,39 @@ const register = async (req, res, next) => {
 
       user = result.rows[0];
 
+      if (role !== 'patient') {
+        const titleByRole = {
+          admin: 'Clinic Administrator',
+          doctor: 'Doctor',
+          midwife: 'Midwife',
+          nurse: 'Nurse',
+        };
+
+        const staffProfile = await upsertStaffRegistry({
+          client,
+          userId: user.id,
+          professionalTitle: titleByRole[role] || role,
+          department: 'Clinic Operations',
+          licenseNumber: null,
+          licenseType: 'Professional license',
+          licenseStatus: 'pending',
+          credentialNotes: 'Initial staff registry entry created during registration.',
+          verifiedBy: null,
+          verifiedAt: null,
+          lastReviewedAt: new Date(),
+        });
+
+        await recordLicenseEvent({
+          client,
+          staffId: staffProfile.staffId,
+          eventType: 'created',
+          previousStatus: null,
+          nextStatus: 'pending',
+          notes: 'Initial staff registry entry created during registration.',
+          performedBy: user.id,
+        });
+      }
+
       if (role === 'patient') {
         const patientCode = await generateUniqueCode({ table: 'patients', column: 'patient_code', prefix: 'MWOS-PAT' });
         const birthingId = await generateUniqueCode({ table: 'patients', column: 'birthing_id', prefix: 'TMC-BIR' });
@@ -200,7 +225,7 @@ const register = async (req, res, next) => {
         );
       }
 
-      const { accessToken, refreshToken } = generateTokens(user.id, user.role);
+      const { accessToken, refreshToken } = generateSessionTokens(user.id, user.role);
       await client.query('UPDATE users SET refresh_token = $1, last_seen_at = NOW() WHERE id = $2', [refreshToken, user.id]);
       await client.query('COMMIT');
 
@@ -497,6 +522,7 @@ const resetPassword = async (req, res, next) => {
 };
 
 module.exports = {
+  buildUserPayload,
   login,
   register,
   refreshToken,

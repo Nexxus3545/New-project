@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useLocation } from 'react-router-dom'
 import api from '../utils/api'
 import { useAuthStore } from '../store/authStore'
 
@@ -8,7 +9,9 @@ const THREAD_TYPES = [
   ['handoff', 'Handoff'],
   ['announcement', 'Announcement'],
   ['patient_support', 'Patient support'],
+  ['tele_consult', 'Tele-consult'],
 ]
+const THREAD_CREATION_TYPES = THREAD_TYPES.filter(([value]) => value !== 'tele_consult')
 
 const STATUSES = [
   ['open', 'Open'],
@@ -54,17 +57,21 @@ function Modal({ title, subtitle, children, onClose }) {
 export default function InteractionsPage() {
   const user = useAuthStore((state) => state.user)
   const qc = useQueryClient()
+  const location = useLocation()
   const patientMode = user?.role === 'patient'
   const isStaff = ['admin', 'doctor', 'midwife', 'nurse'].includes(user?.role)
+  const isClinician = ['doctor', 'midwife'].includes(user?.role)
   const [selectedThreadId, setSelectedThreadId] = useState(null)
   const [threadTypeFilter, setThreadTypeFilter] = useState('')
   const [threadStatusFilter, setThreadStatusFilter] = useState('open')
   const [messageBody, setMessageBody] = useState('')
+  const [messageCategory, setMessageCategory] = useState('general')
   const [showThreadModal, setShowThreadModal] = useState(false)
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [showCompletedTasks, setShowCompletedTasks] = useState(false)
   const [threadError, setThreadError] = useState('')
   const [taskError, setTaskError] = useState('')
+  const [messageActionError, setMessageActionError] = useState('')
   const [staffThreadForm, setStaffThreadForm] = useState(initialStaffThread)
   const [patientThreadForm, setPatientThreadForm] = useState(initialPatientThread)
   const [taskForm, setTaskForm] = useState(initialTask)
@@ -113,7 +120,16 @@ export default function InteractionsPage() {
     if (!selectedThreadId || !threads.some((thread) => thread.id === selectedThreadId)) setSelectedThreadId(threads[0].id)
   }, [threads, selectedThreadId])
 
+  useEffect(() => {
+    const targetThreadId = location.state?.threadId
+    if (!targetThreadId) return
+    if (threads.some((thread) => thread.id === targetThreadId)) {
+      setSelectedThreadId(targetThreadId)
+    }
+  }, [location.state, threads])
+
   useEffect(() => { markReadRef.current = null }, [selectedThreadId])
+  useEffect(() => { setMessageActionError('') }, [selectedThreadId])
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['interaction-threads'] })
@@ -137,11 +153,36 @@ export default function InteractionsPage() {
     onError: (error) => setThreadError(error.response?.data?.message || 'Unable to create this conversation right now.'),
   })
 
+  const createTeleconsultMutation = useMutation({
+    mutationFn: (payload) => api.post('/interactions/teleconsults', payload).then((response) => response.data.data),
+    onSuccess: (result) => {
+      setShowThreadModal(false)
+      setThreadError('')
+      setStaffThreadForm(initialStaffThread)
+      setPatientThreadForm(initialPatientThread)
+      setSelectedThreadId(result.thread?.id || null)
+      invalidate()
+    },
+    onError: (error) => setThreadError(error.response?.data?.message || 'Unable to start a tele-consult right now.'),
+  })
+
   const messageMutation = useMutation({
     mutationFn: (payload) => api.post(`/interactions/threads/${selectedThreadId}/messages`, payload),
     onSuccess: () => {
       setMessageBody('')
+      setMessageCategory('general')
       invalidate()
+    },
+  })
+
+  const promoteMessageMutation = useMutation({
+    mutationFn: (messageId) => api.post(`/interactions/messages/${messageId}/promote`),
+    onSuccess: () => {
+      setMessageActionError('')
+      invalidate()
+    },
+    onError: (error) => {
+      setMessageActionError(error.response?.data?.message || 'Unable to promote this message right now.')
     },
   })
 
@@ -191,6 +232,18 @@ export default function InteractionsPage() {
     }
     if (!staffThreadForm.initialMessage.trim()) return setThreadError('Please add the opening care note.')
     if (!staffThreadForm.patientId && staffThreadForm.participantIds.length === 0) return setThreadError('Select at least one participant or attach the thread to a patient.')
+    if (staffThreadForm.threadType === 'tele_consult') {
+      if (!isClinician) return setThreadError('Tele-consult sessions require a doctor or midwife.')
+      return createTeleconsultMutation.mutate({
+        title: staffThreadForm.title.trim(),
+        patientId: staffThreadForm.patientId || undefined,
+        clinicianId: user.id,
+        participantIds: staffThreadForm.participantIds,
+        reason: staffThreadForm.initialMessage.trim(),
+        initialMessage: staffThreadForm.initialMessage.trim(),
+        triggerSource: 'manual',
+      })
+    }
     createThreadMutation.mutate({
       title: staffThreadForm.title.trim(),
       threadType: staffThreadForm.threadType,
@@ -220,7 +273,7 @@ export default function InteractionsPage() {
   const submitMessage = (event) => {
     event.preventDefault()
     if (!messageBody.trim()) return
-    messageMutation.mutate({ body: messageBody.trim() })
+    messageMutation.mutate({ body: messageBody.trim(), messageCategory })
   }
 
   const threadDetail = threadDetailQuery.data
@@ -239,6 +292,12 @@ export default function InteractionsPage() {
           {isStaff && <button type="button" onClick={() => setShowTaskModal(true)} className="btn-secondary">Assign task</button>}
         </div>
       </div>
+
+      {messageActionError ? (
+        <div className="alert-critical">
+          <span>{messageActionError}</span>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="card-hover"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-slate-400">Unread threads</p><p className="mt-3 text-3xl font-semibold text-gray-900 dark:text-slate-50">{unreadCount}</p><p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Updates from another role that still need attention.</p></div>
@@ -349,6 +408,54 @@ export default function InteractionsPage() {
                 <div className="mt-4 flex flex-wrap gap-2">
                   {(threadDetail.participants || []).map((participant) => <span key={participant.id} className="badge badge-gray">{participant.first_name} {participant.last_name} - {roleLabel(participant.role)}</span>)}
                 </div>
+                {threadDetail.teleconsult_session ? (
+                  <div className="mt-4 rounded-3xl border border-rose-200 bg-rose-50/70 px-4 py-4 dark:border-rose-900/40 dark:bg-rose-950/20">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-rose-900 dark:text-rose-100">Tele-consult session</p>
+                        <p className="mt-1 text-xs text-rose-700/80 dark:text-rose-200/75">
+                          {threadDetail.teleconsult_session.reason || 'Clinical escalation'} • {threadDetail.teleconsult_session.meeting_provider || 'jitsi'} • {threadDetail.teleconsult_session.meeting_code || 'meeting pending'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`badge ${statusClass(threadDetail.teleconsult_session.status)}`}>{roleLabel(threadDetail.teleconsult_session.status)}</span>
+                        <span className="badge badge-gray">{roleLabel(threadDetail.teleconsult_session.meeting_provider || 'jitsi')}</span>
+                        {threadDetail.teleconsult_session.meeting_url ? (
+                          <a href={threadDetail.teleconsult_session.meeting_url} target="_blank" rel="noreferrer" className="btn-primary btn-sm">
+                            Open tele-consult
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ) : isClinician && threadDetail.patient_id ? (
+                  <div className="mt-4 rounded-3xl border border-dashed border-rose-200 bg-rose-50/60 px-4 py-4 dark:border-rose-900/40 dark:bg-rose-950/20">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-rose-900 dark:text-rose-100">Tele-consult escalation</p>
+                        <p className="mt-1 text-xs text-rose-700/80 dark:text-rose-200/75">
+                          Start a secure tele-consult session for this patient and open the meeting link right away.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={createTeleconsultMutation.isPending}
+                        onClick={() => createTeleconsultMutation.mutate({
+                          threadId: threadDetail.id,
+                          patientId: threadDetail.patient_id,
+                          clinicianId: user.id,
+                          reason: threadDetail.title,
+                          initialMessage: `Tele-consult escalated by ${user.first_name} ${user.last_name}.`,
+                          triggerSource: 'message',
+                          clinicalTrigger: 'manual_escalation',
+                        })}
+                        className="btn-primary btn-sm"
+                      >
+                        {createTeleconsultMutation.isPending ? 'Starting...' : 'Start tele-consult'}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex-1 space-y-4 overflow-y-auto py-5">
@@ -357,8 +464,23 @@ export default function InteractionsPage() {
                   <div key={message.id} className={`flex ${message.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[85%] rounded-3xl px-4 py-3 ${message.sender_id === user?.id ? 'bg-[var(--accent)] text-white' : 'border border-gray-200 bg-white text-gray-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100'}`}>
                       <div className="mb-2 flex items-center gap-2 text-xs"><span className={`font-semibold ${message.sender_id === user?.id ? 'text-white/90' : 'text-gray-600 dark:text-slate-300'}`}>{message.sender_name}</span><span className={message.sender_id === user?.id ? 'text-white/70' : 'text-gray-400 dark:text-slate-500'}>{roleLabel(message.sender_role)}</span></div>
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        {message.message_category && message.message_category !== 'general' ? <span className={`badge ${message.sender_id === user?.id ? 'badge-gray' : 'badge-info'}`}>{roleLabel(message.message_category)}</span> : null}
+                        {message.is_clinical_note ? <span className={`badge ${message.sender_id === user?.id ? 'badge-gray' : 'badge-success'}`}>Clinical note</span> : null}
+                        {message.record_promotion_status === 'promoted' ? <span className={`badge ${message.sender_id === user?.id ? 'badge-gray' : 'badge-success'}`}>Promoted to record</span> : null}
+                      </div>
                       <p className={`whitespace-pre-wrap text-sm ${message.sender_id === user?.id ? 'text-white' : 'text-gray-700 dark:text-slate-200'}`}>{message.body}</p>
                       <p className={`mt-2 text-[11px] ${message.sender_id === user?.id ? 'text-white/70' : 'text-gray-400 dark:text-slate-500'}`}>{dateTime(message.created_at)}</p>
+                      {isStaff && message.sender_id !== user?.id && message.record_promotion_status !== 'promoted' ? (
+                        <button
+                          type="button"
+                          disabled={promoteMessageMutation.isPending}
+                          onClick={() => promoteMessageMutation.mutate(message.id)}
+                          className={`mt-3 text-[11px] font-semibold ${message.sender_id === user?.id ? 'text-white/80' : 'text-[var(--accent)]'}`}
+                        >
+                          {promoteMessageMutation.isPending ? 'Promoting...' : 'Promote to record'}
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -366,6 +488,21 @@ export default function InteractionsPage() {
 
               <form onSubmit={submitMessage} className="border-t border-gray-100 pt-4 dark:border-slate-800">
                 <label className="label">Reply to this thread</label>
+                {isStaff ? (
+                  <div className="mb-3">
+                    <label className="label">Message category</label>
+                    <select value={messageCategory} onChange={(event) => setMessageCategory(event.target.value)} className="input">
+                      {[
+                        ['general', 'General'],
+                        ['clinical_advice', 'Clinical advice'],
+                        ['clinical_note', 'Clinical note'],
+                        ['teleconsult', 'Tele-consult'],
+                        ['handoff', 'Handoff'],
+                        ['urgent', 'Urgent'],
+                      ].map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </div>
+                ) : null}
                 <textarea value={messageBody} onChange={(event) => setMessageBody(event.target.value)} className="input min-h-[120px] resize-y" placeholder={patientMode ? 'Share an update or question for your care team...' : 'Add a handoff, note, or next step...'} />
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <p className="text-xs text-gray-500 dark:text-slate-400">Replies notify the other participants in this thread.</p>
@@ -432,7 +569,7 @@ export default function InteractionsPage() {
             ) : (
               <>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div><label className="label">Thread type</label><select value={staffThreadForm.threadType} onChange={(event) => setStaffThreadForm((current) => ({ ...current, threadType: event.target.value }))} className="input">{THREAD_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+                  <div><label className="label">Thread type</label><select value={staffThreadForm.threadType} onChange={(event) => setStaffThreadForm((current) => ({ ...current, threadType: event.target.value }))} className="input">{THREAD_CREATION_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
                   <div><label className="label">Priority</label><select value={staffThreadForm.priority} onChange={(event) => setStaffThreadForm((current) => ({ ...current, priority: event.target.value }))} className="input">{PRIORITIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
                 </div>
                 <div><label className="label">Title</label><input value={staffThreadForm.title} onChange={(event) => setStaffThreadForm((current) => ({ ...current, title: event.target.value }))} className="input" placeholder="Ana Gomez postpartum follow-up" /></div>

@@ -22,6 +22,138 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Staff registry and hierarchical permissions
+CREATE TABLE IF NOT EXISTS staff_registry (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID UNIQUE REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  professional_title VARCHAR(120),
+  department VARCHAR(120),
+  license_number VARCHAR(120),
+  license_type VARCHAR(120),
+  license_status VARCHAR(20) DEFAULT 'pending' CHECK (license_status IN ('pending','verified','suspended','expired')),
+  credential_notes TEXT,
+  verified_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  verified_at TIMESTAMPTZ,
+  last_reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS license_verification_events (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  staff_id UUID REFERENCES staff_registry(id) ON DELETE CASCADE NOT NULL,
+  event_type VARCHAR(30) NOT NULL CHECK (event_type IN ('created','verified','suspended','expired','note_added','restored')),
+  previous_status VARCHAR(20),
+  next_status VARCHAR(20),
+  notes TEXT,
+  performed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  role VARCHAR(50) NOT NULL,
+  permission_key VARCHAR(120) NOT NULL,
+  is_allowed BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (role, permission_key)
+);
+
+CREATE TABLE IF NOT EXISTS permission_overrides (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  staff_id UUID REFERENCES staff_registry(id) ON DELETE CASCADE NOT NULL,
+  permission_key VARCHAR(120) NOT NULL,
+  effect VARCHAR(10) NOT NULL CHECK (effect IN ('grant','deny')),
+  reason TEXT,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (staff_id, permission_key)
+);
+
+CREATE TABLE IF NOT EXISTS auth_credentials (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  staff_id UUID REFERENCES staff_registry(id) ON DELETE CASCADE NOT NULL,
+  credential_type VARCHAR(30) NOT NULL CHECK (
+    credential_type IN ('WebAuthn', 'Passkey', 'Device_Biometric', 'OTP')
+  ),
+  external_credential_ref TEXT NOT NULL,
+  public_key TEXT,
+  label VARCHAR(150),
+  last_verified_at TIMESTAMPTZ,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (staff_id, credential_type, external_credential_ref)
+);
+
+CREATE TABLE IF NOT EXISTS webauthn_credentials (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  auth_credential_id UUID REFERENCES auth_credentials(id) ON DELETE CASCADE NOT NULL,
+  staff_id UUID REFERENCES staff_registry(id) ON DELETE CASCADE NOT NULL,
+  credential_id TEXT UNIQUE NOT NULL,
+  credential_public_key TEXT NOT NULL,
+  counter INTEGER DEFAULT 0,
+  transports JSONB DEFAULT '[]',
+  credential_device_type VARCHAR(30) DEFAULT 'singleDevice',
+  credential_backed_up BOOLEAN DEFAULT false,
+  attestation_format VARCHAR(30),
+  label VARCHAR(150),
+  last_used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS otp_challenges (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  staff_id UUID REFERENCES staff_registry(id) ON DELETE CASCADE NOT NULL,
+  purpose VARCHAR(80) NOT NULL,
+  channel VARCHAR(20) NOT NULL CHECK (channel IN ('SMS')),
+  code_hash TEXT NOT NULL,
+  attempt_count INTEGER DEFAULT 0,
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS digital_signatures (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  staff_id UUID REFERENCES staff_registry(id) ON DELETE CASCADE NOT NULL,
+  license_id VARCHAR(50) NOT NULL,
+  entity_type VARCHAR(50) NOT NULL,
+  entity_id UUID NOT NULL,
+  action_type VARCHAR(80) NOT NULL,
+  credential_strength VARCHAR(30) NOT NULL CHECK (
+    credential_strength IN ('Base', 'Step_Up', 'Clinical_Signature')
+  ),
+  auth_method VARCHAR(30) NOT NULL CHECK (
+    auth_method IN ('Password', 'Biometric', 'SMS_OTP', 'WebAuthn', 'Passkey')
+  ),
+  signature_hash TEXT NOT NULL,
+  request_id VARCHAR(64),
+  signed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS security_audit (
+  id BIGSERIAL PRIMARY KEY,
+  staff_id UUID REFERENCES staff_registry(id) ON DELETE SET NULL,
+  action_performed VARCHAR(255) NOT NULL,
+  entity_type VARCHAR(50),
+  entity_id UUID,
+  device_ip VARCHAR(45),
+  auth_method VARCHAR(30) NOT NULL CHECK (
+    auth_method IN ('Password', 'Biometric', 'SMS_OTP', 'WebAuthn', 'Passkey')
+  ),
+  credential_strength VARCHAR(30) NOT NULL CHECK (
+    credential_strength IN ('Base', 'Step_Up', 'Clinical_Signature')
+  ),
+  request_id VARCHAR(64),
+  notes TEXT,
+  details JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_preferences JSONB DEFAULT '{"theme":"light","accent":"rose","density":"comfortable","surface":"solid","motion":"full"}';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
@@ -485,10 +617,13 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   entity_id UUID,
   old_values JSONB,
   new_values JSONB,
+  request_id VARCHAR(64),
   ip_address VARCHAR(45),
   user_agent TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS request_id VARCHAR(64);
 
 -- Notifications
 CREATE TABLE IF NOT EXISTS notifications (
@@ -508,7 +643,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 -- Interaction center: threads and messages
 CREATE TABLE IF NOT EXISTS conversation_threads (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  thread_type VARCHAR(30) NOT NULL DEFAULT 'care_team' CHECK (thread_type IN ('care_team','patient_support','handoff','announcement')),
+  thread_type VARCHAR(30) NOT NULL DEFAULT 'care_team' CHECK (thread_type IN ('care_team','patient_support','handoff','announcement','tele_consult')),
   title VARCHAR(255) NOT NULL,
   patient_id UUID REFERENCES patients(id) ON DELETE SET NULL,
   created_by UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -534,8 +669,90 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
   sender_id UUID REFERENCES users(id) ON DELETE SET NULL,
   body TEXT NOT NULL,
   message_type VARCHAR(20) NOT NULL DEFAULT 'comment' CHECK (message_type IN ('comment','handoff','system')),
+  message_category VARCHAR(30) NOT NULL DEFAULT 'general' CHECK (message_category IN ('general','clinical_advice','clinical_note','teleconsult','handoff','urgent','system')),
+  is_clinical_note BOOLEAN NOT NULL DEFAULT false,
+  record_promotion_status VARCHAR(20) NOT NULL DEFAULT 'not_promoted' CHECK (record_promotion_status IN ('not_promoted','promoted','rejected')),
+  record_promotion_at TIMESTAMPTZ,
+  record_promotion_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  teleconsult_session_id UUID,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS tele_consult_sessions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  thread_id UUID REFERENCES conversation_threads(id) ON DELETE CASCADE NOT NULL,
+  patient_id UUID REFERENCES patients(id) ON DELETE SET NULL,
+  requested_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  clinician_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  trigger_source VARCHAR(50) NOT NULL DEFAULT 'manual' CHECK (trigger_source IN ('manual','vitals','lab','ultrasound','message','appointment','emergency','follow_up')),
+  clinical_trigger VARCHAR(120),
+  reason TEXT NOT NULL,
+  meeting_provider VARCHAR(30) NOT NULL DEFAULT 'jitsi' CHECK (meeting_provider IN ('jitsi','zoom','twilio_video','external')),
+  meeting_url TEXT NOT NULL,
+  meeting_code VARCHAR(120),
+  status VARCHAR(20) NOT NULL DEFAULT 'requested' CHECK (status IN ('requested','scheduled','active','completed','cancelled')),
+  start_at TIMESTAMPTZ,
+  end_at TIMESTAMPTZ,
+  triggered_from_message_id UUID,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE IF EXISTS conversation_threads
+  DROP CONSTRAINT IF EXISTS conversation_threads_thread_type_check;
+
+ALTER TABLE IF EXISTS conversation_threads
+  ADD CONSTRAINT conversation_threads_thread_type_check
+  CHECK (thread_type IN ('care_team','patient_support','handoff','announcement','tele_consult'));
+
+ALTER TABLE IF EXISTS conversation_messages
+  ADD COLUMN IF NOT EXISTS message_category VARCHAR(30) DEFAULT 'general';
+
+ALTER TABLE IF EXISTS conversation_messages
+  ADD COLUMN IF NOT EXISTS is_clinical_note BOOLEAN DEFAULT false;
+
+ALTER TABLE IF EXISTS conversation_messages
+  ADD COLUMN IF NOT EXISTS record_promotion_status VARCHAR(20) DEFAULT 'not_promoted';
+
+ALTER TABLE IF EXISTS conversation_messages
+  ADD COLUMN IF NOT EXISTS record_promotion_at TIMESTAMPTZ;
+
+ALTER TABLE IF EXISTS conversation_messages
+  ADD COLUMN IF NOT EXISTS record_promotion_by UUID REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE IF EXISTS conversation_messages
+  ADD COLUMN IF NOT EXISTS teleconsult_session_id UUID;
+
+ALTER TABLE IF EXISTS conversation_messages
+  DROP CONSTRAINT IF EXISTS conversation_messages_message_category_check;
+
+ALTER TABLE IF EXISTS conversation_messages
+  ADD CONSTRAINT conversation_messages_message_category_check
+  CHECK (message_category IN ('general','clinical_advice','clinical_note','teleconsult','handoff','urgent','system'));
+
+ALTER TABLE IF EXISTS conversation_messages
+  DROP CONSTRAINT IF EXISTS conversation_messages_record_promotion_status_check;
+
+ALTER TABLE IF EXISTS conversation_messages
+  ADD CONSTRAINT conversation_messages_record_promotion_status_check
+  CHECK (record_promotion_status IN ('not_promoted','promoted','rejected'));
+
+ALTER TABLE IF EXISTS conversation_messages
+  DROP CONSTRAINT IF EXISTS conversation_messages_teleconsult_session_id_fkey;
+
+ALTER TABLE IF EXISTS conversation_messages
+  ADD CONSTRAINT conversation_messages_teleconsult_session_id_fkey
+  FOREIGN KEY (teleconsult_session_id) REFERENCES tele_consult_sessions(id) ON DELETE SET NULL;
+
+ALTER TABLE IF EXISTS tele_consult_sessions
+  ADD COLUMN IF NOT EXISTS triggered_from_message_id UUID;
+
+ALTER TABLE IF EXISTS tele_consult_sessions
+  DROP CONSTRAINT IF EXISTS tele_consult_sessions_triggered_from_message_id_fkey;
+
+ALTER TABLE IF EXISTS tele_consult_sessions
+  ADD CONSTRAINT tele_consult_sessions_triggered_from_message_id_fkey
+  FOREIGN KEY (triggered_from_message_id) REFERENCES conversation_messages(id) ON DELETE SET NULL;
 
 -- Interaction center: tasks
 CREATE TABLE IF NOT EXISTS care_tasks (
@@ -580,10 +797,27 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_deliveries_delivery_code_unique ON deliver
 CREATE INDEX IF NOT EXISTS idx_billing_patient_id ON billing(patient_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_request_id ON audit_logs(request_id);
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+CREATE INDEX IF NOT EXISTS idx_staff_registry_user_id ON staff_registry(user_id);
+CREATE INDEX IF NOT EXISTS idx_staff_registry_license_status ON staff_registry(license_status);
+CREATE INDEX IF NOT EXISTS idx_license_verification_events_staff_id ON license_verification_events(staff_id);
+CREATE INDEX IF NOT EXISTS idx_role_permissions_role ON role_permissions(role);
+CREATE INDEX IF NOT EXISTS idx_permission_overrides_staff_id ON permission_overrides(staff_id);
+CREATE INDEX IF NOT EXISTS idx_auth_credentials_staff_id ON auth_credentials(staff_id);
+CREATE INDEX IF NOT EXISTS idx_auth_credentials_type ON auth_credentials(credential_type);
+CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_staff_id ON webauthn_credentials(staff_id);
+CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_credential_id ON webauthn_credentials(credential_id);
+CREATE INDEX IF NOT EXISTS idx_otp_challenges_staff_id ON otp_challenges(staff_id);
+CREATE INDEX IF NOT EXISTS idx_otp_challenges_purpose ON otp_challenges(purpose);
+CREATE INDEX IF NOT EXISTS idx_otp_challenges_expires_at ON otp_challenges(expires_at);
+CREATE INDEX IF NOT EXISTS idx_digital_signatures_staff_id ON digital_signatures(staff_id);
+CREATE INDEX IF NOT EXISTS idx_digital_signatures_entity ON digital_signatures(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_security_audit_staff_id ON security_audit(staff_id);
+CREATE INDEX IF NOT EXISTS idx_security_audit_created_at ON security_audit(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_media_feed_posts_created_at ON media_feed_posts(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_media_feed_posts_published ON media_feed_posts(is_published);
 CREATE INDEX IF NOT EXISTS idx_media_feed_posts_media_type ON media_feed_posts(media_type);
@@ -598,6 +832,14 @@ CREATE INDEX IF NOT EXISTS idx_conversation_threads_patient_id ON conversation_t
 CREATE INDEX IF NOT EXISTS idx_conversation_threads_last_message_at ON conversation_threads(last_message_at DESC);
 CREATE INDEX IF NOT EXISTS idx_conversation_participants_user_id ON conversation_participants(user_id);
 CREATE INDEX IF NOT EXISTS idx_conversation_messages_thread_id ON conversation_messages(thread_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_category ON conversation_messages(message_category);
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_promotion_status ON conversation_messages(record_promotion_status);
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_teleconsult_session_id ON conversation_messages(teleconsult_session_id);
+CREATE INDEX IF NOT EXISTS idx_tele_consult_sessions_thread_id ON tele_consult_sessions(thread_id);
+CREATE INDEX IF NOT EXISTS idx_tele_consult_sessions_patient_id ON tele_consult_sessions(patient_id);
+CREATE INDEX IF NOT EXISTS idx_tele_consult_sessions_clinician_id ON tele_consult_sessions(clinician_id);
+CREATE INDEX IF NOT EXISTS idx_tele_consult_sessions_status ON tele_consult_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_tele_consult_sessions_created_at ON tele_consult_sessions(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_care_tasks_assigned_to ON care_tasks(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_care_tasks_patient_id ON care_tasks(patient_id);
 CREATE INDEX IF NOT EXISTS idx_care_tasks_status ON care_tasks(status);

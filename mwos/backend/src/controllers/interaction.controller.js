@@ -1,15 +1,27 @@
 const { getClient, query } = require('../config/database');
+const { resolveStepUpContext } = require('../middleware/stepUp');
+const { buildTeleconsultMeetingDetails } = require('../utils/teleconsult');
+const {
+  getStaffSecurityContext,
+  recordSecurityAudit,
+} = require('../utils/security');
 
 const STAFF_ROLES = ['admin', 'doctor', 'midwife', 'nurse'];
-const THREAD_TYPES = ['care_team', 'patient_support', 'handoff', 'announcement'];
+const THREAD_TYPES = ['care_team', 'patient_support', 'handoff', 'announcement', 'tele_consult'];
 const THREAD_STATUSES = ['open', 'resolved', 'archived'];
+const TELECONSULT_STATUSES = ['requested', 'scheduled', 'active', 'completed', 'cancelled'];
 const TASK_STATUSES = ['open', 'in_progress', 'completed', 'cancelled'];
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
+const MESSAGE_CATEGORIES = ['general', 'clinical_advice', 'clinical_note', 'teleconsult', 'handoff', 'urgent', 'system'];
 
 const sanitizePriority = (value) => (PRIORITIES.includes(value) ? value : 'normal');
 const sanitizeThreadType = (value) => (THREAD_TYPES.includes(value) ? value : 'care_team');
 const sanitizeThreadStatus = (value) => (THREAD_STATUSES.includes(value) ? value : 'open');
+const sanitizeTeleconsultStatus = (value) => (TELECONSULT_STATUSES.includes(value) ? value : 'requested');
 const sanitizeTaskStatus = (value) => (TASK_STATUSES.includes(value) ? value : 'open');
+const sanitizeMessageCategory = (value) => (MESSAGE_CATEGORIES.includes(value) ? value : 'general');
+const sanitizeMessageType = (value) => (['comment', 'handoff', 'system'].includes(value) ? value : 'comment');
+const parseBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1';
 
 const getPatientRecordByUser = async (client, userId) => {
   const result = await client.query(
@@ -50,9 +62,27 @@ const createNotifications = async (client, { userIds, title, body, createdBy, me
 const fetchThreadDetail = async (client, threadId, userId) => {
   const threadResult = await client.query(
     `SELECT ct.*,
-        p.first_name || ' ' || p.last_name AS patient_name
+        p.first_name || ' ' || p.last_name AS patient_name,
+        tcs.id AS teleconsult_session_id,
+        tcs.status AS teleconsult_status,
+        tcs.meeting_provider AS teleconsult_meeting_provider,
+        tcs.meeting_url AS teleconsult_meeting_url,
+        tcs.meeting_code AS teleconsult_meeting_code,
+        tcs.reason AS teleconsult_reason,
+        tcs.clinical_trigger AS teleconsult_clinical_trigger,
+        tcs.start_at AS teleconsult_start_at,
+        tcs.end_at AS teleconsult_end_at,
+        tcs.requested_by AS teleconsult_requested_by,
+        tcs.clinician_id AS teleconsult_clinician_id
      FROM conversation_threads ct
      LEFT JOIN patients p ON p.id = ct.patient_id
+     LEFT JOIN LATERAL (
+       SELECT *
+       FROM tele_consult_sessions tcs
+       WHERE tcs.thread_id = ct.id
+       ORDER BY tcs.created_at DESC
+       LIMIT 1
+     ) tcs ON true
      WHERE ct.id = $1
        AND EXISTS (
          SELECT 1
@@ -74,7 +104,9 @@ const fetchThreadDetail = async (client, threadId, userId) => {
       [threadId]
     ),
     client.query(
-      `SELECT cm.id, cm.body, cm.message_type, cm.created_at,
+      `SELECT cm.id, cm.body, cm.message_type, cm.message_category, cm.is_clinical_note,
+          cm.record_promotion_status, cm.record_promotion_at, cm.record_promotion_by,
+          cm.teleconsult_session_id, cm.created_at,
           u.id AS sender_id,
           u.first_name || ' ' || u.last_name AS sender_name,
           u.role AS sender_role
@@ -89,6 +121,19 @@ const fetchThreadDetail = async (client, threadId, userId) => {
 
   return {
     ...threadResult.rows[0],
+    teleconsult_session: threadResult.rows[0].teleconsult_session_id ? {
+      id: threadResult.rows[0].teleconsult_session_id,
+      status: threadResult.rows[0].teleconsult_status,
+      meeting_provider: threadResult.rows[0].teleconsult_meeting_provider,
+      meeting_url: threadResult.rows[0].teleconsult_meeting_url,
+      meeting_code: threadResult.rows[0].teleconsult_meeting_code,
+      reason: threadResult.rows[0].teleconsult_reason,
+      clinical_trigger: threadResult.rows[0].teleconsult_clinical_trigger,
+      start_at: threadResult.rows[0].teleconsult_start_at,
+      end_at: threadResult.rows[0].teleconsult_end_at,
+      requested_by: threadResult.rows[0].teleconsult_requested_by,
+      clinician_id: threadResult.rows[0].teleconsult_clinician_id,
+    } : null,
     participants: participantsResult.rows,
     messages: messagesResult.rows,
   };
@@ -273,6 +318,14 @@ const createThread = async (req, res, next) => {
     const title = customTitle || (role === 'patient' ? 'Patient support request' : 'Care team discussion');
     const initialMessage = (req.body.initialMessage || req.body.body || '').trim();
 
+    if (threadType === 'tele_consult') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Use the tele-consult action to start a tele-consult session',
+      });
+    }
+
     if (!initialMessage) {
       await client.query('ROLLBACK');
       return res.status(400).json({ success: false, message: 'Initial message is required' });
@@ -366,6 +419,359 @@ const createThread = async (req, res, next) => {
   }
 };
 
+const createTeleconsultSession = async (req, res, next) => {
+  const client = await getClient();
+
+  try {
+    await client.query('BEGIN');
+
+    const staffRoles = ['admin', 'doctor', 'midwife', 'nurse'];
+    let staffProfile = null;
+    if (req.user.role !== 'patient') {
+      if (!staffRoles.includes(req.user.role)) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({
+          success: false,
+          message: 'Only patients and clinic staff can start a tele-consult session',
+        });
+      }
+
+      staffProfile = await getStaffSecurityContext(req.user.id);
+      if (!staffProfile) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({
+          success: false,
+          message: 'Staff security credentials are required for tele-consult sessions',
+        });
+      }
+
+      if (!staffProfile.isVerified) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({
+          success: false,
+          message: 'Verified staff licensing is required for tele-consult sessions',
+          code: 'STAFF_CREDENTIAL_REQUIRED',
+        });
+      }
+
+      try {
+        resolveStepUpContext(req, 'teleconsult');
+      } catch (stepUpErr) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({
+          success: false,
+          message: stepUpErr.message || 'Step-up authentication required',
+          code: stepUpErr.message?.includes('purpose') ? 'STEP_UP_PURPOSE_MISMATCH' : 'STEP_UP_REQUIRED',
+          requestId: req.requestId || null,
+        });
+      }
+    }
+
+    const requestedClinicianId = req.body?.clinicianId || (['doctor', 'midwife'].includes(req.user.role) ? req.user.id : null);
+    if (!requestedClinicianId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'clinicianId is required to start a tele-consult session',
+        requestId: req.requestId || null,
+      });
+    }
+
+    const clinicianResult = await client.query(
+      `SELECT id, first_name, last_name, role, is_active
+       FROM users
+       WHERE id = $1
+       LIMIT 1`,
+      [requestedClinicianId]
+    );
+
+    const clinician = clinicianResult.rows[0];
+    if (!clinician) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({
+        success: false,
+        message: 'Clinician not found',
+        requestId: req.requestId || null,
+      });
+    }
+    if (!clinician.is_active) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({
+        success: false,
+        message: 'Selected clinician account is inactive',
+        requestId: req.requestId || null,
+      });
+    }
+    if (!['doctor', 'midwife'].includes(clinician.role)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Tele-consult sessions can only be assigned to a doctor or midwife',
+        requestId: req.requestId || null,
+      });
+    }
+
+    const existingThreadId = req.body?.threadId || null;
+    const existingThread = existingThreadId
+      ? await fetchThreadDetail(client, existingThreadId, req.user.id)
+      : null;
+
+    if (existingThreadId && !existingThread) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({
+        success: false,
+        message: 'Conversation not found or access denied',
+        requestId: req.requestId || null,
+      });
+    }
+
+    let patientRecord = null;
+    if (existingThread?.patient_id) {
+      patientRecord = await getPatientRecordById(client, existingThread.patient_id);
+    }
+    if (!patientRecord && req.user.role === 'patient') {
+      patientRecord = await getPatientRecordByUser(client, req.user.id);
+    }
+    if (!patientRecord && req.body?.patientId) {
+      patientRecord = await getPatientRecordById(client, req.body.patientId);
+    }
+
+    if (!patientRecord) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({
+        success: false,
+        message: 'Patient record not found',
+        requestId: req.requestId || null,
+      });
+    }
+
+    const patientUserId = patientRecord.user_id || null;
+    const baseTitle = (req.body?.title || '').trim();
+    const reason = (req.body?.reason || req.body?.initialMessage || req.body?.body || '').trim();
+    if (!reason) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'reason or initialMessage is required',
+        requestId: req.requestId || null,
+      });
+    }
+
+    const requestorName = `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim();
+    const patientName = `${patientRecord.first_name || ''} ${patientRecord.last_name || ''}`.trim();
+    const clinicianName = `${clinician.first_name || ''} ${clinician.last_name || ''}`.trim();
+    const threadTitle = baseTitle || `Tele-consult: ${patientName || 'Patient'} with ${clinicianName || 'Clinician'}`;
+    const triggerSource = req.body?.triggerSource || (req.user.role === 'patient' ? 'manual' : 'message');
+    const clinicalTrigger = req.body?.clinicalTrigger || null;
+    const meetingProvider = req.body?.meetingProvider || null;
+    const sessionStatus = sanitizeTeleconsultStatus(req.body?.sessionStatus || (req.body?.startAt ? 'scheduled' : 'requested'));
+    const sessionStartAt = req.body?.startAt || null;
+    const sessionEndAt = req.body?.endAt || null;
+    const triggeredFromMessageId = req.body?.triggeredFromMessageId || null;
+    const additionalParticipants = Array.isArray(req.body?.participantIds) ? req.body.participantIds : [];
+
+    let thread = existingThread || null;
+    if (!thread) {
+      const threadResult = await client.query(
+        `INSERT INTO conversation_threads (thread_type, title, patient_id, created_by, status, priority, last_message_at)
+         VALUES ('tele_consult', $1, $2, $3, 'open', 'high', NOW())
+         RETURNING *`,
+        [threadTitle, patientRecord.id, req.user.id]
+      );
+      thread = threadResult.rows[0];
+    } else {
+      const threadUpdate = await client.query(
+        `UPDATE conversation_threads
+         SET thread_type = 'tele_consult',
+             title = $1,
+             patient_id = COALESCE(patient_id, $2),
+             status = 'open',
+             priority = CASE WHEN priority = 'urgent' THEN 'urgent' ELSE 'high' END,
+             updated_at = NOW()
+         WHERE id = $3
+         RETURNING *`,
+        [threadTitle, patientRecord.id, thread.id]
+      );
+      thread = threadUpdate.rows[0];
+    }
+
+    const participantIds = dedupeIds([
+      patientUserId,
+      clinician.id,
+      req.user.id,
+      ...(existingThread?.participants || []).map((participant) => participant.id),
+      ...additionalParticipants,
+    ]);
+    const validParticipants = await client.query(
+      `SELECT id FROM users WHERE id = ANY($1) AND is_active = true`,
+      [participantIds]
+    );
+    const validParticipantIds = dedupeIds(validParticipants.rows.map((row) => row.id));
+
+    for (const participantId of validParticipantIds) {
+      await client.query(
+        `INSERT INTO conversation_participants (thread_id, user_id, last_read_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (thread_id, user_id) DO UPDATE SET last_read_at = COALESCE(conversation_participants.last_read_at, EXCLUDED.last_read_at)`,
+        [thread.id, participantId, participantId === req.user.id ? new Date() : null]
+      );
+    }
+
+    const meetingDetails = buildTeleconsultMeetingDetails({
+      threadId: thread.id,
+      patientId: patientRecord.id,
+      clinicianId: clinician.id,
+      title: threadTitle,
+      reason,
+      provider: meetingProvider,
+    });
+
+    const existingSessionResult = await client.query(
+      'SELECT * FROM tele_consult_sessions WHERE thread_id = $1 LIMIT 1',
+      [thread.id]
+    );
+
+    let teleconsultSession;
+    if (existingSessionResult.rows.length > 0) {
+      const sessionUpdate = await client.query(
+        `UPDATE tele_consult_sessions
+         SET patient_id = $2,
+             requested_by = $3,
+             clinician_id = $4,
+             trigger_source = $5,
+             clinical_trigger = $6,
+             reason = $7,
+             meeting_provider = $8,
+             meeting_url = $9,
+             meeting_code = $10,
+             status = $11,
+             start_at = $12,
+             end_at = $13,
+             triggered_from_message_id = $14,
+             updated_at = NOW()
+         WHERE thread_id = $1
+         RETURNING *`,
+        [
+          thread.id,
+          patientRecord.id,
+          req.user.id,
+          clinician.id,
+          triggerSource,
+          clinicalTrigger,
+          reason,
+          meetingDetails.meetingProvider,
+          meetingDetails.meetingUrl,
+          meetingDetails.meetingCode,
+          sessionStatus,
+          sessionStartAt,
+          sessionEndAt,
+          triggeredFromMessageId,
+        ]
+      );
+      teleconsultSession = sessionUpdate.rows[0];
+    } else {
+      const sessionResult = await client.query(
+        `INSERT INTO tele_consult_sessions (
+           thread_id, patient_id, requested_by, clinician_id, trigger_source,
+           clinical_trigger, reason, meeting_provider, meeting_url, meeting_code,
+           status, start_at, end_at, triggered_from_message_id
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         RETURNING *`,
+        [
+          thread.id,
+          patientRecord.id,
+          req.user.id,
+          clinician.id,
+          triggerSource,
+          clinicalTrigger,
+          reason,
+          meetingDetails.meetingProvider,
+          meetingDetails.meetingUrl,
+          meetingDetails.meetingCode,
+          sessionStatus,
+          sessionStartAt,
+          sessionEndAt,
+          triggeredFromMessageId,
+        ]
+      );
+      teleconsultSession = sessionResult.rows[0];
+    }
+
+    const initialMessage = (req.body?.initialMessage || req.body?.body || '').trim() || `Tele-consult opened for ${patientName || 'the patient'} with ${clinicianName || 'the clinician'}. ${reason}`;
+    const messageResult = await client.query(
+      `INSERT INTO conversation_messages (
+         thread_id, sender_id, body, message_type, message_category, teleconsult_session_id
+       )
+       VALUES ($1, $2, $3, 'comment', 'teleconsult', $4)
+       RETURNING id, thread_id, sender_id, body, message_type, message_category, created_at`,
+      [thread.id, req.user.id, initialMessage, teleconsultSession.id]
+    );
+
+    await client.query(
+      `UPDATE conversation_threads
+       SET last_message_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [thread.id]
+    );
+
+    await createNotifications(client, {
+      userIds: validParticipantIds.filter((id) => id !== req.user.id),
+      title: `Tele-consult started: ${threadTitle}`,
+      body: `${requestorName || 'A clinic user'} started a tele-consult for ${patientName || 'the patient'}.`,
+      createdBy: req.user.id,
+      metadata: {
+        threadId: thread.id,
+        teleconsultSessionId: teleconsultSession.id,
+        patientId: patientRecord.id,
+        clinicianId: clinician.id,
+        category: 'teleconsult',
+      },
+    });
+
+    await recordSecurityAudit({
+      client,
+      staffId: staffProfile?.staffId || null,
+      actionPerformed: 'TELECONSULT_CREATED',
+      entityType: 'tele_consult_session',
+      entityId: teleconsultSession.id,
+      deviceIp: req.ip,
+      authMethod: req.user.role === 'patient' ? 'Password' : (req.stepUp?.authMethod || 'Password'),
+      credentialStrength: req.user.role === 'patient' ? 'Base' : (req.stepUp?.credentialStrength || 'Step_Up'),
+      requestId: req.requestId || null,
+      details: {
+        threadId: thread.id,
+        patientId: patientRecord.id,
+        clinicianId: clinician.id,
+        meetingProvider: meetingDetails.meetingProvider,
+        sessionStatus,
+        triggerSource,
+        messageId: messageResult.rows[0].id,
+      },
+    });
+
+    await client.query('COMMIT');
+
+    const detail = await fetchThreadDetail(client, thread.id, req.user.id);
+    res.status(existingThread ? 200 : 201).json({
+      success: true,
+      message: 'Tele-consult session created',
+      data: {
+        thread: detail,
+        teleconsultSession,
+        meetingUrl: teleconsultSession.meeting_url,
+        meetingCode: teleconsultSession.meeting_code,
+      },
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+};
+
 const addMessage = async (req, res, next) => {
   const client = await getClient();
 
@@ -383,11 +789,17 @@ const addMessage = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Conversation not found or access denied' });
     }
 
+    const messageCategory = sanitizeMessageCategory(req.body.messageCategory || (thread.thread_type === 'tele_consult' ? 'teleconsult' : 'general'));
+    const messageType = sanitizeMessageType(req.body.messageType || (messageCategory === 'handoff' ? 'handoff' : 'comment'));
+    const isClinicalNote = parseBoolean(req.body.isClinicalNote) || messageCategory === 'clinical_note';
+
     const messageResult = await client.query(
-      `INSERT INTO conversation_messages (thread_id, sender_id, body, message_type)
-       VALUES ($1, $2, $3, 'comment')
-       RETURNING id, thread_id, sender_id, body, message_type, created_at`,
-      [req.params.id, req.user.id, body]
+      `INSERT INTO conversation_messages (
+         thread_id, sender_id, body, message_type, message_category, is_clinical_note
+       )
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, thread_id, sender_id, body, message_type, message_category, is_clinical_note, record_promotion_status, created_at`,
+      [req.params.id, req.user.id, body, messageType, messageCategory, isClinicalNote]
     );
 
     await client.query(
@@ -420,6 +832,108 @@ const addMessage = async (req, res, next) => {
         ...messageResult.rows[0],
         sender_name: `${req.user.first_name} ${req.user.last_name}`,
         sender_role: req.user.role,
+      },
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+};
+
+const promoteMessageToRecord = async (req, res, next) => {
+  const client = await getClient();
+
+  try {
+    await client.query('BEGIN');
+
+    const staffProfile = await getStaffSecurityContext(req.user.id);
+    if (!staffProfile || !staffProfile.isVerified) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({
+        success: false,
+        message: 'Verified staff credentials are required to promote a clinical message',
+        requestId: req.requestId || null,
+        code: 'STAFF_CREDENTIAL_REQUIRED',
+      });
+    }
+
+    const messageResult = await client.query(
+      `SELECT cm.id, cm.thread_id, cm.body, cm.message_type, cm.message_category,
+              cm.is_clinical_note, cm.record_promotion_status, cm.record_promotion_at,
+              cm.record_promotion_by,
+              ct.patient_id, ct.thread_type, ct.title
+       FROM conversation_messages cm
+       JOIN conversation_threads ct ON ct.id = cm.thread_id
+       WHERE cm.id = $1
+         AND EXISTS (
+           SELECT 1
+           FROM conversation_participants cp
+           WHERE cp.thread_id = ct.id AND cp.user_id = $2
+         )
+       LIMIT 1`,
+      [req.params.id, req.user.id]
+    );
+
+    const message = messageResult.rows[0];
+    if (!message) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({
+        success: false,
+        message: 'Message not found or access denied',
+        requestId: req.requestId || null,
+      });
+    }
+
+    if (message.record_promotion_status === 'promoted') {
+      await client.query('COMMIT');
+      return res.json({
+        success: true,
+        message: 'Message is already promoted to the medical record',
+        data: message,
+      });
+    }
+
+    const updated = await client.query(
+      `UPDATE conversation_messages
+       SET message_category = 'clinical_note',
+           is_clinical_note = true,
+           record_promotion_status = 'promoted',
+           record_promotion_at = NOW(),
+           record_promotion_by = $2
+       WHERE id = $1
+       RETURNING id, thread_id, body, message_type, message_category,
+                 is_clinical_note, record_promotion_status, record_promotion_at,
+                 record_promotion_by, created_at`,
+      [req.params.id, req.user.id]
+    );
+
+    await recordSecurityAudit({
+      client,
+      staffId: staffProfile.staffId,
+      actionPerformed: 'MESSAGE_PROMOTED_TO_RECORD',
+      entityType: 'conversation_message',
+      entityId: req.params.id,
+      deviceIp: req.ip,
+      authMethod: req.stepUp?.authMethod || 'Password',
+      credentialStrength: req.stepUp?.credentialStrength || 'Step_Up',
+      requestId: req.requestId || null,
+      details: {
+        threadId: message.thread_id,
+        threadType: message.thread_type,
+        patientId: message.patient_id,
+      },
+    });
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      message: 'Clinical message promoted to the medical record',
+      data: {
+        ...updated.rows[0],
+        thread_title: message.title,
       },
     });
   } catch (err) {
@@ -691,7 +1205,9 @@ module.exports = {
   getThreadById,
   markThreadRead,
   createThread,
+  createTeleconsultSession,
   addMessage,
+  promoteMessageToRecord,
   getTasks,
   createTask,
   updateTask,

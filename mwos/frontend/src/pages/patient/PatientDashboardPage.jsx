@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../../utils/api'
 import { useAuthStore } from '../../store/authStore'
+import PregnancyWireframeScene from '../../components/patient/PregnancyWireframeScene'
+import RealtimeVitalsPanel from '../../components/patient/RealtimeVitalsPanel'
 
 export default function PatientDashboardPage() {
   const user = useAuthStore((state) => state.user)
@@ -32,8 +34,18 @@ export default function PatientDashboardPage() {
     queryFn: () => api.get('/notifications').then((response) => response.data.data),
   })
 
-  if (isLoading) return <div className="flex justify-center py-20"><div className="loading-spinner h-8 w-8" /></div>
-  if (error) return <div className="alert-critical"><span>{error.response?.data?.message || 'Failed to load dashboard'}</span></div>
+  const { data: education = [] } = useQuery({
+    queryKey: ['patient-dashboard-education'],
+    queryFn: () => api.get('/education').then((response) => response.data.data),
+  })
+
+  if (isLoading) {
+    return <div className="flex justify-center py-20"><div className="loading-spinner h-8 w-8" /></div>
+  }
+
+  if (error) {
+    return <div className="alert-critical"><span>{error.response?.data?.message || 'Failed to load dashboard'}</span></div>
+  }
 
   const dashboard = data || {}
   const suggestionList = recommendations?.suggestions || []
@@ -41,13 +53,17 @@ export default function PatientDashboardPage() {
   const featuredMedia = (recommendations?.featuredMedia || mediaFeed).slice(0, 3)
   const featuredDoctors = (directory?.staff || []).filter((member) => ['doctor', 'midwife'].includes(member.role)).slice(0, 3)
   const unreadNotifications = notifications.filter((item) => !item.is_read).length
+  const featuredTips = education.slice(0, 3)
 
   return (
     <div className="space-y-6">
       <div className="page-header">
         <div>
           <h1 className="page-title">Welcome, {user?.firstName}!</h1>
-          <p className="page-sub">Your maternal care dashboard now includes medicine guidance, emergency transport support, and cleaner clinic coordination.</p>
+          <p className="page-sub">
+            Your maternal dashboard now includes a moving vitals monitor, a 3D-style pregnancy illustration,
+            educational media, and trimester-specific tips without losing the existing portal feel.
+          </p>
         </div>
       </div>
 
@@ -60,7 +76,7 @@ export default function PatientDashboardPage() {
         <div className="card border-sky-100 bg-sky-50">
           <p className="mb-1 text-xs font-medium text-sky-600">Active Pregnancy</p>
           <p className="text-sm font-bold text-gray-900">{dashboard.activePregnancy ? `EDD: ${new Date(dashboard.activePregnancy.edd).toLocaleDateString('en-PH')}` : 'None active'}</p>
-          {dashboard.activePregnancy ? <p className="mt-0.5 text-xs text-gray-500">{dashboard.activePregnancy.risk_level} risk</p> : null}
+          {dashboard.activePregnancy ? <p className="mt-0.5 text-xs capitalize text-gray-500">{dashboard.activePregnancy.risk_level} risk</p> : null}
         </div>
         <div className="card">
           <p className="mb-1 text-xs font-medium text-gray-500">Latest BP</p>
@@ -68,9 +84,23 @@ export default function PatientDashboardPage() {
           {dashboard.latestVitals ? <p className="mt-0.5 text-xs text-gray-500">{new Date(dashboard.latestVitals.visit_date).toLocaleDateString('en-PH')}</p> : null}
         </div>
         <div className={`card ${dashboard.unpaidAmount > 0 ? 'border-amber-100 bg-amber-50' : ''}`}>
-          <p className="mb-1 text-xs font-medium text-amber-600">Unpaid Balance</p>
-          <p className="text-sm font-bold text-gray-900">{dashboard.unpaidAmount > 0 ? `PHP ${dashboard.unpaidAmount.toLocaleString()}` : 'None'}</p>
+          <p className="mb-1 text-xs font-medium text-amber-600">Unread Alerts</p>
+          <p className="text-sm font-bold text-gray-900">{unreadNotifications}</p>
+          <p className="mt-0.5 text-xs text-gray-500">Notifications waiting for review</p>
         </div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.06fr_0.94fr]">
+        <RealtimeVitalsPanel
+          latestVitals={dashboard.latestVitals}
+          activePregnancy={dashboard.activePregnancy}
+          title="Realtime maternal monitor"
+        />
+        <PregnancyWireframeScene
+          dashboard={dashboard}
+          latestVitals={dashboard.latestVitals}
+          tips={featuredTips}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
@@ -91,23 +121,23 @@ export default function PatientDashboardPage() {
         </Link>
         <Link to="/my/reports" className="card-hover">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Reports</p>
-          <p className="mt-3 text-lg font-semibold text-gray-900">Vitals</p>
-          <p className="mt-2 text-sm text-gray-500">View trends, summaries, and document status.</p>
+          <p className="mt-3 text-lg font-semibold text-gray-900">Live</p>
+          <p className="mt-2 text-sm text-gray-500">Open moving vitals and report summaries.</p>
         </Link>
         <Link to="/my/emergency" className="card-hover">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Emergency</p>
           <p className="mt-3 text-lg font-semibold text-gray-900">Urgent</p>
-          <p className="mt-2 text-sm text-gray-500">Open emergency support and quick call actions.</p>
+          <p className="mt-2 text-sm text-gray-500">Open support and transport actions.</p>
         </Link>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <div className="space-y-6">
           <div className="card">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
                 <h3 className="section-title mb-1">Your Personalized Care Guide</h3>
-                <p className="text-sm text-gray-500">Your care checklist adapts to profile details, uploaded documents, medication activity, and clinic follow-up needs.</p>
+                <p className="text-sm text-gray-500">Checklist items adapt to your record, uploads, medication activity, and follow-up timing.</p>
               </div>
               <span className="badge badge-gray">{suggestionList.length}</span>
             </div>
@@ -124,7 +154,6 @@ export default function PatientDashboardPage() {
                     </div>
                     <p className="mt-3 text-lg font-semibold text-slate-900">{item.title}</p>
                     <p className="mt-2 text-sm text-slate-600">{item.description}</p>
-                    {item.route ? <p className="mt-3 text-xs uppercase tracking-[0.22em] text-slate-400">Suggested screen: {item.route}</p> : null}
                   </div>
                 ))}
               </div>
@@ -134,8 +163,8 @@ export default function PatientDashboardPage() {
           <div className="card">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="section-title mb-1">Health Feed For You</h3>
-                <p className="text-sm text-gray-500">Educational videos and posters from the clinic team, selected for your maternal care journey.</p>
+                <h3 className="section-title mb-1">3D Videos And Illustrations</h3>
+                <p className="text-sm text-gray-500">Educational media from the clinic team, paired with the new 3D-style maternal visualization.</p>
               </div>
               <span className="badge badge-gray">{featuredMedia.length}</span>
             </div>
@@ -145,12 +174,15 @@ export default function PatientDashboardPage() {
                 <p className="text-sm text-gray-400 md:col-span-3">No educational posts are available yet.</p>
               ) : featuredMedia.map((post) => (
                 <div key={post.id} className="overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-sm">
-                  <div className="aspect-[4/5] overflow-hidden bg-slate-100">
+                  <div className="relative aspect-[4/5] overflow-hidden bg-slate-100">
                     {post.media_type === 'image' ? (
                       <img src={post.media_url} alt={post.title} className="h-full w-full object-cover" />
                     ) : (
                       <video src={post.media_url || post.video_url} poster={post.poster_url || undefined} className="h-full w-full object-cover" muted playsInline controls />
                     )}
+                    <div className="absolute left-3 top-3 rounded-full bg-slate-950/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white">
+                      {post.media_type || 'media'}
+                    </div>
                   </div>
                   <div className="space-y-2 p-4">
                     <p className="text-xs uppercase tracking-[0.24em] text-slate-400">{post.category || 'General'}</p>
@@ -165,21 +197,24 @@ export default function PatientDashboardPage() {
           <div className="card">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="section-title mb-1">Featured Care Team</h3>
-                <p className="text-sm text-gray-500">Quick access to doctors and midwives from the patient portal.</p>
+                <h3 className="section-title mb-1">Pregnancy Tips</h3>
+                <p className="text-sm text-gray-500">Short trimester guidance and practical reminders from the clinic education library.</p>
               </div>
-              <Link to="/my/doctors" className="btn-secondary btn-sm">Open doctors</Link>
+              <Link to="/my/education" className="btn-secondary btn-sm">Open tips</Link>
             </div>
 
-            {featuredDoctors.length === 0 ? (
-              <p className="text-sm text-gray-400">No care team profiles available yet.</p>
+            {featuredTips.length === 0 ? (
+              <p className="text-sm text-gray-400">No pregnancy tips have been published yet.</p>
             ) : (
               <div className="grid gap-3 md:grid-cols-3">
-                {featuredDoctors.map((member) => (
-                  <div key={member.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <p className="font-semibold text-slate-900">{member.first_name} {member.last_name}</p>
-                    <p className="mt-1 text-sm text-slate-500 capitalize">{member.role}</p>
-                    <Link to={`/my/doctors/${member.id}`} className="mt-4 inline-flex text-sm font-medium text-teal-600 hover:underline">View profile</Link>
+                {featuredTips.map((tip) => (
+                  <div key={tip.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-wrap gap-2">
+                      <span className="badge badge-gray">{tip.category || 'General'}</span>
+                      {tip.trimester_target && tip.trimester_target !== 'all' ? <span className="badge badge-gray">{tip.trimester_target}</span> : null}
+                    </div>
+                    <p className="mt-3 font-semibold text-slate-900">{tip.title}</p>
+                    <p className="mt-2 text-sm text-slate-500">{tip.content}</p>
                   </div>
                 ))}
               </div>
@@ -192,42 +227,9 @@ export default function PatientDashboardPage() {
             <div>
               <h3 className="section-title mb-1">Care Team Messages</h3>
               <p className="text-sm text-gray-500">Stay in touch with the clinic and review the latest follow-up instructions.</p>
-              <p className="mt-1 text-xs text-gray-400">{dashboard.unreadMessages ?? 0} unread message threads and {dashboard.openCareTasks ?? 0} active care tasks.</p>
+              <p className="mt-1 text-xs text-gray-400">{dashboard.unreadMessages ?? 0} unread threads and {dashboard.openCareTasks ?? 0} active care tasks.</p>
             </div>
             <Link to="/my/interactions" className="btn-primary">Open Care Team</Link>
-          </div>
-
-          <div className="card flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h3 className="section-title mb-1">Emergency Transport & Maps</h3>
-              <p className="text-sm text-gray-500">Request ambulance support, review barangay and clinic routes, and open Google Maps guidance from one screen.</p>
-            </div>
-            <Link to="/my/emergency" className="btn-secondary">Open Emergency</Link>
-          </div>
-
-          <div className="card">
-            <h3 className="section-title mb-4">Secure Document Status</h3>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-2xl bg-slate-50 p-4 text-center">
-                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Uploaded</p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900">{documentSummary.total || 0}</p>
-              </div>
-              <div className="rounded-2xl bg-emerald-50 p-4 text-center">
-                <p className="text-xs uppercase tracking-[0.22em] text-emerald-500">Verified</p>
-                <p className="mt-2 text-2xl font-semibold text-emerald-700">{documentSummary.verified || 0}</p>
-              </div>
-              <div className="rounded-2xl bg-amber-50 p-4 text-center">
-                <p className="text-xs uppercase tracking-[0.22em] text-amber-500">Pending</p>
-                <p className="mt-2 text-2xl font-semibold text-amber-700">{documentSummary.pending || 0}</p>
-              </div>
-            </div>
-            <Link to="/my/profile" className="btn-secondary btn-sm mt-4 inline-flex">Manage My Documents</Link>
-          </div>
-
-          <div className="card">
-            <h3 className="section-title mb-4">Community Rating</h3>
-            <p className="text-4xl font-semibold text-slate-900">{Number(dashboard.reviewSummary?.average_rating || 0).toFixed(2)}</p>
-            <p className="mt-2 text-sm text-slate-500">{dashboard.reviewSummary?.total_reviews || 0} published reviews across the system.</p>
           </div>
 
           <div className="card">
@@ -251,15 +253,50 @@ export default function PatientDashboardPage() {
               </div>
             )}
           </div>
-        </div>
-      </div>
 
-      <div className="card flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h3 className="section-title mb-1">Health Tips Library</h3>
-          <p className="text-sm text-gray-500">Browse structured articles and guides alongside the new media feed.</p>
+          <div className="card">
+            <h3 className="section-title mb-4">Secure Document Status</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-2xl bg-slate-50 p-4 text-center">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Uploaded</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">{documentSummary.total || 0}</p>
+              </div>
+              <div className="rounded-2xl bg-emerald-50 p-4 text-center">
+                <p className="text-xs uppercase tracking-[0.22em] text-emerald-500">Verified</p>
+                <p className="mt-2 text-2xl font-semibold text-emerald-700">{documentSummary.verified || 0}</p>
+              </div>
+              <div className="rounded-2xl bg-amber-50 p-4 text-center">
+                <p className="text-xs uppercase tracking-[0.22em] text-amber-500">Pending</p>
+                <p className="mt-2 text-2xl font-semibold text-amber-700">{documentSummary.pending || 0}</p>
+              </div>
+            </div>
+            <Link to="/my/profile" className="btn-secondary btn-sm mt-4 inline-flex">Manage My Documents</Link>
+          </div>
+
+          <div className="card">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="section-title mb-1">Featured Care Team</h3>
+                <p className="text-sm text-gray-500">Quick access to doctors and midwives from the patient portal.</p>
+              </div>
+              <Link to="/my/doctors" className="btn-secondary btn-sm">Open doctors</Link>
+            </div>
+
+            {featuredDoctors.length === 0 ? (
+              <p className="text-sm text-gray-400">No care team profiles available yet.</p>
+            ) : (
+              <div className="grid gap-3">
+                {featuredDoctors.map((member) => (
+                  <div key={member.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <p className="font-semibold text-slate-900">{member.first_name} {member.last_name}</p>
+                    <p className="mt-1 text-sm capitalize text-slate-500">{member.role}</p>
+                    <Link to={`/my/doctors/${member.id}`} className="mt-4 inline-flex text-sm font-medium text-teal-600 hover:underline">View profile</Link>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-        <Link to="/my/education" className="btn-primary">Open Health Tips</Link>
       </div>
     </div>
   )

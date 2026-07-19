@@ -1,4 +1,5 @@
 const { query } = require('../config/database');
+const { signClinicalRecord } = require('../utils/security');
 
 const categorizeBP = (systolic, diastolic) => {
   if (!systolic || !diastolic) return 'unknown';
@@ -50,6 +51,15 @@ const create = async (req, res, next) => {
     );
 
     const vitals = result.rows[0];
+    await signClinicalRecord({
+      staffId: req.user.id,
+      entityType: 'vitals',
+      entityId: vitals.id,
+      actionType: 'create',
+      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
+      requestId: req.requestId || null,
+    });
+
     const alerts = [];
 
     if (['stage2_hypertension', 'hypertensive_crisis'].includes(bpCategory)) {
