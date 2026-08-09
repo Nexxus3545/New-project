@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
 import api from '../utils/api'
 import { useAuthStore } from '../store/authStore'
+import CoverCard from '../components/common/CoverCard'
 
 // ── VITALS PAGE ───────────────────────────────────────────────
 export function VitalsPage() {
@@ -204,40 +205,52 @@ export function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[32px] border border-white/80 bg-gradient-to-br from-white via-slate-50 to-cyan-50 p-6 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/70">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700/70 dark:text-cyan-300/80">Clinical analytics</p>
-            <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">Reports</h1>
-            <p className="mt-2 text-sm leading-7 text-slate-500 dark:text-slate-400">
-              Review delivery mix, monthly volume, and trend direction for the birthing home and clinic.
-            </p>
+      <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+        <div className="rounded-[32px] border border-white/80 bg-gradient-to-br from-[#fff6fb] via-white to-[#f4efff] p-6 shadow-[0_24px_60px_rgba(214,92,138,0.10)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/70">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#b44b79]/70 dark:text-[#e8b4d1]/80">Clinical analytics</p>
+              <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">Reports</h1>
+              <p className="mt-2 text-sm leading-7 text-slate-500 dark:text-slate-400">
+                Review delivery mix, monthly volume, and trend direction for the birthing home and clinic.
+              </p>
+            </div>
+            <button className="btn-secondary self-start xl:self-auto">Export summary</button>
           </div>
-          <button className="btn-secondary self-start xl:self-auto">Export summary</button>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Total deliveries</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{reportSummary.total}</p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Combined monthly deliveries</p>
+            </div>
+            <div className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">NSD count</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{reportSummary.nsdTotal}</p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Vaginal delivery volume</p>
+            </div>
+            <div className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">CS count</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{reportSummary.csTotal}</p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Cesarean delivery volume</p>
+            </div>
+            <div className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Peak month</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{reportSummary.peakMonth}</p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{reportSummary.peakTotal} deliveries recorded</p>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Total deliveries</p>
-            <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{reportSummary.total}</p>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Combined monthly deliveries</p>
-          </div>
-          <div className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">NSD count</p>
-            <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{reportSummary.nsdTotal}</p>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Vaginal delivery volume</p>
-          </div>
-          <div className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">CS count</p>
-            <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{reportSummary.csTotal}</p>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Cesarean delivery volume</p>
-          </div>
-          <div className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Peak month</p>
-            <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{reportSummary.peakMonth}</p>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{reportSummary.peakTotal} deliveries recorded</p>
-          </div>
-        </div>
+        <CoverCard
+          image="/reference/reports-hero.jpg"
+          label="Delivery analytics"
+          title="Review reports in a calmer maternal workspace."
+          description="The analytics view now matches the softer clinic imagery used across the other key modules."
+          chips={['Deliveries', 'Trends', 'Export']}
+          tone="lavender"
+          className="h-full min-h-[22rem]"
+        />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.35fr_0.85fr]">
@@ -262,8 +275,8 @@ export function ReportsPage() {
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid #e2e8f0' }} />
                   <Legend />
-                  <Bar dataKey="nsd" fill="#0f766e" radius={[8, 8, 0, 0]} name="NSD" />
-                  <Bar dataKey="cs" fill="#e11d48" radius={[8, 8, 0, 0]} name="CS" />
+                  <Bar dataKey="nsd" fill="#d9468b" radius={[8, 8, 0, 0]} name="NSD" />
+                  <Bar dataKey="cs" fill="#8b5cf6" radius={[8, 8, 0, 0]} name="CS" />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -288,8 +301,8 @@ export function ReportsPage() {
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid #e2e8f0' }} />
-                  <Area type="monotone" dataKey="total" stroke="#2563eb" fill="#93c5fd" fillOpacity={0.28} />
-                  <Line type="monotone" dataKey="total" stroke="#0f172a" strokeWidth={2} dot={{ r: 3 }} />
+                  <Area type="monotone" dataKey="total" stroke="#8b5cf6" fill="#f8bbd0" fillOpacity={0.28} />
+                  <Line type="monotone" dataKey="total" stroke="#b44b79" strokeWidth={2} dot={{ r: 3 }} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -303,7 +316,7 @@ export function ReportsPage() {
               <h3 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">Operational readout</h3>
             </div>
             <div className="mt-5 space-y-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/70">
+              <div className="rounded-2xl border border-slate-200 bg-rose-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/70">
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Average per month</p>
                 <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">
                   {reportSummary.average.toFixed(1)}

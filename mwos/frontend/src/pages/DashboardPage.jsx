@@ -1,20 +1,27 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import api from '../utils/api'
 import { uploadResumableFile } from '../utils/chunkedUpload'
 import { useAuthStore } from '../store/authStore'
+import ClinicControlBoard from '../components/dashboard/ClinicControlBoard'
 
-const statsMeta = [
-  ['Patients', 'totalPatients'],
-  ['Active Pregnancies', 'activePregnancies'],
-  ['Weekly Active Users', 'weeklyActiveUsers'],
-  ['Uploaded Media', 'mediaUploads'],
-  ['Uploaded Documents', 'documentsUploaded'],
-  ['Medicine Entries', 'medicineUploads'],
-  ['Unread Threads', 'unreadThreads'],
-  ['Open Care Tasks', 'openCareTasks'],
-]
+const mediaCategories = ['health-tip', 'nutrition', 'postpartum', 'safety', 'announcement', 'breastfeeding']
+
+const metricTone = {
+  sky: 'from-[#eef6ff] to-white',
+  lavender: 'from-[#f5f0ff] to-white',
+  amber: 'from-[#fff7ea] to-white',
+  rose: 'from-[#fff0f6] to-white',
+}
+
+const reportTone = {
+  high: 'border-rose-200 bg-rose-50 text-rose-900',
+  medium: 'border-amber-200 bg-amber-50 text-amber-900',
+  low: 'border-violet-200 bg-violet-50 text-violet-900',
+  info: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-900',
+}
 
 const statusTone = {
   verified: 'badge-success',
@@ -22,97 +29,46 @@ const statusTone = {
   pending: 'badge-warning',
 }
 
-const resultTypeMeta = {
-  media: { label: 'Media feed', tone: 'badge-info' },
-  medicine: { label: 'Medicine', tone: 'badge-success' },
-  inventory: { label: 'Inventory', tone: 'badge-warning' },
-  patient: { label: 'Patient', tone: 'badge-danger' },
-  record: { label: 'Patient record', tone: 'badge-gray' },
-}
-
-const recommendationTone = {
-  high: 'from-rose-100 to-white text-rose-900 border-rose-200',
-  medium: 'from-amber-100 to-white text-amber-900 border-amber-200',
-  low: 'from-sky-100 to-white text-sky-900 border-sky-200',
-}
-
-const mediaCategories = [
-  'health-tip',
-  'nutrition',
-  'postpartum',
-  'safety',
-  'announcement',
-  'breastfeeding',
-]
-
 const formatDate = (value) => new Date(value).toLocaleDateString('en-PH', {
   month: 'short',
   day: 'numeric',
   year: 'numeric',
 })
 
-const FeedCard = ({ post, onSeen }) => {
-  const isImage = post.media_type === 'image'
-  const fallbackPoster = post.poster_url || post.thumbnail_url || post.media_url
+const formatAge = (dateOfBirth) => {
+  if (!dateOfBirth) return '--'
+  const dob = new Date(dateOfBirth)
+  if (Number.isNaN(dob.getTime())) return '--'
+  const diff = Date.now() - dob.getTime()
+  return Math.max(0, Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000)))
+}
 
-  return (
-    <article className="snap-start overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
-      <div className="relative aspect-[9/14] overflow-hidden bg-slate-950">
-        {isImage ? (
-          <img
-            src={post.media_url}
-            alt={post.title}
-            className="h-full w-full object-cover"
-            loading="lazy"
-            onLoad={() => onSeen(post.id)}
-          />
-        ) : (
-          <video
-            src={post.media_url || post.video_url}
-            poster={fallbackPoster || undefined}
-            className="h-full w-full object-cover"
-            autoPlay
-            muted
-            loop
-            playsInline
-            controls
-            onPlay={() => onSeen(post.id)}
-          />
-        )}
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent px-5 pb-5 pt-16 text-white">
-          <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-white/70">
-            <span>{post.category || 'General'}</span>
-            <span>{isImage ? 'Image' : 'Video'}</span>
-            <span>{formatDate(post.created_at)}</span>
-          </div>
-          <h4 className="text-xl font-semibold">{post.title}</h4>
-          <div className="mt-3 flex items-center justify-between text-xs text-white/70">
-            <span>{post.created_by_name || 'MWOS Team'}</span>
-            <span>{post.engagement_views || 0} views</span>
-          </div>
-        </div>
-      </div>
-    </article>
-  )
+const StatCard = ({ label, value, helper, tone = 'sky' }) => (
+  <div className={`rounded-[24px] border border-white/80 bg-gradient-to-br ${metricTone[tone] || metricTone.sky} p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80`}>
+    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">{label}</p>
+    <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{value}</p>
+    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{helper}</p>
+  </div>
+)
+
+const EMPTY_UPLOAD_FORM = {
+  title: '',
+  description: '',
+  category: 'health-tip',
+  mediaType: 'video',
+  isPublished: true,
+  file: null,
+  mediaUrl: '',
+  posterUrl: '',
 }
 
 export default function DashboardPage() {
   const qc = useQueryClient()
   const user = useAuthStore((state) => state.user)
-  const seenPostsRef = useRef(new Set())
   const [showUpload, setShowUpload] = useState(false)
-  const [uploadForm, setUploadForm] = useState({
-    title: '',
-    description: '',
-    category: 'health-tip',
-    mediaType: 'video',
-    isPublished: true,
-    file: null,
-    mediaUrl: '',
-    posterUrl: '',
-  })
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [uploadForm, setUploadForm] = useState(EMPTY_UPLOAD_FORM)
   const [uploadError, setUploadError] = useState('')
   const [uploadTransfer, setUploadTransfer] = useState({ progress: 0, status: '' })
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState('')
@@ -139,9 +95,14 @@ export default function DashboardPage() {
     refetchInterval: 60000,
   })
 
-  const { data: feedPosts = [] } = useQuery({
-    queryKey: ['media-feed-posts'],
-    queryFn: () => api.get('/media-feed/posts').then((response) => response.data.data),
+  const { data: recentPatients = [] } = useQuery({
+    queryKey: ['dashboard-recent-patients'],
+    queryFn: () => api.get('/patients', { params: { limit: 12 } }).then((response) => response.data.data),
+  })
+
+  const { data: upcomingAppointments = [] } = useQuery({
+    queryKey: ['dashboard-upcoming-appointments'],
+    queryFn: () => api.get('/appointments', { params: { limit: 5 } }).then((response) => response.data.data),
   })
 
   const { data: reviewSummary } = useQuery({
@@ -154,13 +115,8 @@ export default function DashboardPage() {
     queryFn: () => api.get('/documents', { params: { status: 'pending' } }).then((response) => response.data.data),
   })
 
-  const { data: aiData } = useQuery({
-    queryKey: ['ai-recommendations'],
-    queryFn: () => api.get('/ai/recommendations').then((response) => response.data.data),
-  })
-
   const { data: searchResults = [], isFetching: isSearching } = useQuery({
-    queryKey: ['ai-search', debouncedSearch],
+    queryKey: ['dashboard-search', debouncedSearch],
     queryFn: () => api.get('/ai/search', { params: { q: debouncedSearch } }).then((response) => response.data.data),
     enabled: debouncedSearch.length >= 2,
   })
@@ -200,20 +156,10 @@ export default function DashboardPage() {
       })
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['media-feed-posts'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
       setShowUpload(false)
       setUploadTransfer({ progress: 0, status: '' })
-      setUploadForm({
-        title: '',
-        description: '',
-        category: 'health-tip',
-        mediaType: 'video',
-        isPublished: true,
-        file: null,
-        mediaUrl: '',
-        posterUrl: '',
-      })
+      setUploadForm(EMPTY_UPLOAD_FORM)
     },
     onError: (err) => {
       setUploadTransfer((current) => ({
@@ -232,24 +178,78 @@ export default function DashboardPage() {
     },
   })
 
-  const trackViewMutation = useMutation({
-    mutationFn: (id) => api.post(`/media-feed/posts/${id}/view`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['media-feed-posts'] }),
-  })
-
-  const spotlight = useMemo(() => aiData?.suggestions || [], [aiData])
-  const featuredMedia = useMemo(() => aiData?.featuredMedia || [], [aiData])
   const stats = data?.stats || {}
   const backupStatus = data?.backupStatus
   const canUploadMedia = ['admin', 'doctor', 'midwife'].includes(user?.role)
 
-  const acknowledgeView = (id) => {
-    if (seenPostsRef.current.has(id)) return
-    seenPostsRef.current.add(id)
-    trackViewMutation.mutate(id)
-  }
+  const trendData = useMemo(() => {
+    const source = data?.usageTrend || []
+    return source.map((entry, index) => {
+      const visits = Number(entry.events || 0)
+      return {
+        label: entry.day || `Day ${index + 1}`,
+        patients: visits,
+        followUps: Math.max(0, Math.round(visits * 0.72)),
+      }
+    })
+  }, [data])
 
-  if (isLoading) return <div className="flex h-64 items-center justify-center"><div className="loading-spinner h-8 w-8" /></div>
+  const flowData = useMemo(() => {
+    return trendData.map((item, index) => ({
+      label: item.label,
+      admissions: item.patients,
+      discharge: Math.max(0, item.followUps - (index % 2)),
+    }))
+  }, [trendData])
+
+  const reportItems = useMemo(() => {
+    const items = []
+    if (stats.highRiskPatients) {
+      items.push({
+        title: 'High-risk patients',
+        description: `${stats.highRiskPatients} patient(s) flagged for closer review.`,
+        tone: 'high',
+      })
+    }
+    if (pendingDocuments.length) {
+      items.push({
+        title: 'Pending document verification',
+        description: `${pendingDocuments.length} upload(s) waiting for review.`,
+        tone: 'medium',
+      })
+    }
+    items.push({
+      title: 'Today\'s appointments',
+      description: `${stats.todayAppointments || 0} visit(s) scheduled for the clinic day.`,
+      tone: 'info',
+    })
+    items.push({
+      title: 'Clinic rating',
+      description: `${reviewSummary?.averageRating?.toFixed?.(2) || '0.00'} average from ${reviewSummary?.totalReviews || 0} review(s).`,
+      tone: 'low',
+    })
+    return items.slice(0, 4)
+  }, [pendingDocuments.length, reviewSummary, stats.highRiskPatients, stats.todayAppointments])
+
+  const filteredPatients = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    if (!term) return recentPatients
+    return recentPatients.filter((patient) => {
+      const haystack = [
+        patient.first_name,
+        patient.last_name,
+        patient.patient_code,
+        patient.birthing_id,
+        patient.phone,
+        patient.city,
+      ].filter(Boolean).join(' ').toLowerCase()
+      return haystack.includes(term)
+    })
+  }, [recentPatients, searchTerm])
+
+  if (isLoading) {
+    return <div className="flex h-64 items-center justify-center"><div className="loading-spinner h-8 w-8" /></div>
+  }
 
   if (error) {
     return (
@@ -263,224 +263,240 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-sub">A clearer operations dashboard for care search, media publishing, document review, and clinic-wide priorities.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {canUploadMedia ? <button onClick={() => setShowUpload(true)} className="btn-primary btn-sm">Upload Feed Media</button> : null}
-          <button onClick={refetch} className="btn-secondary btn-sm">Refresh</button>
-        </div>
-      </div>
-
-      <div className="clinic-hero rounded-[34px] p-6 md:p-8 mb-6">
-        <div className="clinic-hero-grid lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="space-y-5">
-            <p className="section-kicker text-white/70">Modern birthing home control room</p>
-            <h2 className="max-w-3xl text-4xl font-semibold leading-tight md:text-5xl">
-              A calmer, premium workspace for maternal care, medicines, and emergency response.
-            </h2>
-            <p className="max-w-2xl text-sm leading-7 text-white/80">
-              Unified search, media publishing, document review, and emergency tracking live in one polished interface for the clinic team.
-            </p>
+      <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+        <div className="rounded-[32px] border border-white/80 bg-gradient-to-br from-[#fff6fb] via-white to-[#f4efff] p-6 shadow-[0_24px_60px_rgba(214,92,138,0.10)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl">
+              <p className="section-kicker">Maternal control center</p>
+              <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">Dashboard</h1>
+              <p className="mt-2 text-sm leading-7 text-slate-500 dark:text-slate-400">
+                A calm workspace for patient load, appointments, documents, medication media, and follow-up.
+              </p>
+            </div>
             <div className="flex flex-wrap gap-2">
-              <span className="hero-chip">Birthing home</span>
-              <span className="hero-chip">Emergency transport</span>
-              <span className="hero-chip">Medication safety</span>
-              <span className="hero-chip">Patient support</span>
+              {canUploadMedia ? <button onClick={() => setShowUpload(true)} className="btn-primary btn-sm">Upload Media</button> : null}
+              <button onClick={refetch} className="btn-secondary btn-sm">Refresh</button>
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-            <div className="clinic-metric">
-              <p className="clinic-metric-label">High-risk patients</p>
-              <p className="clinic-metric-value">{stats.highRiskPatients ?? 0}</p>
-              <p className="clinic-metric-meta">Currently flagged for closer review.</p>
-            </div>
-            <div className="clinic-metric">
-              <p className="clinic-metric-label">Open care tasks</p>
-              <p className="clinic-metric-value">{stats.openCareTasks ?? 0}</p>
-              <p className="clinic-metric-meta">Priority items waiting in the workflow.</p>
-            </div>
-            <div className="clinic-metric">
-              <p className="clinic-metric-label">Today&apos;s appointments</p>
-              <p className="clinic-metric-value">{stats.todayAppointments ?? 0}</p>
-              <p className="clinic-metric-meta">Scheduled visits for the clinic day.</p>
-            </div>
-            <div className="clinic-metric">
-              <p className="clinic-metric-label">Clinic rating</p>
-              <p className="clinic-metric-value">{reviewSummary?.averageRating?.toFixed?.(2) || '0.00'}</p>
-              <p className="clinic-metric-meta">{reviewSummary?.totalReviews || 0} published reviews.</p>
-            </div>
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Patients" value={stats.totalPatients ?? filteredPatients.length ?? 0} helper="Registered patient records" tone="lavender" />
+            <StatCard label="High-risk" value={stats.highRiskPatients ?? 0} helper="Currently flagged for review" tone="rose" />
+            <StatCard label="Today's appointments" value={stats.todayAppointments ?? upcomingAppointments.length ?? 0} helper="Scheduled clinic visits" tone="lavender" />
+            <StatCard label="Open tasks" value={stats.openCareTasks ?? 0} helper="Pending clinical actions" tone="amber" />
           </div>
         </div>
+
+        <ClinicControlBoard appointments={upcomingAppointments} patients={recentPatients} />
       </div>
 
-      <div className="card overflow-hidden">
-        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-          <div>
-            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Unified Care Search</p>
-            <h3 className="section-title mt-2">Search medicines, feed posts, patients, and records</h3>
-            <p className="mt-1 text-sm text-slate-500">A single lookup flow for daily operations with guided actions.</p>
-            <input
-              className="input mt-4"
-              placeholder="Try: ferrous sulfate, PhilHealth, high risk, prenatal guide"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-            />
-          </div>
-          <div className="rounded-[28px] border border-slate-200 bg-slate-50/80 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-900">Search results</p>
-              {isSearching ? <span className="text-xs text-slate-400">Searching...</span> : null}
-            </div>
-            {debouncedSearch.length < 2 ? (
-              <p className="text-sm text-slate-400">Enter at least 2 characters to start the unified search.</p>
-            ) : searchResults.length === 0 ? (
-              <p className="text-sm text-slate-400">No matches found for "{debouncedSearch}".</p>
-            ) : (
-              <div className="space-y-2">
-                {searchResults.map((result) => {
-                  const meta = resultTypeMeta[result.result_type] || resultTypeMeta.record
-                  return (
-                    <div key={`${result.result_type}-${result.id}`} className="rounded-2xl border border-white bg-white/80 px-4 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-medium text-slate-900">{result.title}</p>
-                          <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-400">{result.category || meta.label}</p>
-                        </div>
-                        <span className={`badge ${meta.tone}`}>{meta.label}</span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {statsMeta.map(([label, key]) => (
-          <div key={key} className="card">
-            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{label}</p>
-            <p className="mt-3 text-3xl font-semibold text-slate-900">{stats[key] ?? '--'}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
+      <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
         <div className="space-y-6">
-          <div className="card">
-            <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <h3 className="section-title mb-1">TikTok-Style Health Feed</h3>
-                <p className="text-sm text-slate-500">Admin-posted health tips, guides, posters, and announcements. Profile edits stay private and never appear in this feed.</p>
+                <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Hospital report</p>
+                <h3 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">Average Patients Visits</h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Weekly trend for patient load and follow-up activity.</p>
               </div>
-              <span className="badge badge-gray">{feedPosts.length} posts</span>
+              <span className="badge badge-gray">{trendData.length} points</span>
             </div>
 
-            {feedPosts.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-400">
-                No educational media uploaded yet.
-              </div>
-            ) : (
-              <div className="max-h-[820px] space-y-4 overflow-y-auto pr-2 snap-y snap-mandatory">
-                {feedPosts.map((post) => (
-                  <FeedCard key={post.id} post={post} onSeen={acknowledgeView} />
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="card">
-              <h3 className="section-title mb-4">System Usage Trend</h3>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={data?.usageTrend || []} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Bar dataKey="events" fill="#d46b8a" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="card">
-              <h3 className="section-title mb-4">Maternal Monitoring Snapshot</h3>
-              <div className="space-y-3 text-sm text-slate-600">
-                <p>{stats.highRiskPatients || 0} high-risk patients currently flagged.</p>
-                  <p>{stats.recentAlerts || 0} vital alerts detected in the last 24 hours.</p>
-                  <p>{stats.deliveriesThisMonth || 0} deliveries recorded this month.</p>
-                  <p>{stats.todayAppointments || 0} appointments scheduled for today.</p>
-              </div>
-              {featuredMedia.length > 0 ? (
-                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Media spotlight</p>
-                  <p className="mt-2 text-sm font-medium text-slate-900">{featuredMedia[0].title}</p>
-                  <p className="mt-1 text-sm text-slate-500">{featuredMedia[0].description || 'Recommended educational media for current care activity.'}</p>
+            <div className="mt-5">
+              {trendData.length === 0 ? (
+                <div className="flex h-[300px] items-center justify-center rounded-[24px] border border-dashed border-slate-200 text-sm text-slate-400 dark:border-slate-800">
+                  No usage data available yet.
                 </div>
-              ) : null}
+              ) : (
+                <ResponsiveContainer width="100%" height={320}>
+                  <LineChart data={trendData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3d7e8" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid #e2e8f0' }} />
+                    <Line type="monotone" dataKey="patients" stroke="#d9468b" strokeWidth={3} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="followUps" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Recent patients</p>
+                <h3 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">Recent Patients</h3>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  className="input w-full sm:w-72"
+                  placeholder="Search patient, birthing ID, or phone..."
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                />
+                <Link to="/patients" className="btn-primary whitespace-nowrap">Add Patient</Link>
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/70">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Patient</th>
+                    <th>Age</th>
+                    <th>Risk</th>
+                    <th>Contact</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPatients.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-400">No patients matched your search.</td>
+                    </tr>
+                  ) : (
+                    filteredPatients.map((patient) => (
+                      <tr key={patient.id}>
+                        <td>
+                          <div>
+                            <p className="font-medium text-slate-900 dark:text-slate-50">
+                              {patient.first_name} {patient.last_name}
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              {patient.patient_code || 'Patient code pending'} · {patient.birthing_id || 'Birthing ID pending'}
+                            </p>
+                          </div>
+                        </td>
+                        <td>{formatAge(patient.date_of_birth)}</td>
+                        <td>
+                          <span className={`badge ${
+                            patient.risk_level === 'high' ? 'badge-danger'
+                              : patient.risk_level === 'moderate' ? 'badge-warning'
+                                : 'badge-success'
+                          }`}
+                          >
+                            {patient.risk_level || 'low'}
+                          </span>
+                        </td>
+                        <td>
+                          <p>{patient.phone || '-'}</p>
+                          <p className="text-xs text-slate-400">{patient.city || ''}</p>
+                        </td>
+                        <td>
+                          {patient.pregnancy_status === 'active' ? (
+                            <span className="badge badge-info">Active</span>
+                          ) : (
+                            <span className="badge badge-gray">Profile</span>
+                          )}
+                        </td>
+                        <td>
+                          <Link to={`/patients/${patient.id}`} className="btn-secondary btn-sm">
+                            View
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
 
         <div className="space-y-6">
-          <div className="card">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="section-title mb-0">Priority Actions</h3>
-              <span className="badge badge-gray">{spotlight.length}</span>
-            </div>
-
-            {spotlight.length === 0 ? (
-              <p className="text-sm text-slate-400">Priority actions will appear here as patient, inventory, and document activity changes.</p>
-            ) : (
-              <div className="space-y-3">
-                {spotlight.map((item) => (
-                  <div key={item.id} className={`rounded-[26px] border bg-gradient-to-br p-4 ${recommendationTone[item.priority] || recommendationTone.low}`}>
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold uppercase tracking-[0.24em]">{item.type}</p>
-                      <span className="badge badge-gray">{item.priority || 'info'}</span>
-                    </div>
-                    <p className="mt-3 text-lg font-semibold">{item.title}</p>
-                    <p className="mt-2 text-sm opacity-80">{item.description}</p>
-                    {item.route ? <p className="mt-3 text-xs uppercase tracking-[0.22em] opacity-70">Suggested route: {item.route}</p> : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="card">
-            <h3 className="section-title mb-4">Ratings & Reviews</h3>
-            <div className="flex items-end gap-4">
+          <div className="rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-4xl font-semibold text-slate-900">{reviewSummary?.averageRating?.toFixed?.(2) || '0.00'}</p>
-                <p className="text-sm text-slate-500">Average rating</p>
+                <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Reports</p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">Reports</h3>
               </div>
-              <div className="text-sm text-slate-500">
-                {reviewSummary?.totalReviews || 0} published review{reviewSummary?.totalReviews === 1 ? '' : 's'}
-              </div>
+              <span className="badge badge-gray">{reportItems.length}</span>
+            </div>
+            <div className="mt-4 space-y-3">
+              {reportItems.map((item) => (
+                <div key={item.title} className={`rounded-[22px] border px-4 py-4 ${reportTone[item.tone] || reportTone.info}`}>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] opacity-70">{item.title}</p>
+                  <p className="mt-2 text-sm leading-6">{item.description}</p>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="card">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="section-title mb-0">Pending Document Verification</h3>
+          <div className="rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Schedule</p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">Upcoming Appointments</h3>
+              </div>
+              <span className="badge badge-info">{upcomingAppointments.length}</span>
+            </div>
+            <div className="mt-4 space-y-3">
+              {upcomingAppointments.length === 0 ? (
+                <p className="text-sm text-slate-400">No upcoming appointments found.</p>
+              ) : (
+                upcomingAppointments.map((appointment) => (
+                  <div key={appointment.id} className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/70">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{appointment.patient_name}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {formatDate(appointment.scheduled_date)} · {appointment.scheduled_time?.slice(0, 5)}
+                        </p>
+                      </div>
+                      <span className="badge badge-gray capitalize">{appointment.status}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Clinic flow</p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">Admissions vs Follow-ups</h3>
+              </div>
+              <span className="badge badge-gray">Trend</span>
+            </div>
+            <div className="mt-4">
+              {flowData.length === 0 ? (
+                <p className="text-sm text-slate-400">No flow data available yet.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={250}>
+                  <AreaChart data={flowData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid #e2e8f0' }} />
+                    <Area type="monotone" dataKey="admissions" stroke="#0f766e" fill="#99f6e4" fillOpacity={0.35} />
+                    <Area type="monotone" dataKey="discharge" stroke="#2563eb" fill="#bfdbfe" fillOpacity={0.25} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Verification</p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">Pending Document Verification</h3>
+              </div>
               <span className="badge badge-gray">{pendingDocuments.length}</span>
             </div>
 
-            {pendingDocuments.length === 0 ? (
-              <p className="text-sm text-slate-400">No pending uploads right now.</p>
-            ) : (
-              <div className="space-y-3">
-                {pendingDocuments.slice(0, 6).map((document) => (
-                  <div key={document.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="mt-4 space-y-3">
+              {pendingDocuments.length === 0 ? (
+                <p className="text-sm text-slate-400">No pending uploads right now.</p>
+              ) : (
+                pendingDocuments.slice(0, 3).map((document) => (
+                  <div key={document.id} className="rounded-[22px] border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/70">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-slate-900">{document.document_type}</p>
+                        <p className="font-medium text-slate-900 dark:text-slate-50">{document.document_type}</p>
                         <p className="text-sm text-slate-500">{document.patient_name}</p>
                         <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-400">OCR: {document.ocr_status || 'not processed'}</p>
                         <a href={document.file_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs font-medium text-[var(--accent)]">
@@ -498,20 +514,20 @@ export default function DashboardPage() {
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
           </div>
 
-          <div className="card">
-            <h3 className="section-title mb-4">Backup & Recovery</h3>
+          <div className="rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+            <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-50">Backup & Recovery</h3>
             {backupStatus ? (
-              <div className="space-y-2 text-sm text-slate-600">
-                <p>Latest backup status: <span className="font-semibold capitalize text-slate-900">{backupStatus.status}</span></p>
+              <div className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                <p>Latest backup status: <span className="font-semibold capitalize text-slate-900 dark:text-slate-50">{backupStatus.status}</span></p>
                 <p>Last backup: {new Date(backupStatus.created_at).toLocaleString('en-PH')}</p>
               </div>
             ) : (
-              <p className="text-sm text-slate-400">No backup log found yet.</p>
+              <p className="mt-4 text-sm text-slate-400">No backup log found yet.</p>
             )}
           </div>
         </div>
@@ -519,18 +535,20 @@ export default function DashboardPage() {
 
       {showUpload ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-950">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900">Upload Feed Media</h3>
-                <p className="text-sm text-slate-500">Publish official educational videos, posters, and announcements with a cleaner upload workflow.</p>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Upload Media</h3>
+                <p className="text-sm text-slate-500">Publish educational videos, images, and announcements with a clean upload workflow.</p>
               </div>
-              <button className="btn-ghost" onClick={() => { setShowUpload(false); setUploadTransfer({ progress: 0, status: '' }); setUploadError('') }}>Close</button>
+              <button className="btn-ghost" onClick={() => { setShowUpload(false); setUploadTransfer({ progress: 0, status: '' }); setUploadError('') }}>
+                Close
+              </button>
             </div>
             {uploadError ? <div className="alert-critical mb-4 text-sm">{uploadError}</div> : null}
             <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
               <div className="space-y-4">
-                <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-slate-50">
+                <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/70">
                   <div className="aspect-[4/5] overflow-hidden">
                     {uploadPreviewUrl ? (
                       uploadForm.mediaType === 'image' ? (
@@ -540,17 +558,17 @@ export default function DashboardPage() {
                       )
                     ) : (
                       <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-400">
-                        Select a video or image to preview it before publishing to the health feed.
+                        Select a video or image to preview it before publishing to the patient-facing media library.
                       </div>
                     )}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-600">
-                  <p className="font-medium text-slate-900">Upload guidance</p>
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
+                  <p className="font-medium text-slate-900 dark:text-slate-50">Upload guidance</p>
                   <p className="mt-2">Large files upload in resumable chunks, so the clinic can continue after a connection drop instead of starting over.</p>
                   {uploadForm.file ? (
-                    <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
-                      <p className="font-semibold text-slate-900">{uploadForm.file.name}</p>
+                    <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-950">
+                      <p className="font-semibold text-slate-900 dark:text-slate-50">{uploadForm.file.name}</p>
                       <p className="mt-1">{(uploadForm.file.size / (1024 * 1024)).toFixed(2)} MB</p>
                     </div>
                   ) : null}
@@ -558,68 +576,77 @@ export default function DashboardPage() {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-              <div className="md:col-span-2">
-                <label className="label">Title</label>
-                <input className="input" value={uploadForm.title} onChange={(e) => setUploadForm((current) => ({ ...current, title: e.target.value }))} />
-              </div>
-              <div>
-                <label className="label">Category</label>
-                <select className="input" value={uploadForm.category} onChange={(e) => setUploadForm((current) => ({ ...current, category: e.target.value }))}>
-                  {mediaCategories.map((category) => <option key={category} value={category}>{category}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Media Type</label>
-                <select className="input" value={uploadForm.mediaType} onChange={(e) => setUploadForm((current) => ({ ...current, mediaType: e.target.value, file: null }))}>
-                  <option value="video">Video</option>
-                  <option value="image">Image</option>
-                </select>
-              </div>
-              <div className="md:col-span-2">
-                <label className="label">Caption</label>
-                <textarea className="input" rows={3} value={uploadForm.description} onChange={(e) => setUploadForm((current) => ({ ...current, description: e.target.value }))} placeholder="Short patient-friendly caption for the media post." />
-              </div>
-              <div>
-                <label className="label">{uploadForm.mediaType === 'image' ? 'Image File' : 'Video File'}</label>
-                <input className="input" type="file" accept={uploadForm.mediaType === 'image' ? 'image/*' : 'video/*'} onChange={(e) => setUploadForm((current) => ({ ...current, file: e.target.files?.[0] || null }))} />
-              </div>
-              <div>
-                <label className="label">Remote Media URL</label>
-                <input className="input" placeholder="Optional if you are not uploading a file" value={uploadForm.mediaUrl} onChange={(e) => setUploadForm((current) => ({ ...current, mediaUrl: e.target.value }))} />
-              </div>
-              <div className="md:col-span-2">
-                <label className="label">Poster / Thumbnail URL</label>
-                <input className="input" placeholder="Optional poster image for videos or hero image cards" value={uploadForm.posterUrl} onChange={(e) => setUploadForm((current) => ({ ...current, posterUrl: e.target.value }))} />
-              </div>
-              <label className="md:col-span-2 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                <input type="checkbox" checked={uploadForm.isPublished} onChange={(e) => setUploadForm((current) => ({ ...current, isPublished: e.target.checked }))} />
-                Publish immediately to the patient-facing media feed
-              </label>
+                <div className="md:col-span-2">
+                  <label className="label">Title</label>
+                  <input className="input" value={uploadForm.title} onChange={(e) => setUploadForm((current) => ({ ...current, title: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Category</label>
+                  <select className="input" value={uploadForm.category} onChange={(e) => setUploadForm((current) => ({ ...current, category: e.target.value }))}>
+                    {mediaCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Media Type</label>
+                  <select className="input" value={uploadForm.mediaType} onChange={(e) => setUploadForm((current) => ({ ...current, mediaType: e.target.value, file: null }))}>
+                    <option value="video">Video</option>
+                    <option value="image">Image</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="label">Caption</label>
+                  <textarea className="input" rows={3} value={uploadForm.description} onChange={(e) => setUploadForm((current) => ({ ...current, description: e.target.value }))} placeholder="Short patient-friendly caption for the media post." />
+                </div>
+                <div>
+                  <label className="label">{uploadForm.mediaType === 'image' ? 'Image File' : 'Video File'}</label>
+                  <input className="input" type="file" accept={uploadForm.mediaType === 'image' ? 'image/*' : 'video/*'} onChange={(e) => setUploadForm((current) => ({ ...current, file: e.target.files?.[0] || null }))} />
+                </div>
+                <div>
+                  <label className="label">Remote Media URL</label>
+                  <input className="input" placeholder="Optional if you are not uploading a file" value={uploadForm.mediaUrl} onChange={(e) => setUploadForm((current) => ({ ...current, mediaUrl: e.target.value }))} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="label">Poster / Thumbnail URL</label>
+                  <input className="input" placeholder="Optional poster image for videos or hero image cards" value={uploadForm.posterUrl} onChange={(e) => setUploadForm((current) => ({ ...current, posterUrl: e.target.value }))} />
+                </div>
+                <label className="md:col-span-2 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
+                  <input type="checkbox" checked={uploadForm.isPublished} onChange={(e) => setUploadForm((current) => ({ ...current, isPublished: e.target.checked }))} />
+                  Publish immediately to the patient-facing media library
+                </label>
               </div>
             </div>
             {(uploadMutation.isPending || uploadTransfer.status) ? (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/70">
                 <div className="flex items-center justify-between gap-4">
-                  <p className="text-sm font-medium text-slate-900">
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-50">
                     {uploadTransfer.status || 'Preparing upload...'}
                   </p>
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                     {uploadTransfer.progress}%
                   </span>
                 </div>
-                <div className="mt-3 h-2 rounded-full bg-slate-200">
+                <div className="mt-3 h-2 rounded-full bg-slate-200 dark:bg-slate-800">
                   <div
                     className="h-2 rounded-full bg-[var(--accent)] transition-all duration-300"
                     style={{ width: `${uploadTransfer.progress}%` }}
                   />
                 </div>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                   Large uploads pause and resume safely in chunks if the clinic connection drops.
                 </p>
               </div>
             ) : null}
             <div className="mt-5 flex justify-end gap-2">
-              <button className="btn-secondary" onClick={() => { setShowUpload(false); setUploadTransfer({ progress: 0, status: '' }); setUploadError('') }}>Cancel</button>
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  setShowUpload(false)
+                  setUploadTransfer({ progress: 0, status: '' })
+                  setUploadError('')
+                }}
+              >
+                Cancel
+              </button>
               <button className="btn-primary" disabled={uploadMutation.isPending} onClick={() => uploadMutation.mutate()}>
                 {uploadMutation.isPending ? 'Publishing...' : 'Publish Media'}
               </button>

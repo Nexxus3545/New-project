@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
+import CoverCard from '../components/common/CoverCard'
 
 const APPOINTMENT_TYPES = {
   prenatal: 'Prenatal',
@@ -181,29 +182,41 @@ export default function AppointmentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[32px] border border-white/80 bg-gradient-to-br from-white via-slate-50 to-cyan-50 p-6 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/70">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700/70 dark:text-cyan-300/80">Appointment control</p>
-            <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">Appointments</h1>
-            <p className="mt-2 text-sm leading-7 text-slate-500 dark:text-slate-400">
-              Manage prenatal, postnatal, consultation, and delivery bookings with a calendar-first scheduling board.
-            </p>
+      <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+        <div className="rounded-[32px] border border-white/80 bg-gradient-to-br from-[#fff6fb] via-white to-[#f4efff] p-6 shadow-[0_24px_60px_rgba(214,92,138,0.10)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/70">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#b44b79]/70 dark:text-[#e8b4d1]/80">Appointment control</p>
+              <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">Appointments</h1>
+              <p className="mt-2 text-sm leading-7 text-slate-500 dark:text-slate-400">
+                Manage prenatal, postnatal, consultation, and delivery bookings with a calendar-first scheduling board.
+              </p>
+            </div>
+            <button onClick={() => openForm(selectedDateKey)} className="btn-primary self-start xl:self-auto">
+              + Schedule Appointment
+            </button>
           </div>
-          <button onClick={() => openForm(selectedDateKey)} className="btn-primary self-start xl:self-auto">
-            + Schedule Appointment
-          </button>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {metrics.map((metric) => (
+              <div key={metric.label} className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">{metric.label}</p>
+                <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{metric.value}</p>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{metric.helper}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {metrics.map((metric) => (
-            <div key={metric.label} className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">{metric.label}</p>
-              <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{metric.value}</p>
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{metric.helper}</p>
-            </div>
-          ))}
-        </div>
+        <CoverCard
+          image="/reference/appointments-hero.jpg"
+          label="Visit planning"
+          title="A schedule that feels organized, readable, and calm."
+          description="Warm image-led scheduling helps staff quickly scan prenatal, postnatal, consultation, and delivery bookings."
+          chips={['Calendar', 'Bookings', 'Follow-up']}
+          tone="lavender"
+          className="h-full min-h-[22rem]"
+        />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.35fr_0.85fr]">
@@ -243,7 +256,7 @@ export default function AppointmentsPage() {
                     onClick={() => handleCellClick(cell.key)}
                     className={`min-h-[128px] rounded-[22px] border p-3 text-left transition ${
                       isSelected
-                        ? 'border-[var(--accent)] bg-cyan-50 shadow-sm dark:bg-cyan-950/30'
+                        ? 'border-[var(--accent)] bg-rose-50 shadow-sm dark:bg-rose-950/30'
                         : cell.inMonth
                           ? 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950/60 dark:hover:bg-slate-900'
                           : 'border-slate-100 bg-slate-50/70 text-slate-400 dark:border-slate-800 dark:bg-slate-950/30'
@@ -267,8 +280,8 @@ export default function AppointmentsPage() {
                             STATUS_TONE[appointment.status] === 'badge-danger'
                               ? 'border-rose-200 bg-rose-50 text-rose-800'
                               : STATUS_TONE[appointment.status] === 'badge-success'
-                                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                                : 'border-cyan-200 bg-cyan-50 text-cyan-800'
+                                ? 'border-violet-200 bg-violet-50 text-violet-800'
+                                : 'border-amber-200 bg-amber-50 text-amber-800'
                           }`}
                         >
                           <p className="font-semibold">{appointment.patient_name}</p>

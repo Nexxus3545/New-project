@@ -1,4 +1,4 @@
-param(
+﻿param(
   [switch]$RepairOnly,
   [switch]$ColdBoot,
   [switch]$Offline,
@@ -27,32 +27,28 @@ function Clear-ProxyEnvironment {
 }
 
 function Invoke-AdbIgnoringNoDevice([string[]]$arguments) {
-  $stdoutPath = [System.IO.Path]::GetTempFileName()
-  $stderrPath = [System.IO.Path]::GetTempFileName()
-  try {
-    $process = Start-Process `
-      -FilePath $adbPath `
-      -ArgumentList $arguments `
-      -NoNewWindow `
-      -Wait `
-      -PassThru `
-      -RedirectStandardOutput $stdoutPath `
-      -RedirectStandardError $stderrPath
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $adbPath
+  $psi.Arguments = ($arguments | ForEach-Object {
+    if ($_ -match '[\s\"]') { '"{0}"' -f ($_ -replace '"', '\"') }
+    else { $_ }
+  }) -join ' '
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.UseShellExecute = $false
+  $psi.CreateNoWindow = $true
 
-    $output = @(
-      Get-Content $stdoutPath -ErrorAction SilentlyContinue
-      Get-Content $stderrPath -ErrorAction SilentlyContinue
-    )
-    $exitCode = $process.ExitCode
-  } finally {
-    Remove-Item $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
-  }
+  $process = [System.Diagnostics.Process]::Start($psi)
+  $stdout = $process.StandardOutput.ReadToEnd()
+  $stderr = $process.StandardError.ReadToEnd()
+  $process.WaitForExit()
+  $exitCode = $process.ExitCode
+  $message = (($stdout + "`n" + $stderr) | Out-String).Trim()
 
   if ($exitCode -eq 0) {
     return
   }
 
-  $message = ($output | Out-String).Trim()
   if ($message -match 'no devices/emulators found') {
     return
   }
@@ -153,53 +149,6 @@ function Get-AttachedEmulatorSerial {
   return $readyDevice.Serial
 }
 
-function Repair-StaleEmulatorBridge {
-  $problemEntries = Get-AdbEmulatorEntries | Where-Object { $_.State -in @('authorizing', 'offline', 'unauthorized') }
-  if (-not $problemEntries) {
-    return $false
-  }
-
-  $states = ($problemEntries | ForEach-Object { "$($_.Serial) [$($_.State)]" }) -join ', '
-  Write-Step "Detected stale emulator bridge state: $states"
-  Stop-StaleEmulators
-  Start-Sleep -Seconds 2
-  Reset-AdbServer
-  return $true
-}
-
-function Stop-StaleEmulators {
-  $processes = Get-Process -ErrorAction SilentlyContinue | Where-Object {
-    $_.ProcessName -eq 'emulator' -or $_.ProcessName -like 'qemu-system*'
-  }
-
-  foreach ($process in $processes) {
-    try {
-      Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-    } catch {}
-  }
-}
-
-function Start-AndroidEmulator([string]$targetAvd, [switch]$UseColdBoot) {
-  $args = @('-avd', $targetAvd, '-netdelay', 'none', '-netspeed', 'full')
-  if ($UseColdBoot) {
-    $args += '-no-snapshot-load'
-  }
-
-  Start-Process -FilePath $emulatorPath -ArgumentList $args | Out-Null
-}
-
-function Queue-ExpoGoLaunch([string]$serial, [int]$metroPort) {
-  if (-not $serial) {
-    return
-  }
-
-  $expoUrl = "exp://127.0.0.1:$metroPort"
-  $launchCommand = "Start-Sleep -Seconds 12; & '$adbPath' -s $serial shell am start -a android.intent.action.VIEW -d '$expoUrl' | Out-Null"
-  Start-Process -FilePath 'powershell.exe' `
-    -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $launchCommand) `
-    -WindowStyle Hidden | Out-Null
-}
-
 function Wait-ForEmulatorAttach([int]$timeoutSeconds) {
   $deadline = (Get-Date).AddSeconds($timeoutSeconds)
   $lastReportedState = $null
@@ -238,6 +187,96 @@ function Wait-ForBootComplete([string]$serial, [int]$timeoutSeconds) {
   return $false
 }
 
+function Wait-ForAdbConsoleReady([string]$serial, [int]$timeoutSeconds) {
+  $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+  do {
+    Start-Sleep -Seconds 2
+    try {
+      & $adbPath -s $serial emu avd name 2>$null | Out-Null
+      if ($LASTEXITCODE -eq 0) {
+        return $true
+      }
+    } catch {}
+  } while ((Get-Date) -lt $deadline)
+
+  return $false
+}
+
+function Get-AvdDirectory([string]$avdName) {
+  $avdRoot = if ($env:ANDROID_AVD_HOME -and $env:ANDROID_AVD_HOME.Trim()) {
+    $env:ANDROID_AVD_HOME
+  } else {
+    Join-Path $env:USERPROFILE '.android\avd'
+  }
+
+  return Join-Path $avdRoot "$avdName.avd"
+}
+
+function Clear-StaleAvdLocks([string]$avdName) {
+  $avdDir = Get-AvdDirectory -avdName $avdName
+  if (-not (Test-Path $avdDir)) {
+    return
+  }
+
+  $targets = Get-ChildItem -Path $avdDir -Force -ErrorAction SilentlyContinue | Where-Object {
+    $_.Name -match '\.lock($|\.)' -or $_.Name -eq 'tmpAdbCmds'
+  }
+
+  foreach ($target in $targets) {
+    try {
+      Remove-Item -LiteralPath $target.FullName -Recurse -Force -ErrorAction SilentlyContinue
+    } catch {}
+  }
+}
+
+function Repair-StaleEmulatorBridge([string]$avdName) {
+  $problemEntries = Get-AdbEmulatorEntries | Where-Object { $_.State -in @('authorizing', 'offline', 'unauthorized') }
+  if (-not $problemEntries) {
+    return $false
+  }
+
+  $states = ($problemEntries | ForEach-Object { "$($_.Serial) [$($_.State)]" }) -join ', '
+  Write-Step "Detected stale emulator bridge state: $states"
+  Stop-StaleEmulators
+  Clear-StaleAvdLocks -avdName $avdName
+  Start-Sleep -Seconds 2
+  Reset-AdbServer
+  return $true
+}
+
+function Stop-StaleEmulators {
+  $processes = Get-Process -ErrorAction SilentlyContinue | Where-Object {
+    $_.ProcessName -eq 'emulator' -or $_.ProcessName -like 'qemu-system*'
+  }
+
+  foreach ($process in $processes) {
+    try {
+      Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    } catch {}
+  }
+}
+
+function Start-AndroidEmulator([string]$targetAvd, [switch]$UseColdBoot) {
+  $args = @('-avd', $targetAvd, '-netdelay', 'none', '-netspeed', 'full')
+  if ($UseColdBoot) {
+    $args += '-no-snapshot-load'
+  }
+
+  Start-Process -FilePath $emulatorPath -ArgumentList $args | Out-Null
+}
+
+function Queue-ExpoGoLaunch([string]$serial, [int]$metroPort) {
+  if (-not $serial) {
+    return
+  }
+
+  $expoUrl = "exp://127.0.0.1:$metroPort"
+  $launchCommand = "Start-Sleep -Seconds 12; & '$adbPath' -s $serial shell am start -a android.intent.action.VIEW -d '$expoUrl' | Out-Null"
+  Start-Process -FilePath 'powershell.exe' `
+    -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $launchCommand) `
+    -WindowStyle Hidden | Out-Null
+}
+
 if (-not (Test-Path $adbPath)) {
   throw "adb.exe was not found at $adbPath"
 }
@@ -261,7 +300,7 @@ if ($Offline) {
 try {
   Write-Step 'Resetting adb and preparing the Android bridge...'
   Reset-AdbServer
-  Repair-StaleEmulatorBridge | Out-Null
+  Repair-StaleEmulatorBridge -avdName $resolvedAvdName | Out-Null
   Invoke-AdbIgnoringNoDevice -arguments @('reverse', '--remove-all')
 
   $serial = Get-AttachedEmulatorSerial
@@ -269,6 +308,7 @@ try {
   if (-not $serial) {
     Write-Step "Launching emulator $resolvedAvdName..."
     Stop-StaleEmulators
+    Clear-StaleAvdLocks -avdName $resolvedAvdName
     Start-AndroidEmulator -targetAvd $resolvedAvdName -UseColdBoot:$ColdBoot
     $serial = Wait-ForEmulatorAttach -timeoutSeconds 180
   }
@@ -276,6 +316,7 @@ try {
   if (-not $serial) {
     Write-Step 'Initial attach failed. Retrying with a cold boot...'
     Stop-StaleEmulators
+    Clear-StaleAvdLocks -avdName $resolvedAvdName
     Start-Sleep -Seconds 2
     Reset-AdbServer
     Start-AndroidEmulator -targetAvd $resolvedAvdName -UseColdBoot
@@ -290,6 +331,12 @@ try {
   $booted = Wait-ForBootComplete -serial $serial -timeoutSeconds 180
   if (-not $booted) {
     throw "The emulator attached as $serial but never finished booting."
+  }
+
+  Write-Step "Waiting for $serial to accept ADB console commands..."
+  $consoleReady = Wait-ForAdbConsoleReady -serial $serial -timeoutSeconds 60
+  if (-not $consoleReady) {
+    throw "The emulator attached as $serial but the ADB console never became ready."
   }
 
   Invoke-AdbIgnoringNoDevice -arguments @('-s', $serial, 'reverse', "tcp:$metroPort", "tcp:$metroPort")

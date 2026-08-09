@@ -4,9 +4,10 @@
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "powershell -ExecutionPolicy Bypass -File ./scripts/start-mobile-offline.ps1",
-    "android": "powershell -ExecutionPolicy Bypass -File ./scripts/start-android-offline.ps1 -Offline",
-    "android:offline": "powershell -ExecutionPolicy Bypass -File ./scripts/start-android-offline.ps1 -Offline",
-    "android:repair": "powershell -ExecutionPolicy Bypass -File ./scripts/start-android-offline.ps1 -RepairOnly",
+    "android": "powershell -ExecutionPolicy Bypass -File ./scripts/start-android-offline.ps1 -Offline -AvdName Pixel_9a",
+    "android:offline": "powershell -ExecutionPolicy Bypass -File ./scripts/start-android-offline.ps1 -Offline -AvdName Pixel_9a",
+    "android:repair": "powershell -ExecutionPolicy Bypass -File ./scripts/start-android-offline.ps1 -RepairOnly -AvdName Pixel_9a",
+    "apk:debug": "powershell -ExecutionPolicy Bypass -File ./scripts/build-android-apk.ps1",
     "ios": "expo start --ios --offline",
     "web": "expo start --web --offline"
   },

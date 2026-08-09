@@ -447,7 +447,7 @@ export default function AccountCenterPage() {
     } catch {}
   }
 
-  const previewPalette = accentPresets[appearanceForm.accent] || accentPresets.teal
+  const previewPalette = accentPresets[appearanceForm.accent] || accentPresets.rose
   const deliveries = Array.isArray(patientProfile?.deliveries) ? patientProfile.deliveries.filter(Boolean) : []
   const latestDelivery = useMemo(
     () => deliveries.slice().sort((left, right) => new Date(right.delivery_date || 0) - new Date(left.delivery_date || 0))[0],

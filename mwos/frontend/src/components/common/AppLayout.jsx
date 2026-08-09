@@ -8,13 +8,13 @@ const staffNav = [
   { to: '/dashboard', icon: 'DB', label: 'Dashboard' },
   { to: '/patients', icon: 'PT', label: 'Patients' },
   { to: '/appointments', icon: 'AP', label: 'Appointments' },
-  { to: '/vitals', icon: 'VT', label: 'Vitals' },
-  { to: '/deliveries', icon: 'DL', label: 'Deliveries' },
-  { to: '/inventory', icon: 'MD', label: 'Medicines' },
-  { to: '/billing', icon: 'BL', label: 'Billing' },
+  { to: '/prenatal-care', icon: 'PN', label: 'Prenatal Care' },
+  { to: '/postnatal-care', icon: 'PP', label: 'Postnatal Care' },
+  { to: '/examinations', icon: 'EX', label: 'Examinations' },
+  { to: '/immunizations', icon: 'IM', label: 'Immunizations' },
+  { to: '/medicines', icon: 'MD', label: 'Medicines' },
   { to: '/reports', icon: 'RP', label: 'Reports' },
   { to: '/interactions', icon: 'CH', label: 'Care Hub' },
-  { to: '/education', icon: 'ED', label: 'Education' },
   { to: '/account', icon: 'AC', label: 'Account' },
 ]
 
@@ -40,8 +40,8 @@ const patientNav = [
 
 const staffNavSections = [
   { title: 'Overview', items: staffNav.slice(0, 3) },
-  { title: 'Clinical', items: staffNav.slice(3, 7) },
-  { title: 'Reference', items: staffNav.slice(7, 10) },
+  { title: 'Maternal Care', items: staffNav.slice(3, 7) },
+  { title: 'Operations', items: staffNav.slice(7, 10) },
   { title: 'Account', items: staffNav.slice(10) },
 ]
 
@@ -85,12 +85,14 @@ export default function AppLayout({ patient = false }) {
           ['/my/emergency', ['Emergency', 'Quick access to urgent clinic and barangay support.']],
         ]
       : [
-          ['/dashboard', ['Control Center', 'A clinic-wide workspace for appointments, medicine flow, and care tasks.']],
+          ['/dashboard', ['Maternal Control Center', 'A calm workspace for appointments, monitoring, medicine flow, and clinic tasks.']],
           ['/patients', ['Patient Intake', 'Register and track patient records in a structured layout.']],
           ['/appointments', ['Appointments', 'Calendar-style scheduling for staff and patients.']],
-          ['/vitals', ['3D Vitals', 'Fast maternal monitoring with visual body cues and trends.']],
-          ['/deliveries', ['Labor and Delivery', 'Record delivery outcomes and post-delivery notes.']],
-          ['/inventory', ['Medicine Management', 'Organize medication by image, purpose, and usage.']],
+          ['/prenatal-care', ['Prenatal Care', 'Monitor maternal vitals, trends, and ultrasound follow-up.']],
+          ['/postnatal-care', ['Postnatal Care', 'Record delivery outcomes and post-delivery notes.']],
+          ['/examinations', ['Examinations', 'Review labs, ultrasounds, and clinical assessments.']],
+          ['/immunizations', ['Immunizations', 'Track vaccines and due dates for mothers and babies.']],
+          ['/medicines', ['Medicines', 'Organize medication by image, purpose, and usage.']],
           ['/reports', ['Reports & Analytics', 'Operational summaries and export-ready statistics.']],
         ]
 
@@ -118,7 +120,7 @@ export default function AppLayout({ patient = false }) {
   })
 
   return (
-    <div className="futuristic-shell flex h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
+    <div className="futuristic-shell flex h-screen bg-[#fff7fb] dark:bg-slate-950 overflow-hidden">
       <div className="shell-orb shell-orb-a" />
       <div className="shell-orb shell-orb-b" />
       {sidebarOpen && (
@@ -133,16 +135,16 @@ export default function AppLayout({ patient = false }) {
       `}
       >
         <div
-          className="relative overflow-hidden border-b border-gray-200 px-5 py-5 text-white dark:border-slate-800"
+          className="relative overflow-hidden border-b border-white/70 px-5 py-5 text-white dark:border-slate-800"
           style={{ background: 'linear-gradient(145deg, var(--hero-start), var(--hero-end))' }}
         >
           <div className="absolute inset-y-0 right-0 w-28 rounded-full bg-white/10 blur-2xl" />
           <div className="relative">
             <BrandMark compact sublabel={patient ? 'Patient experience' : 'Birthing home operations'} />
             <div className="mt-4 flex flex-wrap gap-2">
-              <span className="hero-chip border-white/10 bg-white/10 text-white">Live care</span>
-              <span className="hero-chip border-white/10 bg-white/10 text-white">{patient ? 'Patient view' : 'Clinic control'}</span>
-              <span className="hero-chip border-white/10 bg-white/10 text-white">Emergency ready</span>
+              <span className="hero-chip border-white/15 bg-white/18 text-white">Live care</span>
+              <span className="hero-chip border-white/15 bg-white/18 text-white">{patient ? 'Patient view' : 'Clinic control'}</span>
+              <span className="hero-chip border-white/15 bg-white/18 text-white">Emergency ready</span>
             </div>
           </div>
         </div>
@@ -190,11 +192,11 @@ export default function AppLayout({ patient = false }) {
               <p className="text-sm font-medium text-gray-900 dark:text-slate-100 truncate">
                 {user?.firstName} {user?.lastName}
               </p>
-              <p className="text-xs text-gray-500 dark:text-slate-400 capitalize">
-                {user?.role} / {appearance.accent} / {appearance.theme}
-              </p>
+                <p className="text-xs text-gray-500 dark:text-slate-400 capitalize">
+                  {user?.role} / {appearance.accent} / {appearance.theme}
+                </p>
+              </div>
             </div>
-          </div>
 
           <button
             onClick={() => navigate(patient ? '/my/profile' : '/account')}
@@ -225,7 +227,7 @@ export default function AppLayout({ patient = false }) {
           <div className="mb-5 rounded-[30px] border border-white/80 bg-white/80 px-4 py-4 shadow-[0_24px_48px_rgba(15,118,110,0.08)] backdrop-blur">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0">
-                <p className="section-kicker">{patient ? 'Patient Portal' : 'Clinic Workspace'}</p>
+                <p className="section-kicker">{patient ? 'Patient Portal' : 'Maternal Workspace'}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-3">
                   <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">{currentPage.title}</h1>
                   <span className="badge badge-gray">{user?.role || 'guest'}</span>

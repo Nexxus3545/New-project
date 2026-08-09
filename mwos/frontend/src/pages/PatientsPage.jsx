@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import api from '../utils/api'
+import CoverCard from '../components/common/CoverCard'
 
 const EMPTY_FORM = {
   firstName: '',
@@ -159,29 +160,41 @@ export default function PatientsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[32px] border border-white/80 bg-gradient-to-br from-white via-slate-50 to-cyan-50 p-6 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/70">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700/70 dark:text-cyan-300/80">Patient operations</p>
-            <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">Patients</h1>
-            <p className="mt-2 text-sm leading-7 text-slate-500 dark:text-slate-400">
-              Track registrations, review high-risk cases, and open the intake wizard for a cleaner clinic workflow.
-            </p>
+      <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+        <div className="rounded-[32px] border border-white/80 bg-gradient-to-br from-[#fff6fb] via-white to-[#f4efff] p-6 shadow-[0_24px_60px_rgba(214,92,138,0.10)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/70">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#b44b79]/70 dark:text-[#e8b4d1]/80">Patient operations</p>
+              <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">Patients</h1>
+              <p className="mt-2 text-sm leading-7 text-slate-500 dark:text-slate-400">
+                Track registrations, review high-risk cases, and open the intake wizard for a cleaner clinic workflow.
+              </p>
+            </div>
+            <button onClick={openForm} className="btn-primary self-start xl:self-auto">
+              + Register Patient
+            </button>
           </div>
-          <button onClick={openForm} className="btn-primary self-start xl:self-auto">
-            + Register Patient
-          </button>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {patientMetrics.map((metric) => (
+              <div key={metric.label} className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">{metric.label}</p>
+                <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{metric.value}</p>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{metric.helper}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {patientMetrics.map((metric) => (
-            <div key={metric.label} className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">{metric.label}</p>
-              <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{metric.value}</p>
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{metric.helper}</p>
-            </div>
-          ))}
-        </div>
+        <CoverCard
+          image="/reference/patient-intake.jpg"
+          label="Patient intake"
+          title="A guided registration flow that feels clear and welcoming."
+          description="The intake layout follows the reference style with a calm visual cover and a practical, multi-step form experience."
+          chips={['Identity', 'Emergency contact', 'Medical history']}
+          tone="rose"
+          className="h-full min-h-[22rem]"
+        />
       </div>
 
       <div className="rounded-[28px] border border-white/80 bg-white/90 p-4 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
@@ -266,7 +279,7 @@ export default function PatientsPage() {
       {showForm && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 p-4 backdrop-blur-sm">
           <div className="mx-auto flex h-[92vh] w-full max-w-6xl overflow-hidden rounded-[32px] border border-white/60 bg-white/95 shadow-[0_35px_90px_rgba(15,23,42,0.32)] dark:border-slate-800 dark:bg-slate-950/95">
-            <aside className="hidden w-[300px] flex-col justify-between bg-gradient-to-br from-teal-700 via-cyan-700 to-sky-800 p-6 text-white lg:flex">
+            <aside className="hidden w-[300px] flex-col justify-between bg-gradient-to-br from-[#b44b79] via-[#b47ad8] to-[#7c4ddb] p-6 text-white lg:flex">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/70">Patient registration</p>
                 <h2 className="mt-4 text-3xl font-semibold leading-tight">New patient intake</h2>
@@ -282,8 +295,8 @@ export default function PatientsPage() {
                       onClick={() => setFormStep(index)}
                       className={`w-full rounded-[22px] border px-4 py-3 text-left transition ${
                         formStep === index
-                          ? 'border-white/70 bg-white/15 shadow-lg'
-                          : 'border-white/10 bg-white/5 hover:bg-white/10'
+                          ? 'border-white/70 bg-white/18 shadow-lg'
+                          : 'border-white/10 bg-white/8 hover:bg-white/12'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -311,7 +324,7 @@ export default function PatientsPage() {
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="flex items-start justify-between border-b border-slate-200/80 px-5 py-5 dark:border-slate-800">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700/70 dark:text-cyan-300/80">Patient intake</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#b44b79]/70 dark:text-[#e8b4d1]/80">Patient intake</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">{FORM_STEPS[formStep].title}</h2>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{FORM_STEPS[formStep].description}</p>
                 </div>
@@ -541,7 +554,7 @@ export default function PatientsPage() {
                         </div>
                       </div>
 
-                      <div className="rounded-[28px] border border-cyan-200 bg-cyan-50 p-5 text-sm text-cyan-950 dark:border-cyan-900/40 dark:bg-cyan-950/20 dark:text-cyan-100">
+                      <div className="rounded-[28px] border border-rose-200 bg-rose-50 p-5 text-sm text-rose-950 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-100">
                         <p className="font-semibold">Why this flow</p>
                         <p className="mt-2 leading-7">
                           The guided layout mirrors the patient intake reference and keeps the registration usable on smaller screens.

@@ -28,6 +28,8 @@ import UsersPage from './pages/UsersPage'
 import CompliancePage from './pages/CompliancePage'
 import AccountCenterPage from './pages/AccountCenterPage'
 import InteractionsPage from './pages/InteractionsPage'
+import ExaminationsPage from './pages/ExaminationsPage'
+import ImmunizationsPage from './pages/ImmunizationsPage'
 
 // Patient portal pages
 import PatientDashboardPage from './pages/patient/PatientDashboardPage'
@@ -94,8 +96,13 @@ export default function App() {
           <Route path="/patients" element={<PatientsPage />} />
           <Route path="/patients/:id" element={<PatientDetailPage />} />
           <Route path="/appointments" element={<AppointmentsPage />} />
+          <Route path="/prenatal-care" element={<VitalsPage />} />
           <Route path="/vitals" element={<VitalsPage />} />
+          <Route path="/postnatal-care" element={<DeliveriesPage />} />
           <Route path="/deliveries" element={<DeliveriesPage />} />
+          <Route path="/examinations" element={<ExaminationsPage />} />
+          <Route path="/immunizations" element={<ImmunizationsPage />} />
+          <Route path="/medicines" element={<InventoryPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/billing" element={<BillingPage />} />
           <Route path="/reports" element={<ReportsPage />} />

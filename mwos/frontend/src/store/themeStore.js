@@ -26,7 +26,7 @@ const resolveThemeMode = (theme) => {
 
 const applyAppearance = (appearance) => {
   const normalized = normalizeAppearance(appearance)
-  const palette = accentPresets[normalized.accent] || accentPresets.teal
+  const palette = accentPresets[normalized.accent] || accentPresets.rose
   const resolvedTheme = resolveThemeMode(normalized.theme)
   const root = document.documentElement
 

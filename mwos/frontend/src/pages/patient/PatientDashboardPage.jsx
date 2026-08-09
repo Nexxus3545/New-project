@@ -73,8 +73,8 @@ export default function PatientDashboardPage() {
           <p className="text-sm font-bold text-gray-900">{dashboard.nextAppointment ? new Date(dashboard.nextAppointment.scheduled_date).toLocaleDateString('en-PH') : 'None scheduled'}</p>
           {dashboard.nextAppointment ? <p className="mt-0.5 text-xs capitalize text-gray-500">{dashboard.nextAppointment.appointment_type} | {dashboard.nextAppointment.scheduled_time?.slice(0, 5)}</p> : null}
         </div>
-        <div className="card border-sky-100 bg-sky-50">
-          <p className="mb-1 text-xs font-medium text-sky-600">Active Pregnancy</p>
+        <div className="card border-[#eadff5] bg-[#fbf8ff]">
+          <p className="mb-1 text-xs font-medium text-[#8b5cad]">Active Pregnancy</p>
           <p className="text-sm font-bold text-gray-900">{dashboard.activePregnancy ? `EDD: ${new Date(dashboard.activePregnancy.edd).toLocaleDateString('en-PH')}` : 'None active'}</p>
           {dashboard.activePregnancy ? <p className="mt-0.5 text-xs capitalize text-gray-500">{dashboard.activePregnancy.risk_level} risk</p> : null}
         </div>
@@ -261,9 +261,9 @@ export default function PatientDashboardPage() {
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Uploaded</p>
                 <p className="mt-2 text-2xl font-semibold text-slate-900">{documentSummary.total || 0}</p>
               </div>
-              <div className="rounded-2xl bg-emerald-50 p-4 text-center">
-                <p className="text-xs uppercase tracking-[0.22em] text-emerald-500">Verified</p>
-                <p className="mt-2 text-2xl font-semibold text-emerald-700">{documentSummary.verified || 0}</p>
+              <div className="rounded-2xl bg-rose-50 p-4 text-center">
+                <p className="text-xs uppercase tracking-[0.22em] text-[#b44b79]">Verified</p>
+                <p className="mt-2 text-2xl font-semibold text-[#b44b79]">{documentSummary.verified || 0}</p>
               </div>
               <div className="rounded-2xl bg-amber-50 p-4 text-center">
                 <p className="text-xs uppercase tracking-[0.22em] text-amber-500">Pending</p>
@@ -290,7 +290,7 @@ export default function PatientDashboardPage() {
                   <div key={member.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                     <p className="font-semibold text-slate-900">{member.first_name} {member.last_name}</p>
                     <p className="mt-1 text-sm capitalize text-slate-500">{member.role}</p>
-                    <Link to={`/my/doctors/${member.id}`} className="mt-4 inline-flex text-sm font-medium text-teal-600 hover:underline">View profile</Link>
+                    <Link to={`/my/doctors/${member.id}`} className="mt-4 inline-flex text-sm font-medium text-[#b44b79] hover:underline">View profile</Link>
                   </div>
                 ))}
               </div>
