@@ -293,9 +293,11 @@ Write-Step "Using Metro port $metroPort."
 Clear-ProxyEnvironment
 Push-Location $projectRoot
 $previousExpoOffline = $env:EXPO_OFFLINE
+$previousCi = $env:CI
 if ($Offline) {
   $env:EXPO_OFFLINE = '1'
 }
+$env:CI = '1'
 
 try {
   Write-Step 'Resetting adb and preparing the Android bridge...'
@@ -350,7 +352,7 @@ try {
   Write-Step 'Starting Expo Android session...'
   Queue-ExpoGoLaunch -serial $serial -metroPort $metroPort
 
-  $expoArgs = @('expo', 'start', '--port', $metroPort, '--host', 'localhost', '--non-interactive')
+  $expoArgs = @('expo', 'start', '--port', $metroPort)
   if ($Offline) {
     $expoArgs += '--offline'
   }
@@ -362,5 +364,11 @@ try {
     $env:EXPO_OFFLINE = $previousExpoOffline
   } else {
     Remove-Item Env:EXPO_OFFLINE -ErrorAction SilentlyContinue
+  }
+
+  if ($null -ne $previousCi -and $previousCi -ne '') {
+    $env:CI = $previousCi
+  } else {
+    Remove-Item Env:CI -ErrorAction SilentlyContinue
   }
 }
