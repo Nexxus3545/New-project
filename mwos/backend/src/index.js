@@ -4,16 +4,32 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 
 const { testConnection } = require('./config/database');
 const { setupSwagger } = require('./config/swagger');
 const routes = require('./routes/index');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
+const { requestContext } = require('./middleware/requestContext');
+const { migrate } = require('./utils/migrate');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const handleServerError = (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`\nPort ${PORT} is already in use.`);
+    console.error('Another MWOS backend instance is probably already running.');
+    console.error('Stop the existing process or change PORT in .env, then try again.\n');
+    process.exit(1);
+  }
+
+  console.error('\nFailed to start server:', error);
+  process.exit(1);
+};
+
 app.use(helmet());
+app.use(requestContext);
 app.use(
   cors({
     origin: [
@@ -48,6 +64,7 @@ app.use('/api/auth/login', authLimiter);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
@@ -64,8 +81,19 @@ app.get('/health', async (_req, res) => {
   });
 });
 
+app.get('/ready', async (_req, res) => {
+  const dbOk = await testConnection().catch(() => false);
+  res.status(dbOk ? 200 : 503).json({
+    success: dbOk,
+    status: dbOk ? 'ready' : 'degraded',
+    requestId: _req.requestId || null,
+    database: dbOk ? 'connected' : 'disconnected',
+  });
+});
+
 setupSwagger(app);
 app.use('/api', routes);
+app.use('/api/v1', routes);
 
 app.use(notFound);
 app.use(errorHandler);
@@ -74,19 +102,27 @@ const start = async () => {
   console.log('\nTMC Copino MWOS Backend');
   console.log('============================');
 
+  if (process.env.AUTO_MIGRATE_ON_START !== 'false') {
+    await migrate({ closePool: false });
+  } else {
+    console.log('Automatic migrations are disabled (AUTO_MIGRATE_ON_START=false).');
+  }
+
   const dbConnected = await testConnection();
   if (!dbConnected) {
     console.error('\nCannot start without database. Please check PostgreSQL.');
     process.exit(1);
   }
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`\nServer running on http://localhost:${PORT}`);
     console.log(`Health: http://localhost:${PORT}/health`);
     console.log(`API: http://localhost:${PORT}/api`);
     console.log(`Swagger: http://localhost:${PORT}/api/docs`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}\n`);
   });
+
+  server.on('error', handleServerError);
 };
 
 start();

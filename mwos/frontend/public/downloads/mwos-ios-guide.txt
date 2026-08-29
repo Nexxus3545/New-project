@@ -1,0 +1,6 @@
+MWOS iOS Mobile Guide
+
+1. Install the Expo client or iOS build package.
+2. Open the MWOS mobile workspace.
+3. Start the mobile app and connect to the shared backend API.
+4. Sign in with your assigned clinic or patient account.

@@ -1,9 +1,11 @@
 const { query } = require('../config/database');
+const { generateUniqueCode } = require('../utils/identifiers');
+const { signClinicalRecord } = require('../utils/security');
 
 const create = async (req, res, next) => {
   try {
     const {
-      patientId, pregnancyId, deliveryDate, deliveryTime, deliveryType,
+      patientId, pregnancyId, deliveryCode, deliveryDate, deliveryTime, deliveryType,
       gestationalAgeAtDelivery, newbornSex, birthWeightKg, apgar1min,
       apgar5min, newbornCondition, complications, placentaDelivery,
       bloodLossMl, notes
@@ -13,21 +15,40 @@ const create = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Patient ID, pregnancy ID, and delivery date are required' });
     }
 
+    const nextDeliveryCode = deliveryCode?.trim() || await generateUniqueCode({
+      table: 'deliveries',
+      column: 'delivery_code',
+      prefix: 'TMC-DEL',
+    });
+
     const result = await query(
       `INSERT INTO deliveries (
-        patient_id, pregnancy_id, delivery_date, delivery_time,
+        delivery_code, patient_id, pregnancy_id, delivery_date, delivery_time,
         delivery_type, gestational_age_at_delivery, birth_attendant,
         newborn_sex, birth_weight_kg, apgar_1min, apgar_5min,
         newborn_condition, complications, placenta_delivery,
         blood_loss_ml, notes, created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
       RETURNING *`,
       [
-        patientId, pregnancyId, deliveryDate, deliveryTime || null,
-        deliveryType || 'NSD', gestationalAgeAtDelivery || null, req.user.id,
-        newbornSex || null, birthWeightKg || null, apgar1min || null,
-        apgar5min || null, newbornCondition || null, complications || null,
-        placentaDelivery || null, bloodLossMl || null, notes || null, req.user.id
+        nextDeliveryCode,
+        patientId,
+        pregnancyId,
+        deliveryDate,
+        deliveryTime || null,
+        deliveryType || 'NSD',
+        gestationalAgeAtDelivery || null,
+        req.user.id,
+        newbornSex || null,
+        birthWeightKg || null,
+        apgar1min || null,
+        apgar5min || null,
+        newbornCondition || null,
+        complications || null,
+        placentaDelivery || null,
+        bloodLossMl || null,
+        notes || null,
+        req.user.id,
       ]
     );
 
@@ -36,6 +57,15 @@ const create = async (req, res, next) => {
       'UPDATE pregnancies SET status = $1, updated_at = NOW() WHERE id = $2',
       ['delivered', pregnancyId]
     );
+
+    await signClinicalRecord({
+      staffId: req.user.id,
+      entityType: 'deliveries',
+      entityId: result.rows[0].id,
+      actionType: 'create',
+      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
+      requestId: req.requestId || null,
+    });
 
     res.status(201).json({ success: true, message: 'Delivery recorded', data: result.rows[0] });
   } catch (err) {
@@ -111,6 +141,15 @@ const addLaborProgress = async (req, res, next) => {
         alertFlag, actionFlag, notes || null, req.user.id
       ]
     );
+
+    await signClinicalRecord({
+      staffId: req.user.id,
+      entityType: 'labor_progress',
+      entityId: result.rows[0].id,
+      actionType: 'create',
+      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
+      requestId: req.requestId || null,
+    });
 
     const warnings = [];
     if (alertFlag) warnings.push({ type: 'alert', message: 'Alert line crossed — labor progress needs monitoring' });

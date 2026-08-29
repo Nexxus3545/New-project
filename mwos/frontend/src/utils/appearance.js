@@ -1,6 +1,6 @@
 export const defaultAppearance = {
-  theme: 'system',
-  accent: 'teal',
+  theme: 'light',
+  accent: 'rose',
   density: 'comfortable',
   surface: 'solid',
   motion: 'full',
@@ -13,10 +13,10 @@ export const appearanceOptions = {
     { value: 'dark', label: 'Dark' },
   ],
   accent: [
-    { value: 'teal', label: 'Lagoon' },
+    { value: 'blush', label: 'Blush' },
     { value: 'rose', label: 'Coral' },
+    { value: 'lavender', label: 'Lavender' },
     { value: 'amber', label: 'Sunrise' },
-    { value: 'cyan', label: 'Skyline' },
     { value: 'slate', label: 'Graphite' },
   ],
   density: [
@@ -34,15 +34,15 @@ export const appearanceOptions = {
 }
 
 export const accentPresets = {
-  teal: {
-    accent: '#0f766e',
-    accentStrong: '#115e59',
-    accentSoft: '#ccfbf1',
-    accentGhost: '#f0fdfa',
-    accentText: '#134e4a',
-    accentRing: 'rgba(15, 118, 110, 0.28)',
-    heroStart: '#0f766e',
-    heroEnd: '#2dd4bf',
+  blush: {
+    accent: '#f472b6',
+    accentStrong: '#be185d',
+    accentSoft: '#fce7f3',
+    accentGhost: '#fff1f7',
+    accentText: '#9d174d',
+    accentRing: 'rgba(244, 114, 182, 0.28)',
+    heroStart: '#f9a8d4',
+    heroEnd: '#fde7f3',
   },
   rose: {
     accent: '#e11d48',
@@ -54,6 +54,16 @@ export const accentPresets = {
     heroStart: '#be123c',
     heroEnd: '#fb7185',
   },
+  lavender: {
+    accent: '#a855f7',
+    accentStrong: '#7c3aed',
+    accentSoft: '#f3e8ff',
+    accentGhost: '#faf5ff',
+    accentText: '#6b21a8',
+    accentRing: 'rgba(168, 85, 247, 0.28)',
+    heroStart: '#c084fc',
+    heroEnd: '#f5d0fe',
+  },
   amber: {
     accent: '#d97706',
     accentStrong: '#b45309',
@@ -63,16 +73,6 @@ export const accentPresets = {
     accentRing: 'rgba(217, 119, 6, 0.28)',
     heroStart: '#b45309',
     heroEnd: '#f59e0b',
-  },
-  cyan: {
-    accent: '#0891b2',
-    accentStrong: '#0e7490',
-    accentSoft: '#cffafe',
-    accentGhost: '#ecfeff',
-    accentText: '#155e75',
-    accentRing: 'rgba(8, 145, 178, 0.28)',
-    heroStart: '#0e7490',
-    heroEnd: '#22d3ee',
   },
   slate: {
     accent: '#475569',

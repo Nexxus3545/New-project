@@ -1,8 +1,9 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
 import api from '../utils/api'
 import { useAuthStore } from '../store/authStore'
+import CoverCard from '../components/common/CoverCard'
 
 // ── VITALS PAGE ───────────────────────────────────────────────
 export function VitalsPage() {
@@ -170,24 +171,190 @@ export function BillingPage() {
 // ── REPORTS PAGE ──────────────────────────────────────────────
 export function ReportsPage() {
   const { data, isLoading } = useQuery({ queryKey: ['births-monthly'], queryFn: () => api.get('/reports/births/monthly').then(r => r.data.data) })
+  const chartData = data || []
+
+  const reportSummary = useMemo(() => {
+    const nsdTotal = chartData.reduce((sum, item) => sum + Number(item.nsd || 0), 0)
+    const csTotal = chartData.reduce((sum, item) => sum + Number(item.cs || 0), 0)
+    const total = nsdTotal + csTotal
+    const average = chartData.length ? total / chartData.length : 0
+    const peakMonth = chartData.reduce((best, item) => {
+      const itemTotal = Number(item.nsd || 0) + Number(item.cs || 0)
+      if (!best || itemTotal > best.total) {
+        return { month: item.month, total: itemTotal }
+      }
+      return best
+    }, null)
+
+    return {
+      nsdTotal,
+      csTotal,
+      total,
+      average,
+      peakMonth: peakMonth?.month || 'N/A',
+      peakTotal: peakMonth?.total || 0,
+    }
+  }, [chartData])
+
+  const trendData = useMemo(() => chartData.map((item) => ({
+    month: item.month,
+    total: Number(item.nsd || 0) + Number(item.cs || 0),
+    nsd: Number(item.nsd || 0),
+    cs: Number(item.cs || 0),
+  })), [chartData])
 
   return (
-    <div>
-      <div className="page-header"><h1 className="page-title">Reports</h1></div>
-      <div className="card">
-        <h3 className="section-title mb-4">Monthly Deliveries (12 months)</h3>
-        {isLoading ? <div className="flex justify-center py-12"><div className="loading-spinner w-8 h-8" /></div> : (
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={data || []} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-              <Bar dataKey="nsd" fill="#0d9488" radius={[3,3,0,0]} name="NSD" />
-              <Bar dataKey="cs" fill="#e11d48" radius={[3,3,0,0]} name="CS" />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
+    <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+        <div className="rounded-[32px] border border-white/80 bg-gradient-to-br from-[#fff6fb] via-white to-[#f4efff] p-6 shadow-[0_24px_60px_rgba(214,92,138,0.10)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/70">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#b44b79]/70 dark:text-[#e8b4d1]/80">Clinical analytics</p>
+              <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">Reports</h1>
+              <p className="mt-2 text-sm leading-7 text-slate-500 dark:text-slate-400">
+                Review delivery mix, monthly volume, and trend direction for the birthing home and clinic.
+              </p>
+            </div>
+            <button className="btn-secondary self-start xl:self-auto">Export summary</button>
+          </div>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Total deliveries</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{reportSummary.total}</p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Combined monthly deliveries</p>
+            </div>
+            <div className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">NSD count</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{reportSummary.nsdTotal}</p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Vaginal delivery volume</p>
+            </div>
+            <div className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">CS count</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{reportSummary.csTotal}</p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Cesarean delivery volume</p>
+            </div>
+            <div className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Peak month</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-50">{reportSummary.peakMonth}</p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{reportSummary.peakTotal} deliveries recorded</p>
+            </div>
+          </div>
+        </div>
+
+        <CoverCard
+          image="/reference/reports-hero.jpg"
+          label="Delivery analytics"
+          title="Review reports in a calmer maternal workspace."
+          description="The analytics view now matches the softer clinic imagery used across the other key modules."
+          chips={['Deliveries', 'Trends', 'Export']}
+          tone="lavender"
+          className="h-full min-h-[22rem]"
+        />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.85fr]">
+        <div className="space-y-6">
+          <div className="rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-50">Monthly delivery mix</h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">NSD versus cesarean volume across the last 12 months.</p>
+              </div>
+              <span className="badge badge-gray">{chartData.length} months</span>
+            </div>
+            {isLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="loading-spinner h-8 w-8" />
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={chartData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid #e2e8f0' }} />
+                  <Legend />
+                  <Bar dataKey="nsd" fill="#d9468b" radius={[8, 8, 0, 0]} name="NSD" />
+                  <Bar dataKey="cs" fill="#8b5cf6" radius={[8, 8, 0, 0]} name="CS" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-50">Monthly trend line</h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">A simpler view of the total delivery load by month.</p>
+              </div>
+              <span className="badge badge-info">Trend</span>
+            </div>
+            {isLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="loading-spinner h-8 w-8" />
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <AreaChart data={trendData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid #e2e8f0' }} />
+                  <Area type="monotone" dataKey="total" stroke="#8b5cf6" fill="#f8bbd0" fillOpacity={0.28} />
+                  <Line type="monotone" dataKey="total" stroke="#b44b79" strokeWidth={2} dot={{ r: 3 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Insights</p>
+              <h3 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">Operational readout</h3>
+            </div>
+            <div className="mt-5 space-y-3">
+              <div className="rounded-2xl border border-slate-200 bg-rose-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/70">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Average per month</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">
+                  {reportSummary.average.toFixed(1)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/70">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Delivery mix</p>
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                  NSD and CS totals are balanced against monthly demand to spot workload shifts early.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/70">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Peak month</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-50">{reportSummary.peakMonth}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Data table</p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">Monthly breakdown</h3>
+              </div>
+              <span className="badge badge-gray">{chartData.length}</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {chartData.map((item) => (
+                <div key={item.month} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm dark:border-slate-800 dark:bg-slate-900/70">
+                  <span className="font-medium text-slate-900 dark:text-slate-50">{item.month}</span>
+                  <span className="text-slate-500">
+                    NSD {item.nsd || 0} - CS {item.cs || 0}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

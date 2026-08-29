@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "MWOS",
+    "name": "TMC Copino MWOS",
     "slug": "mwos-tmccopino",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0d9488"
+      "backgroundColor": "#f4d9dd"
     },
     "assetBundlePatterns": ["**/*"],
     "ios": {
@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0d9488"
+        "backgroundColor": "#f4d9dd"
       },
       "package": "com.tmccopino.mwos"
     },
@@ -31,7 +31,7 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#0d9488"
+          "color": "#c98994"
         }
       ]
     ]

@@ -1,0 +1,19 @@
+<svg width="960" height="1200" viewBox="0 0 960 1200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="960" height="1200" rx="64" fill="#EEF6FF"/>
+  <rect x="72" y="72" width="816" height="1056" rx="48" fill="white"/>
+  <rect x="132" y="132" width="696" height="240" rx="36" fill="#0F766E"/>
+  <rect x="132" y="430" width="696" height="568" rx="36" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="8"/>
+  <circle cx="256" cy="252" r="86" fill="#99F6E4"/>
+  <rect x="380" y="194" width="344" height="34" rx="17" fill="#CCFBF1"/>
+  <rect x="380" y="250" width="252" height="22" rx="11" fill="#99F6E4"/>
+  <rect x="186" y="502" width="516" height="28" rx="14" fill="#0F172A" fill-opacity="0.9"/>
+  <rect x="186" y="562" width="588" height="22" rx="11" fill="#94A3B8"/>
+  <rect x="186" y="620" width="548" height="22" rx="11" fill="#CBD5E1"/>
+  <rect x="186" y="678" width="608" height="22" rx="11" fill="#CBD5E1"/>
+  <rect x="186" y="760" width="266" height="144" rx="28" fill="#CCFBF1"/>
+  <rect x="494" y="760" width="266" height="144" rx="28" fill="#E2E8F0"/>
+  <path d="M264 856C311.496 856 350 817.496 350 770C350 722.504 311.496 684 264 684C216.504 684 178 722.504 178 770C178 817.496 216.504 856 264 856Z" fill="#14B8A6" fill-opacity="0.18"/>
+  <path d="M554 854H702" stroke="#334155" stroke-width="22" stroke-linecap="round"/>
+  <path d="M628 780V928" stroke="#334155" stroke-width="22" stroke-linecap="round"/>
+  <text x="186" y="1038" fill="#0F172A" font-family="Arial, sans-serif" font-size="58" font-weight="700">Clinic Medicine Guide</text>
+</svg>

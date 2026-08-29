@@ -1,15 +1,43 @@
 {
   "name": "mwos-desktop",
   "version": "1.0.0",
+  "description": "TMC Copino MWOS desktop client for maternal care operations.",
+  "author": "TMC Copino Birthing Home and Medical Clinic",
   "main": "main.js",
   "scripts": {
-    "dev": "electron .",
-    "start": "electron ."
+    "build:renderer": "esbuild renderer/app.js --bundle --platform=browser --format=esm --outfile=renderer/app.bundle.js",
+    "dev": "npm run build:renderer && electron .",
+    "start": "npm run build:renderer && electron .",
+    "dist:win": "npm run build:renderer && electron-builder --win portable"
   },
   "dependencies": {
     "axios": "^1.6.5"
   },
   "devDependencies": {
-    "electron": "^31.4.0"
+    "electron": "^31.4.0",
+    "electron-builder": "^24.13.3",
+    "esbuild": "^0.23.1"
+  },
+  "build": {
+    "appId": "com.tmccopino.mwos.desktop",
+    "productName": "MWOS Desktop",
+    "artifactName": "MWOS-Desktop-${version}-Portable.${ext}",
+    "icon": "assets/tmc-copino-logo.ico",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ]
+    },
+    "publish": null
   }
 }

@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, authorize, requireOwnPatient } = require('../middleware/auth');
 const { activityLogger } = require('../middleware/activityLogger');
+const { authorizePermission } = require('../middleware/permissions');
+const { requireStepUp } = require('../middleware/stepUp');
 
 // Controllers
 const authCtrl = require('../controllers/auth.controller');
@@ -12,6 +14,17 @@ const deliveryCtrl = require('../controllers/delivery.controller');
 const reportCtrl = require('../controllers/report.controller');
 const notificationCtrl = require('../controllers/notification.controller');
 const operationsCtrl = require('../controllers/operations.controller');
+const interactionCtrl = require('../controllers/interaction.controller');
+const mediaCtrl = require('../controllers/media.controller');
+const documentCtrl = require('../controllers/document.controller');
+const reviewCtrl = require('../controllers/review.controller');
+const medicineCtrl = require('../controllers/medicine.controller');
+const aiCtrl = require('../controllers/ai.controller');
+const uploadSessionCtrl = require('../controllers/upload.controller');
+const staffCtrl = require('../controllers/staff.controller');
+const securityCtrl = require('../controllers/security.controller');
+const { uploadVideo, uploadDocument, uploadMedicineImage } = require('../middleware/uploads');
+const { signClinicalRecord } = require('../utils/security');
 
 // ── AUTH ──────────────────────────────────────────────────────
 router.post('/auth/login', authCtrl.login);
@@ -24,17 +37,61 @@ router.get('/auth/me', authenticate, authCtrl.getMe);
 router.patch('/auth/profile', authenticate, authCtrl.updateProfile);
 router.patch('/auth/preferences', authenticate, authCtrl.updatePreferences);
 router.patch('/auth/change-password', authenticate, authCtrl.changePassword);
+router.post('/auth/otp/request', authenticate, authorize('admin','doctor','midwife','nurse'), securityCtrl.requestOtp);
+router.post('/auth/otp/verify', authenticate, authorize('admin','doctor','midwife','nurse'), securityCtrl.verifyOtp);
+router.post('/auth/webauthn/register/start', authenticate, authorize('admin','doctor','midwife','nurse'), securityCtrl.startWebAuthnRegistration);
+router.post('/auth/webauthn/register/finish', authenticate, authorize('admin','doctor','midwife','nurse'), securityCtrl.finishWebAuthnRegistration);
+router.post('/auth/webauthn/login/start', securityCtrl.startWebAuthnLogin);
+router.post('/auth/webauthn/login/finish', securityCtrl.finishWebAuthnLogin);
+
+// ── PUBLIC CONTENT ──────────────────────────────────────────────────────────────
+router.get('/media-feed/posts', mediaCtrl.list);
+router.post('/media-feed/posts/:id/view', mediaCtrl.recordView);
+router.get('/reviews/summary', reviewCtrl.getSummary);
+router.post('/reviews', reviewCtrl.create);
 
 // Audit/activity logging for state-changing authenticated actions
 router.use(authenticate, activityLogger);
 
+router.post('/uploads/sessions', uploadSessionCtrl.createSession);
+router.get('/uploads/sessions/:id', uploadSessionCtrl.getSession);
+router.put(
+  '/uploads/sessions/:id/chunks/:chunkIndex',
+  express.raw({ type: 'application/octet-stream', limit: '12mb' }),
+  uploadSessionCtrl.uploadChunk
+);
+router.post('/uploads/sessions/:id/complete', uploadSessionCtrl.completeSession);
+router.post('/security/sign', authenticate, authorize('admin','doctor','midwife','nurse'), requireStepUp('critical'), securityCtrl.signEntity);
+router.get('/security/signatures/:entityType/:entityId', authenticate, authorize('admin','doctor','midwife','nurse'), securityCtrl.getSignatures);
+router.get('/security/audit', authenticate, authorize('admin'), securityCtrl.getAudit);
+router.get('/security/audit/summary', authenticate, authorize('admin'), securityCtrl.getAuditSummary);
+router.get('/security/audit/:staffId', authenticate, authorize('admin'), securityCtrl.getAudit);
+
+// ── DASHBOARD CONTENT & MEDIA ──────────────────────────────────────────────────
+router.post('/media-feed/posts', authenticate, authorizePermission('content:media:write'), uploadVideo.single('video'), mediaCtrl.create);
+
+// ── PATIENT DOCUMENTS ──────────────────────────────────────────────────────────
+router.get('/documents/my', authorize('patient'), documentCtrl.getMine);
+router.post('/documents/my', authorize('patient'), uploadDocument.single('file'), documentCtrl.uploadMine);
+router.get('/documents', authorize('admin','doctor','midwife','nurse'), documentCtrl.list);
+router.patch('/documents/:id/verify', authenticate, authorizePermission('clinical:documents:review'), documentCtrl.verify);
+
+// ── MEDICINES ──────────────────────────────────────────────────────────────────
+router.get('/medicines', medicineCtrl.getAll);
+router.post('/medicines', authenticate, authorizePermission('pharmacy:write'), uploadMedicineImage.single('image'), medicineCtrl.create);
+router.patch('/medicines/:id', authenticate, authorizePermission('pharmacy:write'), uploadMedicineImage.single('image'), medicineCtrl.update);
+
+// AI
+router.get('/ai/recommendations', aiCtrl.getRecommendations);
+router.get('/ai/search', aiCtrl.search);
+
 // ── PATIENTS ──────────────────────────────────────────────────
 router.get('/patients', authenticate, authorize('admin','doctor','midwife','nurse'), patientCtrl.getAll);
-router.post('/patients', authenticate, authorize('admin','doctor','midwife'), patientCtrl.create);
+router.post('/patients', authenticate, authorizePermission('patients:write'), patientCtrl.create);
 router.get('/patients/me', authenticate, authorize('patient'), patientCtrl.getMe);
 router.patch('/patients/me', authenticate, authorize('patient'), patientCtrl.updateMe);
 router.get('/patients/:id', authenticate, patientCtrl.getOne);
-router.patch('/patients/:id', authenticate, authorize('admin','doctor','midwife'), patientCtrl.update);
+router.patch('/patients/:id', authenticate, authorizePermission('patients:write'), patientCtrl.update);
 router.get('/patients/:id/summary', authenticate, patientCtrl.getSummary);
 
 // ── PREGNANCIES ───────────────────────────────────────────────
@@ -76,14 +133,14 @@ router.post('/appointments', authenticate, apptCtrl.create);
 router.patch('/appointments/:id', authenticate, apptCtrl.update);
 
 // ── VITALS ────────────────────────────────────────────────────
-router.post('/vitals', authenticate, authorize('admin','doctor','midwife','nurse'), vitalsCtrl.create);
+router.post('/vitals', authenticate, authorizePermission('clinical:vitals:write'), vitalsCtrl.create);
 router.get('/vitals/patient/:patientId', authenticate, vitalsCtrl.getByPatient);
 router.get('/vitals/trend/:pregnancyId', authenticate, vitalsCtrl.getTrend);
 
 // ── DELIVERIES ────────────────────────────────────────────────
-router.post('/deliveries', authenticate, authorize('admin','doctor','midwife'), deliveryCtrl.create);
+router.post('/deliveries', authenticate, authorizePermission('clinical:deliveries:write'), deliveryCtrl.create);
 router.get('/deliveries/patient/:patientId', authenticate, deliveryCtrl.getByPatient);
-router.post('/deliveries/:deliveryId/labor-progress', authenticate, authorize('admin','doctor','midwife'), deliveryCtrl.addLaborProgress);
+router.post('/deliveries/:deliveryId/labor-progress', authenticate, authorizePermission('clinical:deliveries:write'), deliveryCtrl.addLaborProgress);
 router.get('/deliveries/:deliveryId/labor-progress', authenticate, deliveryCtrl.getLaborProgress);
 
 // ── EMR: Labs, Ultrasounds, Prescriptions ─────────────────────
@@ -94,7 +151,7 @@ router.get('/emr/labs/:patientId', authenticate, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/emr/labs', authenticate, authorize('admin','doctor','nurse'), async (req, res, next) => {
+router.post('/emr/labs', authenticate, authorizePermission('clinical:labs:write'), async (req, res, next) => {
   try {
     const { patientId, pregnancyId, testName, testDate, resultValue, unit, referenceRange, status, notes } = req.body;
     if (!patientId || !testName || !testDate) {
@@ -105,6 +162,14 @@ router.post('/emr/labs', authenticate, authorize('admin','doctor','nurse'), asyn
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
       [patientId, pregnancyId||null, testName, testDate, resultValue||null, unit||null, referenceRange||null, status||'normal', notes||null, req.user.id]
     );
+    await signClinicalRecord({
+      staffId: req.user.id,
+      entityType: 'lab_results',
+      entityId: result.rows[0].id,
+      actionType: 'create',
+      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
+      requestId: req.requestId || null,
+    });
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) { next(err); }
 });
@@ -116,7 +181,7 @@ router.get('/emr/ultrasounds/:patientId', authenticate, async (req, res, next) =
   } catch (err) { next(err); }
 });
 
-router.post('/emr/ultrasounds', authenticate, authorize('admin','doctor'), async (req, res, next) => {
+router.post('/emr/ultrasounds', authenticate, authorizePermission('clinical:ultrasounds:write'), async (req, res, next) => {
   try {
     const { patientId, pregnancyId, scanDate, gestationalAgeWeeks, findings, placentaLocation, amnioticFluid } = req.body;
     if (!patientId || !scanDate) {
@@ -127,6 +192,14 @@ router.post('/emr/ultrasounds', authenticate, authorize('admin','doctor'), async
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [patientId, pregnancyId||null, scanDate, gestationalAgeWeeks||null, findings||null, placentaLocation||null, amnioticFluid||null, req.user.id]
     );
+    await signClinicalRecord({
+      staffId: req.user.id,
+      entityType: 'ultrasounds',
+      entityId: result.rows[0].id,
+      actionType: 'create',
+      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
+      requestId: req.requestId || null,
+    });
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) { next(err); }
 });
@@ -143,7 +216,7 @@ router.get('/emr/prescriptions/:patientId', authenticate, async (req, res, next)
   } catch (err) { next(err); }
 });
 
-router.post('/emr/prescriptions', authenticate, authorize('admin','doctor'), async (req, res, next) => {
+router.post('/emr/prescriptions', authenticate, authorizePermission('clinical:prescriptions:write'), async (req, res, next) => {
   try {
     const { patientId, pregnancyId, medicationName, dosage, frequency, route, duration, instructions } = req.body;
     if (!patientId || !medicationName) {
@@ -154,6 +227,14 @@ router.post('/emr/prescriptions', authenticate, authorize('admin','doctor'), asy
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
       [patientId, pregnancyId||null, medicationName, dosage||null, frequency||null, route||null, duration||null, instructions||null, req.user.id]
     );
+    await signClinicalRecord({
+      staffId: req.user.id,
+      entityType: 'prescriptions',
+      entityId: result.rows[0].id,
+      actionType: 'create',
+      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
+      requestId: req.requestId || null,
+    });
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) { next(err); }
 });
@@ -166,7 +247,7 @@ router.get('/postpartum/:patientId', authenticate, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/postpartum', authenticate, authorize('admin','doctor','midwife'), async (req, res, next) => {
+router.post('/postpartum', authenticate, authorizePermission('clinical:postpartum:write'), async (req, res, next) => {
   try {
     const { patientId, deliveryId, visitDate, daysPostpartum, bpSystolic, bpDiastolic, temperature, woundStatus, lochia, breastfeedingStatus, emotionalStatus, notes } = req.body;
     if (!patientId || !deliveryId || !visitDate) {
@@ -177,6 +258,14 @@ router.post('/postpartum', authenticate, authorize('admin','doctor','midwife'), 
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
       [patientId, deliveryId, visitDate, daysPostpartum||null, bpSystolic||null, bpDiastolic||null, temperature||null, woundStatus||null, lochia||null, breastfeedingStatus||null, emotionalStatus||null, notes||null, req.user.id]
     );
+    await signClinicalRecord({
+      staffId: req.user.id,
+      entityType: 'postpartum_records',
+      entityId: result.rows[0].id,
+      actionType: 'create',
+      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
+      requestId: req.requestId || null,
+    });
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) { next(err); }
 });
@@ -189,7 +278,7 @@ router.get('/immunizations/:patientId', authenticate, async (req, res, next) => 
   } catch (err) { next(err); }
 });
 
-router.post('/immunizations', authenticate, authorize('admin','doctor','midwife','nurse'), async (req, res, next) => {
+router.post('/immunizations', authenticate, authorizePermission('clinical:immunizations:write'), async (req, res, next) => {
   try {
     const { patientId, deliveryId, vaccineName, doseNumber, dateGiven, dueDate, notes } = req.body;
     if (!patientId || !vaccineName || !dateGiven) {
@@ -200,6 +289,14 @@ router.post('/immunizations', authenticate, authorize('admin','doctor','midwife'
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [patientId, deliveryId||null, vaccineName, doseNumber||1, dateGiven, dueDate||null, notes||null, req.user.id]
     );
+    await signClinicalRecord({
+      staffId: req.user.id,
+      entityType: 'immunizations',
+      entityId: result.rows[0].id,
+      actionType: 'create',
+      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
+      requestId: req.requestId || null,
+    });
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) { next(err); }
 });
@@ -224,7 +321,7 @@ router.get('/billing', authenticate, authorize('admin','doctor'), async (req, re
   } catch (err) { next(err); }
 });
 
-router.post('/billing', authenticate, authorize('admin','doctor'), async (req, res, next) => {
+router.post('/billing', authenticate, authorizePermission('finance:billing:write'), async (req, res, next) => {
   try {
     const { patientId, deliveryId, serviceType, amount, discount, paymentMethod, philhealthClaimNo, philhealthAmount, notes } = req.body;
     if (!patientId || !amount) {
@@ -241,7 +338,7 @@ router.post('/billing', authenticate, authorize('admin','doctor'), async (req, r
   } catch (err) { next(err); }
 });
 
-router.patch('/billing/:id/pay', authenticate, authorize('admin','doctor'), async (req, res, next) => {
+router.patch('/billing/:id/pay', authenticate, authorizePermission('finance:billing:write'), async (req, res, next) => {
   try {
     const { paymentMethod, amount } = req.body;
     const bill = await query('SELECT * FROM billing WHERE id = $1', [req.params.id]);
@@ -263,7 +360,7 @@ router.get('/inventory', authenticate, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/inventory', authenticate, authorize('admin','nurse'), async (req, res, next) => {
+router.post('/inventory', authenticate, authorizePermission('operations:inventory:write'), async (req, res, next) => {
   try {
     const { itemName, category, unit, quantity, reorderLevel, expiryDate, supplier, unitCost, notes } = req.body;
     if (!itemName) return res.status(400).json({ success: false, message: 'Item name is required' });
@@ -276,7 +373,7 @@ router.post('/inventory', authenticate, authorize('admin','nurse'), async (req, 
   } catch (err) { next(err); }
 });
 
-router.patch('/inventory/:id/adjust', authenticate, authorize('admin','nurse'), async (req, res, next) => {
+router.patch('/inventory/:id/adjust', authenticate, authorizePermission('operations:inventory:write'), async (req, res, next) => {
   try {
     const { adjustment, notes } = req.body;
     if (!adjustment) return res.status(400).json({ success: false, message: 'Adjustment amount is required' });
@@ -303,7 +400,7 @@ router.get('/education', authenticate, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/education', authenticate, authorize('admin','doctor','midwife'), async (req, res, next) => {
+router.post('/education', authenticate, authorizePermission('content:education:write'), async (req, res, next) => {
   try {
     const { title, category, trimesterTarget, content, mediaUrl } = req.body;
     if (!title || !content) return res.status(400).json({ success: false, message: 'Title and content are required' });
@@ -325,14 +422,84 @@ router.get('/reports/audit-logs', authenticate, authorize('admin'), reportCtrl.g
 // ── USERS (admin) ─────────────────────────────────────────────
 router.get('/users', authenticate, authorize('admin'), async (req, res, next) => {
   try {
+    const { search, role, status } = req.query;
+    const params = [];
+    const conditions = [];
+    let idx = 1;
+
+    if (search) {
+      conditions.push(`(
+        u.first_name ILIKE $${idx}
+        OR u.last_name ILIKE $${idx}
+        OR u.email ILIKE $${idx}
+        OR COALESCE(u.phone, '') ILIKE $${idx}
+      )`);
+      params.push(`%${String(search).trim()}%`);
+      idx += 1;
+    }
+
+    if (role) {
+      conditions.push(`u.role = $${idx}`);
+      params.push(role);
+      idx += 1;
+    }
+
+    if (status === 'active') {
+      conditions.push('u.is_active = true');
+    } else if (status === 'inactive') {
+      conditions.push('u.is_active = false');
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const result = await query(
-      'SELECT id, email, role, first_name, last_name, phone, is_active, created_at FROM users ORDER BY role, last_name'
+      `SELECT
+         u.id,
+         u.email,
+         u.role,
+         u.first_name,
+         u.last_name,
+         u.phone,
+         u.is_active,
+         u.created_at,
+         u.last_login_at,
+         u.last_seen_at,
+         sr.id AS staff_registry_id,
+         sr.professional_title AS staff_professional_title,
+         sr.department AS staff_department,
+         sr.license_number AS staff_license_number,
+         sr.license_type AS staff_license_type,
+         sr.license_status AS staff_license_status,
+         sr.credential_notes AS staff_credential_notes,
+         sr.verified_at AS staff_verified_at,
+         sr.last_reviewed_at AS staff_last_reviewed_at,
+         verifier.first_name || ' ' || verifier.last_name AS staff_verified_by_name,
+         CASE
+           WHEN u.is_active = false THEN 'inactive'
+           WHEN u.last_seen_at IS NOT NULL AND u.last_seen_at >= NOW() - INTERVAL '5 minutes' THEN 'online'
+           WHEN u.last_seen_at IS NOT NULL AND u.last_seen_at >= NOW() - INTERVAL '60 minutes' THEN 'recent'
+           ELSE 'offline'
+         END AS activity_status
+       FROM users u
+       LEFT JOIN staff_registry sr ON sr.user_id = u.id
+       LEFT JOIN users verifier ON verifier.id = sr.verified_by
+       ${whereClause}
+       ORDER BY
+         CASE
+           WHEN u.is_active = false THEN 4
+           WHEN u.last_seen_at IS NOT NULL AND u.last_seen_at >= NOW() - INTERVAL '5 minutes' THEN 1
+           WHEN u.last_seen_at IS NOT NULL AND u.last_seen_at >= NOW() - INTERVAL '60 minutes' THEN 2
+           ELSE 3
+         END,
+         u.role,
+         u.last_name,
+         u.first_name`,
+      params
     );
     res.json({ success: true, data: result.rows });
   } catch (err) { next(err); }
 });
 
-router.patch('/users/:id/toggle', authenticate, authorize('admin'), async (req, res, next) => {
+router.patch('/users/:id/toggle', authenticate, authorize('admin'), requireStepUp('critical'), async (req, res, next) => {
   try {
     const result = await query(
       'UPDATE users SET is_active = NOT is_active, updated_at = NOW() WHERE id = $1 RETURNING id, email, role, is_active',
@@ -344,13 +511,30 @@ router.patch('/users/:id/toggle', authenticate, authorize('admin'), async (req, 
 });
 
 // ── NOTIFICATIONS ─────────────────────────────────────────────────────────────
+router.get('/staff/registry', authenticate, authorize('admin'), staffCtrl.listRegistry);
+router.get('/staff/registry/me', authenticate, authorize('admin','doctor','midwife','nurse'), staffCtrl.getMine);
+router.patch('/staff/registry/:userId/license', authenticate, authorize('admin'), requireStepUp('license-change'), staffCtrl.updateLicense);
 router.get('/notifications', authenticate, notificationCtrl.getMine);
 router.patch('/notifications/:id/read', authenticate, notificationCtrl.markRead);
 router.post('/notifications', authenticate, authorize('admin','doctor','midwife','nurse'), notificationCtrl.create);
 
+// ── INTERACTION CENTER ────────────────────────────────────────────────────────
+router.get('/interactions/directory', authenticate, interactionCtrl.getDirectory);
+router.get('/interactions/threads', authenticate, interactionCtrl.getThreads);
+router.post('/interactions/threads', authenticate, interactionCtrl.createThread);
+router.post('/interactions/teleconsults', authenticate, authorize('admin','doctor','midwife','nurse','patient'), interactionCtrl.createTeleconsultSession);
+router.get('/interactions/threads/:id', authenticate, interactionCtrl.getThreadById);
+router.post('/interactions/threads/:id/messages', authenticate, interactionCtrl.addMessage);
+router.post('/interactions/messages/:id/promote', authenticate, authorize('admin','doctor','midwife','nurse'), requireStepUp('clinical-note'), interactionCtrl.promoteMessageToRecord);
+router.patch('/interactions/threads/:id/read', authenticate, interactionCtrl.markThreadRead);
+router.get('/interactions/tasks', authenticate, interactionCtrl.getTasks);
+router.post('/interactions/tasks', authenticate, interactionCtrl.createTask);
+router.patch('/interactions/tasks/:id', authenticate, interactionCtrl.updateTask);
+
 // ── OPERATIONS (backup & restore) ─────────────────────────────────────────────
-router.post('/admin/backup', authenticate, authorize('admin'), operationsCtrl.createBackup);
-router.post('/admin/restore', authenticate, authorize('admin'), operationsCtrl.restoreBackup);
+router.post('/admin/backup', authenticate, authorize('admin'), requireStepUp('backup-restore'), operationsCtrl.createBackup);
+router.post('/admin/restore', authenticate, authorize('admin'), requireStepUp('backup-restore'), operationsCtrl.restoreBackup);
 router.get('/admin/backup-logs', authenticate, authorize('admin'), operationsCtrl.getBackupLogs);
 
 module.exports = router;
+

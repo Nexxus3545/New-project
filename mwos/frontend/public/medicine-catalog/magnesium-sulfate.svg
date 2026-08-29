@@ -1,0 +1,20 @@
+<svg width="960" height="1200" viewBox="0 0 960 1200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="960" height="1200" rx="64" fill="#ECFEFF"/>
+  <rect x="92" y="88" width="776" height="1024" rx="52" fill="white"/>
+  <rect x="148" y="148" width="664" height="254" rx="40" fill="#0891B2"/>
+  <rect x="148" y="456" width="664" height="598" rx="36" fill="#ECFEFF" stroke="#A5F3FC" stroke-width="8"/>
+  <rect x="202" y="206" width="160" height="140" rx="28" fill="#CFFAFE"/>
+  <path d="M240 304H322L284 236H278L240 304Z" fill="#0E7490"/>
+  <text x="402" y="242" fill="white" font-family="Arial, sans-serif" font-size="52" font-weight="700">Magnesium Sulfate</text>
+  <text x="402" y="306" fill="#CFFAFE" font-family="Arial, sans-serif" font-size="34">500 mg ampule</text>
+  <rect x="204" y="530" width="566" height="30" rx="15" fill="#0F172A"/>
+  <rect x="204" y="590" width="542" height="20" rx="10" fill="#67E8F9"/>
+  <rect x="204" y="646" width="578" height="20" rx="10" fill="#A5F3FC"/>
+  <rect x="204" y="730" width="248" height="166" rx="28" fill="white"/>
+  <rect x="484" y="730" width="248" height="166" rx="28" fill="white"/>
+  <text x="230" y="800" fill="#155E75" font-family="Arial, sans-serif" font-size="28" font-weight="700">Seizure prevention</text>
+  <text x="230" y="842" fill="#164E63" font-family="Arial, sans-serif" font-size="22">Track reflexes and breathing.</text>
+  <text x="508" y="800" fill="#155E75" font-family="Arial, sans-serif" font-size="28" font-weight="700">High-alert medicine</text>
+  <text x="508" y="842" fill="#164E63" font-family="Arial, sans-serif" font-size="22">Keep escalation protocol ready.</text>
+  <text x="204" y="982" fill="#164E63" font-family="Arial, sans-serif" font-size="54" font-weight="700">Monitored maternal infusion support</text>
+</svg>

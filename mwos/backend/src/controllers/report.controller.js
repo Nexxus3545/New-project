@@ -5,7 +5,9 @@ const getDashboard = async (req, res, next) => {
     const [
       totalPatients, activePregnancies, todayAppointments,
       deliveriesThisMonth, highRiskPatients, pendingBills,
-      lowInventory, recentVitalsAlerts
+      lowInventory, recentVitalsAlerts, unreadThreads, openCareTasks,
+      totalUsers, weeklyActiveUsers, mediaUploads, documentsUploaded,
+      medicineUploads, reviewsAggregate, latestBackup
     ] = await Promise.all([
       query('SELECT COUNT(*) FROM patients'),
       query("SELECT COUNT(*) FROM pregnancies WHERE status = 'active'"),
@@ -16,6 +18,35 @@ const getDashboard = async (req, res, next) => {
       query('SELECT COUNT(*) FROM inventory WHERE quantity <= reorder_level'),
       query(`SELECT COUNT(*) FROM vitals WHERE created_at >= NOW() - INTERVAL '24 hours'
              AND (bp_systolic >= 140 OR bp_diastolic >= 90 OR fetal_movement = 'absent')`),
+      query(
+        `SELECT COUNT(*)::int
+         FROM conversation_participants cp
+         JOIN conversation_threads ct ON ct.id = cp.thread_id
+         WHERE cp.user_id = $1
+           AND EXISTS (
+             SELECT 1
+             FROM conversation_messages cm
+             WHERE cm.thread_id = ct.id
+               AND cm.sender_id <> $1
+               AND cm.created_at > COALESCE(cp.last_read_at, TIMESTAMPTZ '1970-01-01')
+           )`,
+        [req.user.id]
+      ),
+      req.user.role === 'admin'
+        ? query(`SELECT COUNT(*) FROM care_tasks WHERE status NOT IN ('completed', 'cancelled')`)
+        : query(
+            `SELECT COUNT(*) FROM care_tasks
+             WHERE status NOT IN ('completed', 'cancelled')
+               AND assigned_to = $1`,
+            [req.user.id]
+          ),
+      query('SELECT COUNT(*) FROM users'),
+      query("SELECT COUNT(*) FROM users WHERE last_login_at >= NOW() - INTERVAL '7 days'"),
+      query("SELECT COUNT(*) FROM media_feed_posts WHERE is_published = true"),
+      query('SELECT COUNT(*) FROM patient_documents'),
+      query("SELECT COUNT(*) FROM inventory WHERE category = 'medication'"),
+      query('SELECT COUNT(*)::int AS total_reviews, COALESCE(ROUND(AVG(rating)::numeric, 2), 0) AS average_rating FROM reviews WHERE is_published = true'),
+      query("SELECT created_at, status FROM backup_logs ORDER BY created_at DESC LIMIT 1"),
     ]);
 
     // Monthly delivery trends (last 6 months)
@@ -42,6 +73,14 @@ const getDashboard = async (req, res, next) => {
       LIMIT 10
     `);
 
+    const usageTrend = await query(`
+      SELECT TO_CHAR(DATE(created_at), 'Mon DD') AS day, COUNT(*)::int AS events
+      FROM audit_logs
+      WHERE created_at >= NOW() - INTERVAL '7 days'
+      GROUP BY DATE(created_at)
+      ORDER BY DATE(created_at) ASC
+    `);
+
     res.json({
       success: true,
       data: {
@@ -54,9 +93,20 @@ const getDashboard = async (req, res, next) => {
           pendingBills: parseInt(pendingBills.rows[0].count),
           lowInventory: parseInt(lowInventory.rows[0].count),
           recentAlerts: parseInt(recentVitalsAlerts.rows[0].count),
+          unreadThreads: parseInt(unreadThreads.rows[0].count),
+          openCareTasks: parseInt(openCareTasks.rows[0].count),
+          totalUsers: parseInt(totalUsers.rows[0].count),
+          weeklyActiveUsers: parseInt(weeklyActiveUsers.rows[0].count),
+          mediaUploads: parseInt(mediaUploads.rows[0].count),
+          documentsUploaded: parseInt(documentsUploaded.rows[0].count),
+          medicineUploads: parseInt(medicineUploads.rows[0].count),
+          totalReviews: parseInt(reviewsAggregate.rows[0].total_reviews),
+          averageRating: parseFloat(reviewsAggregate.rows[0].average_rating || 0),
         },
         deliveryTrend: deliveryTrend.rows,
         todayAppointments: todayList.rows,
+        usageTrend: usageTrend.rows,
+        backupStatus: latestBackup.rows[0] || null,
       },
     });
   } catch (err) {
@@ -75,13 +125,45 @@ const getPatientDashboard = async (req, res, next) => {
 
     const patientId = patient.rows[0].id;
 
-    const [nextAppt, activePregnancy, latestVitals, unpaidBills, immunizations] = await Promise.all([
+    const [nextAppt, activePregnancy, latestVitals, unpaidBills, immunizations, unreadMessages, openCareTasks, documentSummary, reviewSummary] = await Promise.all([
       query(`SELECT * FROM appointments WHERE patient_id = $1 AND scheduled_date >= CURRENT_DATE
              AND status = 'scheduled' ORDER BY scheduled_date ASC LIMIT 1`, [patientId]),
       query("SELECT * FROM pregnancies WHERE patient_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1", [patientId]),
       query('SELECT * FROM vitals WHERE patient_id = $1 ORDER BY visit_date DESC LIMIT 1', [patientId]),
       query("SELECT SUM(total_amount) as total FROM billing WHERE patient_id = $1 AND payment_status = 'pending'", [patientId]),
       query('SELECT * FROM immunizations WHERE patient_id = $1 ORDER BY date_given DESC LIMIT 5', [patientId]),
+      query(
+        `SELECT COUNT(*)::int
+         FROM conversation_participants cp
+         JOIN conversation_threads ct ON ct.id = cp.thread_id
+         WHERE cp.user_id = $1
+           AND EXISTS (
+             SELECT 1
+             FROM conversation_messages cm
+             WHERE cm.thread_id = ct.id
+               AND cm.sender_id <> $1
+               AND cm.created_at > COALESCE(cp.last_read_at, TIMESTAMPTZ '1970-01-01')
+           )`,
+        [userId]
+      ),
+      query(
+        `SELECT COUNT(*)::int
+         FROM care_tasks
+         WHERE patient_visible = true
+           AND status NOT IN ('completed', 'cancelled')
+           AND (assigned_to = $1 OR patient_id = $2)`,
+        [userId, patientId]
+      ),
+      query(
+        `SELECT
+           COUNT(*)::int AS total,
+           COUNT(*) FILTER (WHERE verification_status = 'verified')::int AS verified,
+           COUNT(*) FILTER (WHERE verification_status = 'pending')::int AS pending
+         FROM patient_documents
+         WHERE patient_id = $1`,
+        [patientId]
+      ),
+      query('SELECT COUNT(*)::int AS total_reviews, COALESCE(ROUND(AVG(rating)::numeric, 2), 0) AS average_rating FROM reviews WHERE is_published = true'),
     ]);
 
     res.json({
@@ -92,6 +174,10 @@ const getPatientDashboard = async (req, res, next) => {
         latestVitals: latestVitals.rows[0] || null,
         unpaidAmount: parseFloat(unpaidBills.rows[0]?.total || 0),
         recentImmunizations: immunizations.rows,
+        unreadMessages: parseInt(unreadMessages.rows[0].count),
+        openCareTasks: parseInt(openCareTasks.rows[0].count),
+        documentSummary: documentSummary.rows[0] || { total: 0, verified: 0, pending: 0 },
+        reviewSummary: reviewSummary.rows[0] || { total_reviews: 0, average_rating: 0 },
       },
     });
   } catch (err) {

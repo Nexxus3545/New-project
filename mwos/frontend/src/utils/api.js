@@ -6,17 +6,32 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-// Request interceptor — attach access token
+const clearStepUp = () => {
+  localStorage.removeItem('stepUpToken')
+}
+
+const clearAuth = () => {
+  localStorage.removeItem('accessToken')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('user')
+  clearStepUp()
+  window.location.href = '/login'
+}
+
+// Attach auth and step-up headers to every request.
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken')
     if (token) config.headers.Authorization = `Bearer ${token}`
+
+    const stepUpToken = localStorage.getItem('stepUpToken')
+    if (stepUpToken) config.headers['X-Step-Up-Token'] = stepUpToken
+
     return config
   },
   (error) => Promise.reject(error)
 )
 
-// Response interceptor — handle 401 and auto-refresh
 let isRefreshing = false
 let failedQueue = []
 
@@ -73,19 +88,15 @@ api.interceptors.response.use(
         }
       }
 
-      // Other 401 — clear auth
       clearAuth()
+    }
+
+    if (error.response?.status === 403 && ['STEP_UP_REQUIRED', 'STEP_UP_PURPOSE_MISMATCH'].includes(error.response?.data?.code)) {
+      clearStepUp()
     }
 
     return Promise.reject(error)
   }
 )
-
-const clearAuth = () => {
-  localStorage.removeItem('accessToken')
-  localStorage.removeItem('refreshToken')
-  localStorage.removeItem('user')
-  window.location.href = '/login'
-}
 
 export default api

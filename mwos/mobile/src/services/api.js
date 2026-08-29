@@ -1,9 +1,15 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
-// Change this URL for physical-device testing when needed.
-const BASE_URL = 'http://10.0.2.2:5000/api';
+const DEFAULT_BASE_URL = Platform.select({
+  android: 'http://10.0.2.2:5000/api',
+  ios: 'http://127.0.0.1:5000/api',
+  default: 'http://localhost:5000/api',
+});
+
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL?.trim() || DEFAULT_BASE_URL;
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -32,6 +38,13 @@ const clearTokens = async () => {
     await SecureStore.deleteItemAsync('accessToken');
     await SecureStore.deleteItemAsync('refreshToken');
     await SecureStore.deleteItemAsync('user');
+    await SecureStore.deleteItemAsync('stepUpToken');
+  } catch {}
+};
+
+const clearStepUp = async () => {
+  try {
+    await SecureStore.deleteItemAsync('stepUpToken');
   } catch {}
 };
 
@@ -65,6 +78,10 @@ api.interceptors.request.use(
   async (config) => {
     const token = await getToken('accessToken');
     if (token) config.headers.Authorization = `Bearer ${token}`;
+
+    const stepUpToken = await getToken('stepUpToken');
+    if (stepUpToken) config.headers['X-Step-Up-Token'] = stepUpToken;
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -124,6 +141,10 @@ api.interceptors.response.use(
       }
 
       await clearTokens();
+    }
+
+    if (error.response?.status === 403 && ['STEP_UP_REQUIRED', 'STEP_UP_PURPOSE_MISMATCH'].includes(error.response?.data?.code)) {
+      await clearStepUp();
     }
 
     if (!error.response && original?.method?.toLowerCase() === 'get') {

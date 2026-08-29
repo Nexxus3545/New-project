@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { startAuthentication, startRegistration, browserSupportsWebAuthn } from '@simplewebauthn/browser'
 import api from '../utils/api'
 import { useThemeStore } from './themeStore'
 
@@ -15,10 +16,16 @@ const persistUser = (user) => {
   localStorage.setItem('user', JSON.stringify(user))
 }
 
+const persistStepUpToken = (token) => {
+  if (token) localStorage.setItem('stepUpToken', token)
+  else localStorage.removeItem('stepUpToken')
+}
+
 const clearStoredSession = () => {
   localStorage.removeItem('accessToken')
   localStorage.removeItem('refreshToken')
   localStorage.removeItem('user')
+  localStorage.removeItem('stepUpToken')
 }
 
 const applyAuthenticatedUser = (user, set) => {
@@ -27,8 +34,15 @@ const applyAuthenticatedUser = (user, set) => {
   set({ user, isLoading: false, isHydrating: false, error: null })
 }
 
+const setSessionTokens = (accessToken, refreshToken, stepUpToken = null) => {
+  localStorage.setItem('accessToken', accessToken)
+  localStorage.setItem('refreshToken', refreshToken)
+  persistStepUpToken(stepUpToken)
+}
+
 export const useAuthStore = create((set, get) => ({
   user: getStoredUser(),
+  stepUpToken: localStorage.getItem('stepUpToken'),
   isLoading: false,
   isHydrating: false,
   error: null,
@@ -38,18 +52,20 @@ export const useAuthStore = create((set, get) => ({
     if (!token) {
       clearStoredSession()
       useThemeStore.getState().resetTheme()
-      set({ user: null, isHydrating: false, isLoading: false, error: null })
+      set({ user: null, stepUpToken: null, isHydrating: false, isLoading: false, error: null })
       return
     }
 
     set({ isHydrating: true })
     try {
       const res = await api.get('/auth/me')
+      const storedStepUp = localStorage.getItem('stepUpToken')
       applyAuthenticatedUser(res.data.data, set)
+      set({ stepUpToken: storedStepUp })
     } catch {
       clearStoredSession()
       useThemeStore.getState().resetTheme()
-      set({ user: null, isHydrating: false, error: null })
+      set({ user: null, stepUpToken: null, isHydrating: false, error: null })
     }
   },
 
@@ -58,9 +74,9 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await api.post('/auth/login', { email, password })
       const { accessToken, refreshToken, user } = res.data.data
-      localStorage.setItem('accessToken', accessToken)
-      localStorage.setItem('refreshToken', refreshToken)
+      setSessionTokens(accessToken, refreshToken)
       applyAuthenticatedUser(user, set)
+      set({ stepUpToken: null })
       return { success: true, user }
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed. Please try again.'
@@ -69,17 +85,77 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  register: async (payload) => {
+  loginWithPasskey: async (email) => {
     set({ isLoading: true, error: null })
     try {
-      const res = await api.post('/auth/register', payload)
-      const { accessToken, refreshToken, user } = res.data.data
-      localStorage.setItem('accessToken', accessToken)
-      localStorage.setItem('refreshToken', refreshToken)
+      if (!browserSupportsWebAuthn()) {
+        throw new Error('WebAuthn is not supported in this browser.')
+      }
+
+      const startRes = await api.post('/auth/webauthn/login/start', { email: email.trim() })
+      const { options, sessionToken } = startRes.data.data
+      const credential = await startAuthentication({ optionsJSON: options })
+      const finishRes = await api.post('/auth/webauthn/login/finish', { credential, sessionToken })
+      const { accessToken, refreshToken, stepUpToken, user } = finishRes.data.data
+      setSessionTokens(accessToken, refreshToken, stepUpToken || null)
       applyAuthenticatedUser(user, set)
-      return { success: true, user }
+      set({ stepUpToken: stepUpToken || null })
+      return { success: true, user, stepUpToken }
     } catch (err) {
-      const msg = err.response?.data?.message || 'Registration failed. Please try again.'
+      const msg = err.response?.data?.message || err.message || 'Passkey sign-in failed.'
+      set({ isLoading: false, error: msg })
+      return { success: false, error: msg }
+    }
+  },
+
+  registerPasskey: async (purpose = 'critical') => {
+    set({ isLoading: true, error: null })
+    try {
+      if (!browserSupportsWebAuthn()) {
+        throw new Error('WebAuthn is not supported in this browser.')
+      }
+
+      const startRes = await api.post('/auth/webauthn/register/start', { purpose })
+      const { options, sessionToken } = startRes.data.data
+      const credential = await startRegistration({ optionsJSON: options })
+      const finishRes = await api.post('/auth/webauthn/register/finish', {
+        credential,
+        sessionToken,
+        label: 'Browser passkey',
+      })
+
+      set({ isLoading: false, error: null })
+      return { success: true, ...finishRes.data.data }
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Passkey registration failed.'
+      set({ isLoading: false, error: msg })
+      return { success: false, error: msg }
+    }
+  },
+
+  requestOtp: async (purpose = 'critical') => {
+    set({ isLoading: true, error: null })
+    try {
+      const res = await api.post('/auth/otp/request', { purpose })
+      set({ isLoading: false, error: null })
+      return { success: true, ...res.data.data }
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Request failed. Please try again.'
+      set({ isLoading: false, error: msg })
+      return { success: false, error: msg }
+    }
+  },
+
+  verifyOtp: async ({ challengeId, code, purpose = 'critical' }) => {
+    set({ isLoading: true, error: null })
+    try {
+      const res = await api.post('/auth/otp/verify', { challengeId, code, purpose })
+      const { stepUpToken } = res.data.data
+      persistStepUpToken(stepUpToken)
+      set({ isLoading: false, error: null, stepUpToken })
+      return { success: true, stepUpToken }
+    } catch (err) {
+      const msg = err.response?.data?.message || 'OTP verification failed. Please try again.'
       set({ isLoading: false, error: msg })
       return { success: false, error: msg }
     }
@@ -122,11 +198,14 @@ export const useAuthStore = create((set, get) => ({
 
     clearStoredSession()
     useThemeStore.getState().resetTheme()
-    set({ user: null, error: null, isLoading: false, isHydrating: false })
+    set({ user: null, error: null, isLoading: false, isHydrating: false, stepUpToken: null })
   },
 
   clearError: () => set({ error: null }),
-
+  clearStepUp: () => {
+    persistStepUpToken(null)
+    set({ stepUpToken: null })
+  },
   isAdmin: () => get().user?.role === 'admin',
   isDoctor: () => get().user?.role === 'doctor',
   isMidwife: () => get().user?.role === 'midwife',

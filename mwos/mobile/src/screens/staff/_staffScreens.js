@@ -377,7 +377,67 @@ export function InventoryScreen() {
 
 // ── Staff Profile Screen ──────────────────────────────────────
 export function StaffProfileScreen() {
-  const { user, logout } = useAuthStore();
+  const {
+    user,
+    logout,
+    requestOtp,
+    verifyOtp,
+    enableBiometricUnlock,
+    disableBiometricUnlock,
+    biometricEnabled,
+    stepUpToken,
+    clearStepUp,
+  } = useAuthStore();
+  const staffProfile = user?.staffProfile || null;
+  const [stepUpCode, setStepUpCode] = useState('');
+  const [stepUpChallengeId, setStepUpChallengeId] = useState('');
+  const [securityMessage, setSecurityMessage] = useState('');
+  const staffTone = staffProfile?.licenseStatus === 'verified'
+    ? 'success'
+    : staffProfile?.licenseStatus === 'suspended'
+      ? 'danger'
+      : staffProfile?.licenseStatus === 'expired'
+        ? 'gray'
+        : 'warning';
+
+  const handleRequestOtp = async () => {
+    const result = await requestOtp('critical');
+    if (!result.success) {
+      setSecurityMessage(result.error);
+      return;
+    }
+    setStepUpChallengeId(result.challengeId || '');
+    setSecurityMessage(`Verification code sent to ${result.destination || 'your clinic contact'}.`);
+  };
+
+  const handleVerifyOtp = async () => {
+    const result = await verifyOtp({
+      challengeId: stepUpChallengeId,
+      code: stepUpCode,
+      purpose: 'critical',
+    });
+    if (!result.success) {
+      setSecurityMessage(result.error);
+      return;
+    }
+    setStepUpCode('');
+    setSecurityMessage('Step-up access is active.');
+  };
+
+  const handleEnableBiometric = async () => {
+    const result = await enableBiometricUnlock();
+    setSecurityMessage(result.success ? 'Biometric unlock enabled.' : result.error);
+  };
+
+  const handleDisableBiometric = async () => {
+    await disableBiometricUnlock();
+    setSecurityMessage('Biometric unlock disabled.');
+  };
+
+  const handleClearStepUp = async () => {
+    await clearStepUp();
+    setSecurityMessage('Step-up token cleared.');
+  };
   return (
     <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
       <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
@@ -386,6 +446,52 @@ export function StaffProfileScreen() {
         </View>
         <Text style={{ fontSize: 20, fontWeight: '700', color: colors.gray[900] }}>{user?.firstName} {user?.lastName}</Text>
         <Text style={{ fontSize: 13, color: colors.gray[500], marginTop: 4, textTransform: 'capitalize' }}>{user?.role}</Text>
+      </Card>
+      {staffProfile ? (
+        <Card style={{ marginTop: 12 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.gray[900] }}>Credential Status</Text>
+            <Badge label={staffProfile.licenseStatus || 'pending'} variant={staffTone} />
+          </View>
+          {[
+            ['Title', staffProfile.professionalTitle || 'Unassigned'],
+            ['Department', staffProfile.department || 'Not assigned'],
+            ['License #', staffProfile.licenseNumber || 'Not assigned'],
+            ['Verified', staffProfile.verifiedAt ? new Date(staffProfile.verifiedAt).toLocaleString('en-PH') : 'Pending review'],
+          ].map(([k, v]) => (
+            <View key={k} style={{ flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.gray[100] }}>
+              <Text style={{ fontSize: 13, color: colors.gray[500], width: 92 }}>{k}</Text>
+              <Text style={{ flex: 1, fontSize: 13, fontWeight: '500', color: colors.gray[800] }}>{v}</Text>
+            </View>
+          ))}
+          {staffProfile.credentialNotes ? (
+            <Text style={{ marginTop: 12, fontSize: 12, color: colors.gray[500], lineHeight: 17 }}>
+              {staffProfile.credentialNotes}
+            </Text>
+          ) : null}
+        </Card>
+      ) : null}
+      <Card style={{ marginTop: 12 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: colors.gray[900] }}>Step-up Security</Text>
+          <Badge label={stepUpToken ? 'active' : 'inactive'} variant={stepUpToken ? 'success' : 'gray'} />
+        </View>
+        {securityMessage ? <AlertBox type="info" message={securityMessage} /> : null}
+        <Input
+          label="Verification code"
+          value={stepUpCode}
+          onChangeText={setStepUpCode}
+          placeholder="Enter six-digit code"
+          keyboardType="number-pad"
+        />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          <Button title="Send OTP" variant="secondary" onPress={handleRequestOtp} style={{ flex: 1, minWidth: 120 }} />
+          <Button title="Verify OTP" onPress={handleVerifyOtp} style={{ flex: 1, minWidth: 120 }} />
+        </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <Button title={biometricEnabled ? 'Disable biometrics' : 'Enable biometrics'} variant="secondary" onPress={biometricEnabled ? handleDisableBiometric : handleEnableBiometric} style={{ flex: 1, minWidth: 120 }} />
+          <Button title="Clear step-up" variant="ghost" onPress={handleClearStepUp} style={{ flex: 1, minWidth: 120 }} />
+        </View>
       </Card>
       <Card style={{ marginTop: 12 }}>
         {[['Email', user?.email], ['Role', user?.role], ['ID', user?.id?.slice(0,8) + '...']].map(([k, v]) => (
