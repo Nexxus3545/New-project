@@ -1,6 +1,11 @@
 import axios from 'axios'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
+const configuredApiUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+// Local development uses the Vite /api proxy. A hosted origin is normalized so
+// deployments work whether VITE_API_BASE_URL includes the /api prefix or not.
+const apiBaseUrl = configuredApiUrl
+  ? (configuredApiUrl.endsWith('/api') ? configuredApiUrl : `${configuredApiUrl}/api`)
+  : '/api'
 
 const api = axios.create({
   baseURL: apiBaseUrl,
