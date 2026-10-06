@@ -34,6 +34,13 @@ const errorHandler = (err, req, res, next) => {
     );
   }
 
+  // Do not expose database connection details to patients or clinic staff.
+  if (['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT'].includes(err.code)) {
+    return res.status(503).json(
+      buildErrorResponse(req, 503, 'The clinic service is temporarily unavailable. Please try again shortly.')
+    );
+  }
+
   // JWT errors
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json(buildErrorResponse(req, 401, 'Invalid token'));
@@ -52,11 +59,7 @@ const errorHandler = (err, req, res, next) => {
 
   // Default
   const status = err.statusCode || err.status || 500;
-  res.status(status).json(
-    buildErrorResponse(req, status, err.message || 'Internal server error', {
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-    })
-  );
+  res.status(status).json(buildErrorResponse(req, status, err.message || 'Internal server error'));
 };
 
 const notFound = (req, res) => {
