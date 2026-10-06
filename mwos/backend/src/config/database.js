@@ -1,15 +1,28 @@
 const { Pool } = require('pg');
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT) || 5432,
-  database: process.env.DB_NAME || 'mwos_db',
-  user: process.env.DB_USER || 'mwos_user',
-  password: process.env.DB_PASSWORD || 'mwos_password_2024',
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+const poolConfig = {
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
-});
+};
+
+if (connectionString) {
+  // Managed providers such as Neon require an encrypted connection.
+  poolConfig.connectionString = connectionString;
+  poolConfig.ssl = { rejectUnauthorized: false };
+} else {
+  Object.assign(poolConfig, {
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT, 10) || 5432,
+    database: process.env.DB_NAME || 'mwos_db',
+    user: process.env.DB_USER || 'mwos_user',
+    password: process.env.DB_PASSWORD || 'mwos_password_2024',
+  });
+}
+
+const pool = new Pool(poolConfig);
 
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
