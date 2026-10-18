@@ -15,7 +15,7 @@ async function migrate({ reset = false, closePool = true } = {}) {
       await client.query(`
         DROP TABLE IF EXISTS
           tele_consult_sessions, conversation_messages, conversation_participants, conversation_threads, care_tasks,
-          backup_logs, security_audit, digital_signatures, otp_challenges,
+          backup_logs, security_audit, digital_signatures, sms_login_challenges, otp_challenges,
           webauthn_credentials, auth_credentials, audit_logs,
           permission_overrides, role_permissions, license_verification_events,
           staff_registry, notifications, billing, inventory_transactions,

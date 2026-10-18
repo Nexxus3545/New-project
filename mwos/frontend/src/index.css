@@ -1054,6 +1054,7 @@ body,
   color: #334155;
   font-size: 0.88rem;
   font-weight: 700;
+  text-align: center;
   transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
 }
 
@@ -1068,28 +1069,95 @@ body,
   opacity: 0.58;
 }
 
-.auth-provider-mark {
+.auth-provider-icon {
   display: inline-flex;
-  width: 1.4rem;
-  height: 1.4rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  font-size: 0.95rem;
+}
+
+.auth-provider-icon-sms {
+  color: #bc315d;
+}
+
+.auth-sms-panel {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid #f0c7d4;
+  border-radius: 1rem;
+  padding: 1rem;
+  background: #fff8fa;
+}
+
+.auth-sms-panel-heading,
+.auth-sms-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.auth-sms-eyebrow {
+  margin: 0 0 0.25rem;
+  color: #b22f59;
+  font-size: 0.67rem;
   font-weight: 800;
-  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
-.auth-provider-mark-google {
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  color: #4285f4;
+.auth-sms-panel h3 {
+  margin: 0;
+  color: #283246;
+  font-size: 1rem;
+  font-weight: 750;
 }
 
-.auth-provider-mark-facebook {
-  background: #1877f2;
-  color: #ffffff;
-  font-family: Georgia, serif;
+.auth-sms-close {
+  border: 0;
+  border-radius: 0.65rem;
+  padding: 0.35rem 0.55rem;
+  background: transparent;
+  color: #6c778d;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.auth-sms-close:hover {
+  background: #feecef;
+  color: #a51f4a;
+}
+
+.auth-sms-summary {
+  margin: 0;
+  color: #66758d;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.auth-sms-code-input {
+  letter-spacing: 0.3em;
+  text-align: center;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.auth-sms-signin-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  color: #9e234d;
+  font-size: 0.76rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.auth-sms-signin-link:hover {
+  color: #7e173a;
+  text-decoration: underline;
 }
 
 .auth-provider-note {
@@ -1261,9 +1329,27 @@ body,
   background: #1f2937;
 }
 
-.dark .auth-provider-mark-google {
-  border-color: #475569;
-  background: #f8fafc;
+.dark .auth-sms-panel {
+  border-color: #6c3850;
+  background: #2a1720;
+}
+
+.dark .auth-sms-panel h3 {
+  color: #f8fafc;
+}
+
+.dark .auth-sms-summary,
+.dark .auth-sms-close {
+  color: #cbd5e1;
+}
+
+.dark .auth-sms-close:hover {
+  background: #442434;
+  color: #fbcfe8;
+}
+
+.dark .auth-sms-signin-link {
+  color: #f9a8c0;
 }
 
 .dark .auth-callback-loading h2 {
@@ -1312,5 +1398,21 @@ body,
 
   .auth-form-heading h2 {
     font-size: 1.75rem;
+  }
+
+  .auth-sms-panel-heading,
+  .auth-sms-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .auth-sms-close {
+    align-self: flex-start;
+    margin-left: -0.55rem;
+  }
+
+  .auth-sms-actions .btn-secondary {
+    width: 100%;
+    justify-content: center;
   }
 }

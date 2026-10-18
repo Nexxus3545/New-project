@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import api, { socialAuthAvailable } from '../utils/api'
+import { FacebookProviderIcon, GoogleProviderIcon, SmsProviderIcon } from '../components/common/AuthProviderIcons'
 
 const oauthErrors = {
   google_unavailable: 'Google sign-in is not available yet. Please use your MWOS email and password.',
@@ -19,13 +20,19 @@ const oauthErrors = {
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' })
   const [showPass, setShowPass] = useState(false)
-  const { login, loginWithPasskey, isLoading, error, clearError } = useAuthStore()
+  const [smsStage, setSmsStage] = useState('idle')
+  const [smsPhone, setSmsPhone] = useState('')
+  const [smsCode, setSmsCode] = useState('')
+  const [smsNotice, setSmsNotice] = useState('')
+  const { login, loginWithPasskey, requestSmsLogin, verifySmsLogin, isLoading, error, clearError } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
   const [providerError, setProviderError] = useState('')
 
   useEffect(() => {
-    setProviderError(oauthErrors[new URLSearchParams(location.search).get('oauth_error')] || '')
+    const query = new URLSearchParams(location.search)
+    setProviderError(oauthErrors[query.get('oauth_error')] || '')
+    if (query.get('sms') === '1') setSmsStage('request')
   }, [location.search])
 
   const handleChange = (event) => {
@@ -59,6 +66,30 @@ export default function LoginPage() {
       return
     }
     window.location.assign(`${api.defaults.baseURL}/auth/${provider}`)
+  }
+
+  const openSmsLogin = () => {
+    clearError()
+    setProviderError('')
+    setSmsNotice('')
+    setSmsStage('request')
+  }
+
+  const requestSmsCode = async () => {
+    if (!smsPhone.trim()) return
+    const result = await requestSmsLogin(smsPhone.trim())
+    if (result.success) {
+      setSmsStage('verify')
+      setSmsNotice(result.message)
+    }
+  }
+
+  const submitSmsCode = async () => {
+    if (!smsPhone.trim() || smsCode.length !== 6) return
+    const result = await verifySmsLogin(smsPhone.trim(), smsCode)
+    if (result.success) {
+      navigate(result.user.role === 'patient' ? '/my/dashboard' : '/dashboard')
+    }
   }
 
   return (
@@ -148,16 +179,84 @@ export default function LoginPage() {
           <p>Or continue with</p>
           <div className="auth-provider-actions">
             <button type="button" disabled={isLoading} onClick={() => handleProviderLogin('google')} className="auth-provider-button">
-              <span className="auth-provider-mark auth-provider-mark-google" aria-hidden="true">G</span>
+              <GoogleProviderIcon />
               Continue with Google
             </button>
             <button type="button" disabled={isLoading} onClick={() => handleProviderLogin('facebook')} className="auth-provider-button">
-              <span className="auth-provider-mark auth-provider-mark-facebook" aria-hidden="true">f</span>
+              <FacebookProviderIcon />
               Continue with Facebook
             </button>
+            <button type="button" disabled={isLoading} onClick={openSmsLogin} className="auth-provider-button">
+              <SmsProviderIcon />
+              Continue with SMS
+            </button>
           </div>
-          <p className="auth-provider-note">Available for patient accounts. TMC Copino staff accounts remain clinic-managed.</p>
+          <p className="auth-provider-note">Google and Facebook are for patient accounts. SMS is available only for a mobile number already linked to an MWOS account.</p>
         </div>
+
+        {smsStage !== 'idle' ? (
+          <section className="auth-sms-panel" aria-live="polite">
+            <div className="auth-sms-panel-heading">
+              <div>
+                <p className="auth-sms-eyebrow">Mobile sign-in</p>
+                <h3>{smsStage === 'verify' ? 'Enter your verification code' : 'Sign in with SMS'}</h3>
+              </div>
+              <button type="button" className="auth-sms-close" onClick={() => setSmsStage('idle')} aria-label="Close SMS sign-in">
+                Close
+              </button>
+            </div>
+
+            {smsStage === 'request' ? (
+              <>
+                <label className="label" htmlFor="sms-phone">Mobile number</label>
+                <input
+                  id="sms-phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={smsPhone}
+                  onChange={(event) => {
+                    clearError()
+                    setSmsPhone(event.target.value)
+                  }}
+                  className="input"
+                  placeholder="0917 123 4567"
+                />
+                <button type="button" disabled={isLoading || !smsPhone.trim()} onClick={requestSmsCode} className="btn-primary w-full justify-center">
+                  {isLoading ? 'Sending code...' : 'Send verification code'}
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="auth-sms-summary">{smsNotice || 'Enter the six-digit code sent to your mobile number.'}</p>
+                <label className="label" htmlFor="sms-code">Six-digit code</label>
+                <input
+                  id="sms-code"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={smsCode}
+                  onChange={(event) => {
+                    clearError()
+                    setSmsCode(event.target.value.replace(/\D/g, '').slice(0, 6))
+                  }}
+                  className="input auth-sms-code-input"
+                  placeholder="000000"
+                  maxLength={6}
+                />
+                <div className="auth-sms-actions">
+                  <button type="button" disabled={isLoading || smsCode.length !== 6} onClick={submitSmsCode} className="btn-primary flex-1 justify-center">
+                    {isLoading ? 'Verifying...' : 'Verify and sign in'}
+                  </button>
+                  <button type="button" disabled={isLoading} onClick={() => { setSmsCode(''); setSmsStage('request') }} className="btn-secondary">
+                    Use another number
+                  </button>
+                </div>
+              </>
+            )}
+            <p className="auth-provider-note">For your privacy, we do not confirm whether a mobile number has an MWOS account.</p>
+          </section>
+        ) : null}
 
         <p className="text-center text-sm leading-6 text-slate-500 dark:text-slate-400">
           New patient? <Link to="/register" className="font-semibold text-[var(--accent)] hover:underline">Create your secure account</Link>

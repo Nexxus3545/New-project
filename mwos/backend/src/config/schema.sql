@@ -127,6 +127,20 @@ CREATE TABLE IF NOT EXISTS otp_challenges (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Separate, short-lived challenges for passwordless mobile sign-in. These are
+-- intentionally not reused for staff step-up authentication.
+CREATE TABLE IF NOT EXISTS sms_login_challenges (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  code_hash TEXT NOT NULL,
+  attempt_count INTEGER DEFAULT 0,
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS digital_signatures (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   staff_id UUID REFERENCES staff_registry(id) ON DELETE CASCADE NOT NULL,
@@ -915,6 +929,8 @@ CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_credential_id ON webauthn_cr
 CREATE INDEX IF NOT EXISTS idx_otp_challenges_staff_id ON otp_challenges(staff_id);
 CREATE INDEX IF NOT EXISTS idx_otp_challenges_purpose ON otp_challenges(purpose);
 CREATE INDEX IF NOT EXISTS idx_otp_challenges_expires_at ON otp_challenges(expires_at);
+CREATE INDEX IF NOT EXISTS idx_sms_login_challenges_user_id ON sms_login_challenges(user_id);
+CREATE INDEX IF NOT EXISTS idx_sms_login_challenges_expires_at ON sms_login_challenges(expires_at);
 CREATE INDEX IF NOT EXISTS idx_digital_signatures_staff_id ON digital_signatures(staff_id);
 CREATE INDEX IF NOT EXISTS idx_digital_signatures_entity ON digital_signatures(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_security_audit_staff_id ON security_audit(staff_id);

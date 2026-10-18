@@ -96,6 +96,35 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
+  requestSmsLogin: async (phone) => {
+    set({ isLoading: true, error: null })
+    try {
+      const res = await api.post('/auth/sms-login/request', { phone })
+      set({ isLoading: false, error: null })
+      return { success: true, ...res.data }
+    } catch (err) {
+      const msg = friendlyAuthError(err, 'We could not send an SMS code. Please try again.')
+      set({ isLoading: false, error: msg })
+      return { success: false, error: msg }
+    }
+  },
+
+  verifySmsLogin: async (phone, code) => {
+    set({ isLoading: true, error: null })
+    try {
+      const res = await api.post('/auth/sms-login/verify', { phone, code })
+      const { accessToken, refreshToken, user } = res.data.data
+      setSessionTokens(accessToken, refreshToken)
+      applyAuthenticatedUser(user, set)
+      set({ stepUpToken: null })
+      return { success: true, user }
+    } catch (err) {
+      const msg = friendlyAuthError(err, 'The SMS code could not be verified. Please try again.')
+      set({ isLoading: false, error: msg })
+      return { success: false, error: msg }
+    }
+  },
+
   register: async (form) => {
     set({ isLoading: true, error: null })
     try {

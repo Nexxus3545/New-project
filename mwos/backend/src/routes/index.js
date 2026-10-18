@@ -33,6 +33,8 @@ const { passport } = require('../config/oauth');
 
 // ── AUTH ──────────────────────────────────────────────────────
 router.post('/auth/login', authCtrl.login);
+router.post('/auth/sms-login/request', authCtrl.requestSmsLogin);
+router.post('/auth/sms-login/verify', authCtrl.verifySmsLogin);
 router.post('/auth/register', authCtrl.register);
 router.post('/auth/forgot-password', authCtrl.forgotPassword);
 router.post('/auth/reset-password', authCtrl.resetPassword);

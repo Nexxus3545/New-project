@@ -6,6 +6,7 @@ const { generateUniqueCode } = require('../utils/identifiers');
 const { sendMail } = require('../utils/mailer');
 const { fetchStaffProfileByUserId, recordLicenseEvent, upsertStaffRegistry } = require('../utils/staff');
 const { generateSessionTokens } = require('../utils/tokens');
+const { deliverOtp, generateOtpCode, hashOtpCode, maskPhone } = require('../utils/security');
 
 const DEFAULT_UI_PREFERENCES = {
   theme: 'light',
@@ -60,6 +61,204 @@ const buildUserPayload = async (user) => {
     staffProfile,
     createdAt: user.created_at,
   };
+};
+
+const SMS_LOGIN_EXPIRY_MINUTES = Number(process.env.OTP_EXPIRY_MINUTES || 10);
+const SMS_LOGIN_MAX_ATTEMPTS = 5;
+const SMS_LOGIN_USER_FIELDS = 'id, email, role, first_name, last_name, phone, avatar_url, ui_preferences, is_active, created_at';
+
+const normalizePhilippineMobile = (value) => {
+  const digits = String(value || '').replace(/\D/g, '');
+
+  if (/^09\d{9}$/.test(digits)) return `63${digits.slice(1)}`;
+  if (/^639\d{9}$/.test(digits)) return digits;
+  if (/^9\d{9}$/.test(digits)) return `63${digits}`;
+
+  return null;
+};
+
+const getPhoneVariants = (canonicalPhone) => [
+  canonicalPhone,
+  `0${canonicalPhone.slice(2)}`,
+  `+${canonicalPhone}`,
+];
+
+const findActiveUserByPhone = (executor, canonicalPhone) => executor.query(
+  `SELECT ${SMS_LOGIN_USER_FIELDS}
+   FROM users
+   WHERE is_active = TRUE
+     AND regexp_replace(phone, '[^0-9]', '', 'g') = ANY($1::text[])
+   LIMIT 1`,
+  [getPhoneVariants(canonicalPhone)]
+);
+
+const requestSmsLogin = async (req, res, next) => {
+  try {
+    const phone = normalizePhilippineMobile(req.body?.phone);
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Enter a valid Philippine mobile number, such as 0917 123 4567.',
+        requestId: req.requestId || null,
+      });
+    }
+
+    if (!process.env.SMS_GATEWAY_URL) {
+      return res.status(503).json({
+        success: false,
+        message: 'SMS sign-in is not available yet. Please use your email and password.',
+        requestId: req.requestId || null,
+        code: 'SMS_UNAVAILABLE',
+      });
+    }
+
+    const userResult = await findActiveUserByPhone({ query }, phone);
+    const user = userResult.rows[0];
+    const genericMessage = 'If a mobile account matches this number, a verification code will arrive shortly.';
+
+    // Keep account existence private: only a matching active account receives a code.
+    if (!user) {
+      return res.json({ success: true, message: genericMessage, data: {} });
+    }
+
+    const code = generateOtpCode();
+    const expiresAt = new Date(Date.now() + SMS_LOGIN_EXPIRY_MINUTES * 60 * 1000);
+    const challengeResult = await query(
+      `INSERT INTO sms_login_challenges (user_id, phone, code_hash, expires_at)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
+      [user.id, phone, hashOtpCode(code), expiresAt]
+    );
+
+    try {
+      await deliverOtp({
+        user: { ...user, phone: `+${phone}` },
+        code,
+        purpose: 'sign-in',
+        context: 'sign-in',
+      });
+    } catch (deliveryError) {
+      await query('UPDATE sms_login_challenges SET consumed_at = NOW() WHERE id = $1', [challengeResult.rows[0].id]);
+      return res.status(503).json({
+        success: false,
+        message: 'We could not send an SMS code right now. Please use your email and password or try again shortly.',
+        requestId: req.requestId || null,
+        code: 'SMS_DELIVERY_FAILED',
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: genericMessage,
+      data: {
+        destination: maskPhone(user.phone),
+        expiresInMinutes: SMS_LOGIN_EXPIRY_MINUTES,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const verifySmsLogin = async (req, res, next) => {
+  const phone = normalizePhilippineMobile(req.body?.phone);
+  const code = String(req.body?.code || '').trim();
+
+  if (!phone || !/^\d{6}$/.test(code)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Enter the mobile number and six-digit verification code.',
+      requestId: req.requestId || null,
+    });
+  }
+
+  const client = await getClient();
+
+  try {
+    await client.query('BEGIN');
+    const userResult = await findActiveUserByPhone(client, phone);
+    const user = userResult.rows[0];
+
+    if (!user) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'The verification code is invalid or has expired. Request a new code and try again.',
+        requestId: req.requestId || null,
+      });
+    }
+
+    const challengeResult = await client.query(
+      `SELECT id, code_hash, attempt_count
+       FROM sms_login_challenges
+       WHERE user_id = $1
+         AND phone = $2
+         AND consumed_at IS NULL
+         AND expires_at > NOW()
+       ORDER BY created_at DESC
+       LIMIT 1
+       FOR UPDATE`,
+      [user.id, phone]
+    );
+    const challenge = challengeResult.rows[0];
+
+    if (!challenge) {
+      await client.query('COMMIT');
+      return res.status(400).json({
+        success: false,
+        message: 'The verification code is invalid or has expired. Request a new code and try again.',
+        requestId: req.requestId || null,
+      });
+    }
+
+    const attempts = Number(challenge.attempt_count || 0) + 1;
+    const suppliedHash = hashOtpCode(code);
+    const matches = crypto.timingSafeEqual(Buffer.from(suppliedHash), Buffer.from(challenge.code_hash));
+
+    if (!matches || attempts > SMS_LOGIN_MAX_ATTEMPTS) {
+      await client.query(
+        `UPDATE sms_login_challenges
+         SET attempt_count = $1, consumed_at = CASE WHEN $2 THEN NOW() ELSE consumed_at END, updated_at = NOW()
+         WHERE id = $3`,
+        [attempts, attempts > SMS_LOGIN_MAX_ATTEMPTS, challenge.id]
+      );
+      await client.query('COMMIT');
+      return res.status(400).json({
+        success: false,
+        message: attempts > SMS_LOGIN_MAX_ATTEMPTS
+          ? 'Too many incorrect codes. Request a new code and try again.'
+          : 'The verification code is invalid or has expired. Request a new code and try again.',
+        requestId: req.requestId || null,
+      });
+    }
+
+    await client.query(
+      'UPDATE sms_login_challenges SET attempt_count = $1, consumed_at = NOW(), updated_at = NOW() WHERE id = $2',
+      [attempts, challenge.id]
+    );
+
+    const { accessToken, refreshToken } = generateSessionTokens(user.id, user.role);
+    await client.query(
+      'UPDATE users SET refresh_token = $1, last_login_at = NOW(), last_seen_at = NOW(), updated_at = NOW() WHERE id = $2',
+      [refreshToken, user.id]
+    );
+    await client.query('COMMIT');
+
+    return res.json({
+      success: true,
+      message: 'SMS sign-in successful',
+      data: {
+        accessToken,
+        refreshToken,
+        user: await buildUserPayload(user),
+      },
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
+  }
 };
 
 const login = async (req, res, next) => {
@@ -524,6 +723,8 @@ const resetPassword = async (req, res, next) => {
 module.exports = {
   buildUserPayload,
   login,
+  requestSmsLogin,
+  verifySmsLogin,
   register,
   refreshToken,
   logout,

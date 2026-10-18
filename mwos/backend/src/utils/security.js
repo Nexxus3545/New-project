@@ -165,14 +165,23 @@ const verifyWebAuthnSessionToken = (token, expectedType) => {
   return decoded;
 };
 
-const deliverOtp = async ({ user, code, purpose }) => {
-  const text = [
-    'MWOS step-up verification code:',
-    code,
-    '',
-    `Purpose: ${purpose}`,
-    'This code expires in 10 minutes.',
-  ].join('\n');
+const deliverOtp = async ({ user, code, purpose, context = 'step-up' }) => {
+  const isSignIn = context === 'sign-in';
+  const text = isSignIn
+    ? [
+      'Your TMC Copino MWOS sign-in code is:',
+      code,
+      '',
+      'Do not share this code with anyone.',
+      'This code expires in 10 minutes.',
+    ].join('\n')
+    : [
+      'MWOS step-up verification code:',
+      code,
+      '',
+      `Purpose: ${purpose}`,
+      'This code expires in 10 minutes.',
+    ].join('\n');
 
   if (process.env.SMS_GATEWAY_URL) {
     if (!user.phone) {
@@ -204,7 +213,7 @@ const deliverOtp = async ({ user, code, purpose }) => {
 
   await sendMail({
     to: user.email,
-    subject: 'MWOS step-up verification code',
+    subject: isSignIn ? 'MWOS sign-in verification code' : 'MWOS step-up verification code',
     text,
     html: `<p>${text.replace(/\n/g, '<br />')}</p>`,
   });

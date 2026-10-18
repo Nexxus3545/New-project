@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import api, { socialAuthAvailable } from '../utils/api'
+import { FacebookProviderIcon, GoogleProviderIcon, SmsProviderIcon } from '../components/common/AuthProviderIcons'
 
 const roles = ['patient', 'nurse', 'midwife', 'doctor', 'admin']
 const steps = [
@@ -108,15 +109,19 @@ export default function RegisterPage() {
           <p>Create a patient account with</p>
           <div className="auth-provider-actions">
             <button type="button" disabled={isLoading} onClick={() => handleProviderRegistration('google')} className="auth-provider-button">
-              <span className="auth-provider-mark auth-provider-mark-google" aria-hidden="true">G</span>
+              <GoogleProviderIcon />
               Continue with Google
             </button>
             <button type="button" disabled={isLoading} onClick={() => handleProviderRegistration('facebook')} className="auth-provider-button">
-              <span className="auth-provider-mark auth-provider-mark-facebook" aria-hidden="true">f</span>
+              <FacebookProviderIcon />
               Continue with Facebook
             </button>
           </div>
           <p className="auth-provider-note">Social sign-in creates patient accounts only. You will provide your date of birth before opening the care portal.</p>
+          <Link to="/login?sms=1" className="auth-sms-signin-link">
+            <SmsProviderIcon className="auth-provider-icon auth-provider-icon-sms" />
+            Already registered? Sign in with SMS
+          </Link>
         </div>
       ) : null}
 

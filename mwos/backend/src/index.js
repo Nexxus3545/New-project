@@ -75,9 +75,19 @@ const authLimiter = rateLimit({
   message: { success: false, message: 'Too many login attempts, please try again later' },
 });
 
+const smsLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { success: false, message: 'Too many SMS code requests. Please wait before trying again.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use(limiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/v1/auth/login', authLimiter);
+app.use('/api/auth/sms-login/request', smsLoginLimiter);
+app.use('/api/v1/auth/sms-login/request', smsLoginLimiter);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
