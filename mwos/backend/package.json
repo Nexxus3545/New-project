@@ -4,7 +4,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
+    "dev": "node src/index.js",
+    "dev:watch": "nodemon src/index.js",
     "migrate": "node src/utils/migrate.js",
     "migrate:reset": "node src/utils/migrate.js --reset",
     "seed": "node src/utils/seed.js"

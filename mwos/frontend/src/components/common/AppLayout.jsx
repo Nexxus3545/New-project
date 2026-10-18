@@ -8,48 +8,53 @@ const staffNav = [
   { to: '/dashboard', icon: 'DB', label: 'Dashboard' },
   { to: '/patients', icon: 'PT', label: 'Patients' },
   { to: '/appointments', icon: 'AP', label: 'Appointments' },
-  { to: '/prenatal-care', icon: 'PN', label: 'Prenatal Care' },
-  { to: '/postnatal-care', icon: 'PP', label: 'Postnatal Care' },
-  { to: '/examinations', icon: 'EX', label: 'Examinations' },
-  { to: '/immunizations', icon: 'IM', label: 'Immunizations' },
-  { to: '/medicines', icon: 'MD', label: 'Medicines' },
-  { to: '/reports', icon: 'RP', label: 'Reports' },
-  { to: '/interactions', icon: 'CH', label: 'Care Hub' },
-  { to: '/account', icon: 'AC', label: 'Account' },
+  { to: '/prenatal-monitoring', icon: 'PN', label: 'Prenatal Monitoring' },
+  { to: '/postnatal-monitoring', icon: 'PO', label: 'Postnatal Monitoring' },
+  { to: '/pediatric-monitoring', icon: 'NB', label: 'Pediatric Monitoring' },
+  { to: '/labor-delivery', icon: 'LD', label: 'Labor & Delivery' },
+  { to: '/medical-records', icon: 'MR', label: 'Medical Records' },
+  { to: '/telehealth', icon: 'TH', label: 'Telehealth' },
+  { to: '/messages', icon: 'MS', label: 'Messages' },
+  { to: '/emergency-map', icon: 'EM', label: 'Emergency Map' },
+  { to: '/inventory', icon: 'IN', label: 'Inventory' },
+  { to: '/health-education', icon: 'ED', label: 'Health Education' },
+  { to: '/reports-analytics', icon: 'RA', label: 'Reports / Analytics' },
+  { to: '/settings', icon: 'SE', label: 'Settings' },
 ]
 
 const adminNav = [
-  { to: '/users', icon: 'US', label: 'Users' },
+  { to: '/users', icon: 'UM', label: 'User Management' },
+  { to: '/staff-qualifications', icon: 'SQ', label: 'Staff Credentials' },
   { to: '/compliance', icon: 'CM', label: 'Compliance' },
 ]
 
 const patientNav = [
-  { to: '/my/dashboard', icon: 'HM', label: 'Home' },
-  { to: '/my/doctors', icon: 'DR', label: 'Doctors' },
-  { to: '/my/pharmacy', icon: 'RX', label: 'Pharmacy' },
-  { to: '/my/notifications', icon: 'NT', label: 'Notifications' },
-  { to: '/my/reports', icon: 'RP', label: 'Reports' },
+  { to: '/my/dashboard', icon: 'DB', label: 'Dashboard' },
+  { to: '/my/pregnancy', icon: 'PG', label: 'My Pregnancy' },
   { to: '/my/appointments', icon: 'AP', label: 'Appointments' },
-  { to: '/my/vitals', icon: 'VT', label: 'My Vitals' },
-  { to: '/my/records', icon: 'RC', label: 'My Records' },
-  { to: '/my/interactions', icon: 'CT', label: 'Care Team' },
-  { to: '/my/education', icon: 'ED', label: 'Health Tips' },
-  { to: '/my/emergency', icon: 'EM', label: 'Emergency' },
-  { to: '/my/profile', icon: 'AC', label: 'Account' },
+  { to: '/my/health-records', icon: 'HR', label: 'Health Records' },
+  { to: '/my/baby', icon: 'NB', label: 'Baby / Newborn' },
+  { to: '/my/telehealth', icon: 'TH', label: 'Telehealth' },
+  { to: '/my/messages', icon: 'MS', label: 'Messages' },
+  { to: '/my/notifications', icon: 'NT', label: 'Notifications' },
+  { to: '/my/health-tips', icon: 'HT', label: 'Health Tips' },
+  { to: '/my/profile', icon: 'PF', label: 'Profile' },
 ]
 
 const staffNavSections = [
   { title: 'Overview', items: staffNav.slice(0, 3) },
-  { title: 'Maternal Care', items: staffNav.slice(3, 7) },
-  { title: 'Operations', items: staffNav.slice(7, 10) },
-  { title: 'Account', items: staffNav.slice(10) },
+  { title: 'Clinical Monitoring', items: staffNav.slice(3, 8) },
+  { title: 'Communication', items: staffNav.slice(8, 11) },
+  { title: 'Operations', items: staffNav.slice(11, 14) },
+  { title: 'System', items: staffNav.slice(14) },
 ]
 
 const patientNavSections = [
-  { title: 'Home', items: patientNav.slice(0, 4) },
-  { title: 'Care', items: patientNav.slice(4, 10) },
-  { title: 'Support', items: patientNav.slice(10, 11) },
-  { title: 'Account', items: patientNav.slice(11) },
+  { title: 'Care Overview', items: patientNav.slice(0, 2) },
+  { title: 'My Care', items: patientNav.slice(2, 5) },
+  { title: 'Communication', items: patientNav.slice(5, 8) },
+  { title: 'Learning', items: patientNav.slice(8, 9) },
+  { title: 'Account', items: patientNav.slice(9) },
 ]
 
 export default function AppLayout({ patient = false }) {
@@ -76,40 +81,55 @@ export default function AppLayout({ patient = false }) {
   const currentPage = (() => {
     const titleMap = patient
       ? [
-          ['/my/dashboard', ['Patient Home', 'Your visits, records, pharmacy, and emergency support in one view.']],
-          ['/my/doctors', ['Care Team', 'Browse the clinic providers available to you.']],
-          ['/my/pharmacy', ['Pharmacy', 'Review medicines with images, usage, and precautions.']],
-          ['/my/appointments', ['Appointments', 'Track visits and upcoming clinic schedules.']],
-          ['/my/vitals', ['My Vitals', 'View your latest monitoring and trend history.']],
-          ['/my/records', ['Medical Records', 'Keep important lab results and prescriptions close.']],
+          ['/my/dashboard', ['Patient Dashboard', 'Your pregnancy status, next visit, alerts, records, and baby care in one place.']],
+          ['/my/pregnancy', ['My Pregnancy', 'View your pregnancy progress, maternal vitals, and provider guidance.']],
+          ['/my/appointments', ['Appointments', 'Book and track prenatal, follow-up, and clinic visits.']],
+          ['/my/health-records', ['Health Records', 'Review your documents, laboratory results, prescriptions, and medical notes.']],
+          ['/my/baby', ['Baby / Newborn', 'Keep newborn screening, immunization, and pediatric information connected to your profile.']],
+          ['/my/telehealth', ['Telehealth', 'Request a consultation and follow clinic responses.']],
+          ['/my/messages', ['Messages', 'Secure clinic communication with timestamps and care history.']],
+          ['/my/notifications', ['Notifications', 'Review unread reminders and clinic updates.']],
+          ['/my/health-tips', ['Health Tips', 'Browse clinic-approved pregnancy, postnatal, newborn, and family-care education.']],
           ['/my/emergency', ['Emergency', 'Quick access to urgent clinic and barangay support.']],
         ]
       : [
-          ['/dashboard', ['Maternal Control Center', 'A calm workspace for appointments, monitoring, medicine flow, and clinic tasks.']],
-          ['/patients', ['Patient Intake', 'Register and track patient records in a structured layout.']],
-          ['/appointments', ['Appointments', 'Calendar-style scheduling for staff and patients.']],
-          ['/prenatal-care', ['Prenatal Care', 'Monitor maternal vitals, trends, and ultrasound follow-up.']],
-          ['/postnatal-care', ['Postnatal Care', 'Record delivery outcomes and post-delivery notes.']],
-          ['/examinations', ['Examinations', 'Review labs, ultrasounds, and clinical assessments.']],
-          ['/immunizations', ['Immunizations', 'Track vaccines and due dates for mothers and babies.']],
-          ['/medicines', ['Medicines', 'Organize medication by image, purpose, and usage.']],
-          ['/reports', ['Reports & Analytics', 'Operational summaries and export-ready statistics.']],
+          ['/dashboard', ['Staff Dashboard', 'Today’s appointments, patient alerts, monitoring queues, and recent activity.']],
+          ['/patients', ['Patients', 'Register, search, and review maternal and newborn records.']],
+          ['/appointments', ['Appointments', 'Book services through provider, date, time, confirmation, and status tracking.']],
+          ['/prenatal-monitoring', ['Prenatal Monitoring', 'Record maternal vitals, pregnancy progress, labs, ultrasound notes, and risk flags.']],
+          ['/postnatal-monitoring', ['Postnatal Monitoring', 'Track delivery recovery, follow-up, breastfeeding, wound status, and maternal wellbeing.']],
+          ['/pediatric-monitoring', ['Pediatric Monitoring', 'Review newborn records, screening, immunization, and child monitoring.']],
+          ['/labor-delivery', ['Labor & Delivery', 'Record delivery activity, partograph progress, newborn condition, and complications.']],
+          ['/medical-records', ['Medical Records', 'Review examinations, labs, ultrasound, prescriptions, and document status.']],
+          ['/telehealth', ['Telehealth', 'Manage consultation requests, provider acceptance, session notes, and follow-up guidance.']],
+          ['/messages', ['Messages', 'Coordinate patient-to-clinic, provider, and staff communication.']],
+          ['/emergency-map', ['Emergency Live Map', 'View consent-based emergency location shares for clinic, barangay, ambulance, and referral coordination.']],
+          ['/inventory', ['Inventory', 'Manage medicine/product images, usage guidance, stock, reorder, and expiry status.']],
+          ['/health-education', ['Health Education', 'Publish pregnancy, postnatal, newborn, nutrition, and family-planning videos or images.']],
+          ['/reports-analytics', ['Reports / Analytics', 'Review clinic metrics, maternal indicators, and export-ready summaries.']],
         ]
 
     const found = titleMap.find(([prefix]) => location.pathname.startsWith(prefix))
     return found ? { title: found[1][0], description: found[1][1] } : { title: 'MWOS', description: 'Maternal Wellness and Operations Management System' }
   })()
 
+  const hasFocusedWorkspaceHeader = [
+    '/messages',
+    '/telehealth',
+    '/my/messages',
+    '/my/telehealth',
+  ].includes(location.pathname)
+
   const quickActions = patient
     ? [
         { to: '/my/appointments', label: 'Appointments' },
-        { to: '/my/pharmacy', label: 'Pharmacy' },
+        { to: '/my/messages', label: 'Message clinic' },
         { to: '/my/emergency', label: 'Emergency' },
       ]
     : [
         { to: '/patients', label: 'New patient' },
-        { to: '/appointments', label: 'Schedule' },
-        { to: '/reports', label: 'Analytics' },
+        { to: '/appointments', label: 'Appointments' },
+        { to: '/messages', label: 'Messages' },
       ]
 
   const todayLabel = new Date().toLocaleDateString('en-PH', {
@@ -120,9 +140,7 @@ export default function AppLayout({ patient = false }) {
   })
 
   return (
-    <div className="futuristic-shell flex h-screen bg-[#fff7fb] dark:bg-slate-950 overflow-hidden">
-      <div className="shell-orb shell-orb-a" />
-      <div className="shell-orb shell-orb-b" />
+    <div className="futuristic-shell flex h-screen bg-[#fff8fb] dark:bg-slate-950 overflow-hidden">
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-20 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
@@ -135,16 +153,14 @@ export default function AppLayout({ patient = false }) {
       `}
       >
         <div
-          className="relative overflow-hidden border-b border-white/70 px-5 py-5 text-white dark:border-slate-800"
-          style={{ background: 'linear-gradient(145deg, var(--hero-start), var(--hero-end))' }}
+          className="relative overflow-hidden border-b border-rose-100 bg-white px-5 py-5 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50"
         >
-          <div className="absolute inset-y-0 right-0 w-28 rounded-full bg-white/10 blur-2xl" />
           <div className="relative">
             <BrandMark compact sublabel={patient ? 'Patient experience' : 'Birthing home operations'} />
             <div className="mt-4 flex flex-wrap gap-2">
-              <span className="hero-chip border-white/15 bg-white/18 text-white">Live care</span>
-              <span className="hero-chip border-white/15 bg-white/18 text-white">{patient ? 'Patient view' : 'Clinic control'}</span>
-              <span className="hero-chip border-white/15 bg-white/18 text-white">Emergency ready</span>
+              <span className="hero-chip">{patient ? 'Patient portal' : 'Clinic workspace'}</span>
+              <span className="hero-chip">Role based</span>
+              <span className="hero-chip">Emergency ready</span>
             </div>
           </div>
         </div>
@@ -224,27 +240,29 @@ export default function AppLayout({ patient = false }) {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <div className="mb-5 rounded-[30px] border border-white/80 bg-white/80 px-4 py-4 shadow-[0_24px_48px_rgba(15,118,110,0.08)] backdrop-blur">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="min-w-0">
-                <p className="section-kicker">{patient ? 'Patient Portal' : 'Maternal Workspace'}</p>
-                <div className="mt-1 flex flex-wrap items-center gap-3">
-                  <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">{currentPage.title}</h1>
-                  <span className="badge badge-gray">{user?.role || 'guest'}</span>
+          {!hasFocusedWorkspaceHeader ? (
+            <div className="mb-5 rounded-[28px] border border-rose-100 bg-white px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div className="min-w-0">
+                  <p className="section-kicker">{patient ? 'Patient Portal' : 'Maternal Workspace'}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-3">
+                    <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">{currentPage.title}</h1>
+                    <span className="badge badge-gray">{user?.role || 'guest'}</span>
+                  </div>
+                  <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">{currentPage.description}</p>
                 </div>
-                <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">{currentPage.description}</p>
-              </div>
 
-              <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-                <span className="hero-chip">{todayLabel}</span>
-                {quickActions.map((action) => (
-                  <Link key={action.to} to={action.to} className="btn-secondary btn-sm">
-                    {action.label}
-                  </Link>
-                ))}
+                <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                  <span className="hero-chip">{todayLabel}</span>
+                  {quickActions.map((action) => (
+                    <Link key={action.to} to={action.to} className="btn-secondary btn-sm">
+                      {action.label}
+                    </Link>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          ) : null}
 
           <div className="space-y-6">
             <Outlet />

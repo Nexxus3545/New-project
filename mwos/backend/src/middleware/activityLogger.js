@@ -21,6 +21,15 @@ const normalizeBodyForAudit = (body) => {
   return body || {};
 };
 
+const auditValuesForRequest = (req) => {
+  // Emergency GPS coordinates are operationally sensitive and must not be copied into audit payloads.
+  if (req.originalUrl.includes('/emergency/location')) {
+    return { locationShare: req.method === 'DELETE' ? 'stopped' : 'updated' };
+  }
+
+  return normalizeBodyForAudit(req.body);
+};
+
 const activityLogger = async (req, res, next) => {
   if (!ACTION_METHODS.has(req.method)) return next();
   if (!req.user) return next();
@@ -37,7 +46,7 @@ const activityLogger = async (req, res, next) => {
           req.method,
           req.originalUrl.split('/')[2] || 'unknown',
           null,
-          normalizeBodyForAudit(req.body),
+          auditValuesForRequest(req),
           req.requestId || null,
           req.ip,
           req.headers['user-agent'] || null,

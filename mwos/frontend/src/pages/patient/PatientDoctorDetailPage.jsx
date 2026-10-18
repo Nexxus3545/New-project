@@ -55,7 +55,7 @@ export default function PatientDoctorDetailPage() {
           {teleconsultResult?.meetingUrl ? (
             <div className="mt-3 flex flex-wrap gap-2">
               <a href={teleconsultResult.meetingUrl} target="_blank" rel="noreferrer" className="btn-primary btn-sm">Open tele-consult</a>
-              <Link to="/my/interactions" state={{ threadId: teleconsultResult.thread?.id }} className="btn-secondary btn-sm">Open messages</Link>
+              <Link to="/my/telehealth" state={{ threadId: teleconsultResult.thread?.id }} className="btn-secondary btn-sm">Open consultation</Link>
             </div>
           ) : null}
         </div>

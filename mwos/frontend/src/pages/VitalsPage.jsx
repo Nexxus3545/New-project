@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Area, AreaChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import api from '../utils/api'
+import CoverCard from '../components/common/CoverCard'
 
 const today = new Date().toISOString().slice(0, 10)
 
@@ -33,65 +34,6 @@ const formatDate = (value) => new Date(value).toLocaleDateString('en-PH', {
   month: 'short',
   day: 'numeric',
 })
-
-const hotSpotTone = (severity) => {
-  if (severity === 'high') return 'vitals-node vitals-node-critical'
-  if (severity === 'medium') return 'vitals-node vitals-node-warning'
-  return 'vitals-node vitals-node-stable'
-}
-
-const FigureNode = ({ label, value, severity, style }) => (
-  <div className={hotSpotTone(severity)} style={style}>
-    <span>{label}</span>
-    <strong>{value}</strong>
-  </div>
-)
-
-const VitalsFigure = ({ latestVitals }) => {
-  const bpSeverity = latestVitals?.bp_systolic >= 140 || latestVitals?.bp_diastolic >= 90 ? 'high' : 'stable'
-  const pulseSeverity = latestVitals?.pulse_rate >= 110 || latestVitals?.pulse_rate <= 55 ? 'medium' : 'stable'
-  const fetalSeverity = latestVitals?.fetal_heart_rate && (latestVitals.fetal_heart_rate < 110 || latestVitals.fetal_heart_rate > 160) ? 'high' : 'stable'
-  const tempSeverity = latestVitals?.temperature >= 37.8 ? 'medium' : 'stable'
-
-  return (
-    <div className="vitals-figure-scene">
-      <div className="vitals-figure-grid" />
-      <div className="vitals-figure-platform" />
-      <div className="vitals-figure">
-        <div className="vitals-figure-head" />
-        <div className="vitals-figure-torso" />
-        <div className="vitals-figure-arm vitals-figure-arm-left" />
-        <div className="vitals-figure-arm vitals-figure-arm-right" />
-        <div className="vitals-figure-leg vitals-figure-leg-left" />
-        <div className="vitals-figure-leg vitals-figure-leg-right" />
-      </div>
-      <FigureNode
-        label="Temp"
-        value={latestVitals?.temperature ? `${latestVitals.temperature} C` : '--'}
-        severity={tempSeverity}
-        style={{ top: '12%', right: '6%' }}
-      />
-      <FigureNode
-        label="BP"
-        value={latestVitals?.bp_systolic ? `${latestVitals.bp_systolic}/${latestVitals.bp_diastolic}` : '--'}
-        severity={bpSeverity}
-        style={{ top: '34%', left: '2%' }}
-      />
-      <FigureNode
-        label="Pulse"
-        value={latestVitals?.pulse_rate ? `${latestVitals.pulse_rate} bpm` : '--'}
-        severity={pulseSeverity}
-        style={{ top: '48%', right: '3%' }}
-      />
-      <FigureNode
-        label="FHR"
-        value={latestVitals?.fetal_heart_rate ? `${latestVitals.fetal_heart_rate} bpm` : '--'}
-        severity={fetalSeverity}
-        style={{ top: '62%', left: '1%' }}
-      />
-    </div>
-  )
-}
 
 export default function VitalsPage() {
   const queryClient = useQueryClient()
@@ -188,13 +130,23 @@ export default function VitalsPage() {
     <div className="space-y-6">
       <div className="page-header">
         <div>
-          <h1 className="page-title">3D Vitals Command Center</h1>
-          <p className="page-sub">Record maternal vitals, watch trend lines, and review a visual body map for fast clinical interpretation.</p>
+          <h1 className="page-title">Prenatal Monitoring</h1>
+          <p className="page-sub">Record maternal vital signs, gestational age, fetal heart rate, edema, fundal height, and provider notes.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn-secondary btn-sm" onClick={() => { refetchSummary(); refetchVitals() }}>Refresh panel</button>
         </div>
       </div>
+
+      <CoverCard
+        image="/clinic/prenatal-exam-room.jpg"
+        label="Prenatal examination room"
+        title="Clinical monitoring starts with the patient visit."
+        description="Use this screen after selecting a patient to record vitals, review trends, identify risk flags, and update the maternal timeline."
+        chips={['Vitals', 'Gestational age', 'Provider notes']}
+        tone="rose"
+        className="min-h-[18rem]"
+      />
 
       <div className="card">
         <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
@@ -254,19 +206,6 @@ export default function VitalsPage() {
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="space-y-6">
-          <div className="card">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="section-title mb-1">3D maternal body view</h3>
-                <p className="text-sm text-slate-500">The figure highlights the latest temperature, blood pressure, pulse, and fetal heart rate zones.</p>
-              </div>
-              <span className={`badge ${patient?.risk_level === 'high' ? 'badge-danger' : patient?.risk_level === 'moderate' ? 'badge-warning' : 'badge-success'}`}>
-                {patient?.risk_level || 'low'} risk
-              </span>
-            </div>
-            <VitalsFigure latestVitals={latestVitals} />
-          </div>
-
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="card">
               <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Blood pressure</p>

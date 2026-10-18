@@ -28,8 +28,11 @@ import UsersPage from './pages/UsersPage'
 import CompliancePage from './pages/CompliancePage'
 import AccountCenterPage from './pages/AccountCenterPage'
 import InteractionsPage from './pages/InteractionsPage'
+import MessagesPage from './pages/MessagesPage'
+import TelehealthPage from './pages/TelehealthPage'
 import ExaminationsPage from './pages/ExaminationsPage'
 import ImmunizationsPage from './pages/ImmunizationsPage'
+import EmergencyMapPage from './pages/EmergencyMapPage'
 
 // Patient portal pages
 import PatientDashboardPage from './pages/patient/PatientDashboardPage'
@@ -46,6 +49,9 @@ import PatientCheckoutSuccessPage from './pages/patient/PatientCheckoutSuccessPa
 import PatientNotificationsPage from './pages/patient/PatientNotificationsPage'
 import PatientReportsPage from './pages/patient/PatientReportsPage'
 import PatientEmergencyPage from './pages/patient/PatientEmergencyPage'
+
+const staffRoles = ['admin','doctor','midwife','nurse']
+const adminRoles = ['admin']
 
 const ProtectedRoute = ({ children, roles }) => {
   const user = useAuthStore((s) => s.user)
@@ -88,7 +94,7 @@ export default function App() {
 
         {/* Staff portal */}
         <Route element={
-          <ProtectedRoute roles={['admin','doctor','midwife','nurse']}>
+          <ProtectedRoute roles={staffRoles}>
             <AppLayout />
           </ProtectedRoute>
         }>
@@ -97,25 +103,41 @@ export default function App() {
           <Route path="/patients/:id" element={<PatientDetailPage />} />
           <Route path="/appointments" element={<AppointmentsPage />} />
           <Route path="/prenatal-care" element={<VitalsPage />} />
+          <Route path="/prenatal-monitoring" element={<VitalsPage />} />
           <Route path="/vitals" element={<VitalsPage />} />
           <Route path="/postnatal-care" element={<DeliveriesPage />} />
+          <Route path="/postnatal-monitoring" element={<DeliveriesPage />} />
           <Route path="/deliveries" element={<DeliveriesPage />} />
+          <Route path="/labor-delivery" element={<DeliveriesPage />} />
           <Route path="/examinations" element={<ExaminationsPage />} />
+          <Route path="/medical-records" element={<ExaminationsPage />} />
           <Route path="/immunizations" element={<ImmunizationsPage />} />
+          <Route path="/pediatric-monitoring" element={<ImmunizationsPage />} />
           <Route path="/medicines" element={<InventoryPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/billing" element={<BillingPage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/reports-analytics" element={<ReportsPage />} />
           <Route path="/education" element={<EducationPage />} />
+          <Route path="/health-education" element={<EducationPage />} />
           <Route path="/interactions" element={<InteractionsPage />} />
+          <Route path="/telehealth" element={<TelehealthPage />} />
+          <Route path="/messages" element={<MessagesPage />} />
+          <Route path="/emergency-map" element={<EmergencyMapPage />} />
           <Route path="/account" element={<AccountCenterPage />} />
+          <Route path="/settings" element={<AccountCenterPage />} />
           <Route path="/compliance" element={
-            <ProtectedRoute roles={['admin']}>
+            <ProtectedRoute roles={adminRoles}>
               <CompliancePage />
             </ProtectedRoute>
           } />
           <Route path="/users" element={
-            <ProtectedRoute roles={['admin']}>
+            <ProtectedRoute roles={adminRoles}>
+              <UsersPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/staff-qualifications" element={
+            <ProtectedRoute roles={adminRoles}>
               <UsersPage />
             </ProtectedRoute>
           } />
@@ -138,9 +160,15 @@ export default function App() {
           <Route path="/my/reports" element={<PatientReportsPage />} />
           <Route path="/my/appointments" element={<PatientAppointmentsPage />} />
           <Route path="/my/vitals" element={<PatientVitalsPage />} />
+          <Route path="/my/pregnancy" element={<PatientVitalsPage />} />
           <Route path="/my/records" element={<PatientRecordsPage />} />
+          <Route path="/my/health-records" element={<PatientRecordsPage />} />
+          <Route path="/my/baby" element={<PatientReportsPage />} />
           <Route path="/my/education" element={<PatientEducationPage />} />
-          <Route path="/my/interactions" element={<InteractionsPage />} />
+          <Route path="/my/health-tips" element={<PatientEducationPage />} />
+          <Route path="/my/interactions" element={<MessagesPage />} />
+          <Route path="/my/telehealth" element={<TelehealthPage />} />
+          <Route path="/my/messages" element={<MessagesPage />} />
           <Route path="/my/emergency" element={<PatientEmergencyPage />} />
           <Route path="/my/profile" element={<AccountCenterPage />} />
         </Route>

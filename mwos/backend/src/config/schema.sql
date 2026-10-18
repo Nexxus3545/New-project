@@ -39,6 +39,16 @@ CREATE TABLE IF NOT EXISTS staff_registry (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE staff_registry ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;
+ALTER TABLE staff_registry ADD COLUMN IF NOT EXISTS specialization TEXT;
+ALTER TABLE staff_registry ADD COLUMN IF NOT EXISTS years_experience INTEGER;
+ALTER TABLE staff_registry ADD COLUMN IF NOT EXISTS education_background TEXT;
+ALTER TABLE staff_registry ADD COLUMN IF NOT EXISTS professional_qualifications JSONB DEFAULT '[]';
+ALTER TABLE staff_registry ADD COLUMN IF NOT EXISTS certifications JSONB DEFAULT '[]';
+ALTER TABLE staff_registry ADD COLUMN IF NOT EXISTS training_summary TEXT;
+ALTER TABLE staff_registry ADD COLUMN IF NOT EXISTS public_profile_summary TEXT;
+ALTER TABLE staff_registry ADD COLUMN IF NOT EXISTS credential_expires_at DATE;
+
 CREATE TABLE IF NOT EXISTS license_verification_events (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   staff_id UUID REFERENCES staff_registry(id) ON DELETE CASCADE NOT NULL,
@@ -515,6 +525,55 @@ ALTER TABLE patient_documents ADD COLUMN IF NOT EXISTS ocr_status VARCHAR(20) DE
 ALTER TABLE patient_documents ADD COLUMN IF NOT EXISTS ocr_text TEXT;
 ALTER TABLE patient_documents ADD COLUMN IF NOT EXISTS ocr_extracted_data JSONB DEFAULT '{}';
 
+-- Configurable patient requirements for clinic services
+CREATE TABLE IF NOT EXISTS service_requirements (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  service_key VARCHAR(120) NOT NULL,
+  service_name VARCHAR(160) NOT NULL,
+  requirement_name VARCHAR(160) NOT NULL,
+  description TEXT,
+  is_required BOOLEAN DEFAULT true,
+  accepted_file_types JSONB DEFAULT '[]',
+  is_active BOOLEAN DEFAULT true,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (service_key, requirement_name)
+);
+
+CREATE TABLE IF NOT EXISTS patient_requirement_submissions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  patient_id UUID REFERENCES patients(id) ON DELETE CASCADE NOT NULL,
+  requirement_id UUID REFERENCES service_requirements(id) ON DELETE CASCADE NOT NULL,
+  document_id UUID REFERENCES patient_documents(id) ON DELETE SET NULL,
+  status VARCHAR(20) DEFAULT 'missing' CHECK (status IN ('required','submitted','pending_review','approved','rejected','missing')),
+  review_notes TEXT,
+  submitted_at TIMESTAMPTZ,
+  reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (patient_id, requirement_id)
+);
+
+-- Staff credential documents
+CREATE TABLE IF NOT EXISTS staff_documents (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  staff_id UUID REFERENCES staff_registry(id) ON DELETE CASCADE NOT NULL,
+  uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  document_type VARCHAR(100) NOT NULL,
+  credential_title VARCHAR(160),
+  original_name TEXT,
+  file_url TEXT NOT NULL,
+  verification_status VARCHAR(20) DEFAULT 'pending_review' CHECK (verification_status IN ('pending_review','approved','rejected','archived')),
+  verification_notes TEXT,
+  reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at TIMESTAMPTZ,
+  expires_at DATE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Resumable upload sessions
 CREATE TABLE IF NOT EXISTS upload_sessions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -638,6 +697,20 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   read_at TIMESTAMPTZ
+);
+
+-- Consent-based GPS location shares for active emergency coordination.
+-- A share expires automatically when the patient's device stops sending updates.
+CREATE TABLE IF NOT EXISTS emergency_location_shares (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  patient_id UUID REFERENCES patients(id) ON DELETE CASCADE NOT NULL UNIQUE,
+  latitude NUMERIC(9,6) NOT NULL CHECK (latitude BETWEEN -90 AND 90),
+  longitude NUMERIC(9,6) NOT NULL CHECK (longitude BETWEEN -180 AND 180),
+  accuracy_meters NUMERIC(10,2),
+  shared_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Interaction center: threads and messages
@@ -802,8 +875,10 @@ CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_t
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+CREATE INDEX IF NOT EXISTS idx_emergency_location_shares_expires_at ON emergency_location_shares(expires_at);
 CREATE INDEX IF NOT EXISTS idx_staff_registry_user_id ON staff_registry(user_id);
 CREATE INDEX IF NOT EXISTS idx_staff_registry_license_status ON staff_registry(license_status);
+CREATE INDEX IF NOT EXISTS idx_staff_registry_credential_expires_at ON staff_registry(credential_expires_at);
 CREATE INDEX IF NOT EXISTS idx_license_verification_events_staff_id ON license_verification_events(staff_id);
 CREATE INDEX IF NOT EXISTS idx_role_permissions_role ON role_permissions(role);
 CREATE INDEX IF NOT EXISTS idx_permission_overrides_staff_id ON permission_overrides(staff_id);
@@ -824,6 +899,13 @@ CREATE INDEX IF NOT EXISTS idx_media_feed_posts_media_type ON media_feed_posts(m
 CREATE INDEX IF NOT EXISTS idx_patient_documents_patient_id ON patient_documents(patient_id);
 CREATE INDEX IF NOT EXISTS idx_patient_documents_status ON patient_documents(verification_status);
 CREATE INDEX IF NOT EXISTS idx_patient_documents_ocr_status ON patient_documents(ocr_status);
+CREATE INDEX IF NOT EXISTS idx_service_requirements_service_key ON service_requirements(service_key);
+CREATE INDEX IF NOT EXISTS idx_service_requirements_active ON service_requirements(is_active);
+CREATE INDEX IF NOT EXISTS idx_patient_requirement_submissions_patient_id ON patient_requirement_submissions(patient_id);
+CREATE INDEX IF NOT EXISTS idx_patient_requirement_submissions_status ON patient_requirement_submissions(status);
+CREATE INDEX IF NOT EXISTS idx_staff_documents_staff_id ON staff_documents(staff_id);
+CREATE INDEX IF NOT EXISTS idx_staff_documents_status ON staff_documents(verification_status);
+CREATE INDEX IF NOT EXISTS idx_staff_documents_expires_at ON staff_documents(expires_at);
 CREATE INDEX IF NOT EXISTS idx_upload_sessions_owner_status ON upload_sessions(owner_user_id, status);
 CREATE INDEX IF NOT EXISTS idx_upload_sessions_target_type ON upload_sessions(target_type);
 CREATE INDEX IF NOT EXISTS idx_upload_sessions_created_at ON upload_sessions(created_at DESC);

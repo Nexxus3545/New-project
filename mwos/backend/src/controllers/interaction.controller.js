@@ -216,6 +216,8 @@ const getThreads = async (req, res, next) => {
           ct.last_message_at,
           ct.updated_at,
           p.first_name || ' ' || p.last_name AS patient_name,
+          tcs.status AS teleconsult_status,
+          tcs.start_at AS teleconsult_start_at,
           (
             SELECT cm.body
             FROM conversation_messages cm
@@ -254,6 +256,13 @@ const getThreads = async (req, res, next) => {
        FROM conversation_threads ct
        JOIN conversation_participants cp ON cp.thread_id = ct.id
        LEFT JOIN patients p ON p.id = ct.patient_id
+       LEFT JOIN LATERAL (
+         SELECT status, start_at
+         FROM tele_consult_sessions
+         WHERE thread_id = ct.id
+         ORDER BY created_at DESC
+         LIMIT 1
+       ) tcs ON true
        WHERE ${conditions.join(' AND ')}
        ORDER BY ct.last_message_at DESC, ct.updated_at DESC
        LIMIT 100`,

@@ -59,11 +59,7 @@ const errorHandler = (err, req, res, next) => {
 
   // Default
   const status = err.statusCode || err.status || 500;
-  res.status(status).json(
-    buildErrorResponse(req, status, err.message || 'Internal server error', {
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-    })
-  );
+  res.status(status).json(buildErrorResponse(req, status, err.message || 'Internal server error'));
 };
 
 const notFound = (req, res) => {

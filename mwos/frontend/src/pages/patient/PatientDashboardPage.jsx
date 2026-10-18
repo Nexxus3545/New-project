@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../../utils/api'
 import { useAuthStore } from '../../store/authStore'
-import PregnancyWireframeScene from '../../components/patient/PregnancyWireframeScene'
 import RealtimeVitalsPanel from '../../components/patient/RealtimeVitalsPanel'
 
 export default function PatientDashboardPage() {
@@ -61,9 +60,31 @@ export default function PatientDashboardPage() {
         <div>
           <h1 className="page-title">Welcome, {user?.firstName}!</h1>
           <p className="page-sub">
-            Your maternal dashboard now includes a moving vitals monitor, a 3D-style pregnancy illustration,
-            educational media, and trimester-specific tips without losing the existing portal feel.
+            Review your status, next appointment, pregnancy progress, clinic alerts, records, and baby care in one place.
           </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="overflow-hidden rounded-[32px] border border-rose-100 bg-white shadow-sm">
+          <div className="h-56 bg-slate-100">
+            <img src="/clinic/clinic-exterior.jpg" alt="TMC Copino clinic exterior" className="h-full w-full object-cover" />
+          </div>
+          <div className="p-5">
+            <p className="section-kicker">TMC Copino Birthing Home</p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-900">Your clinic care starts here.</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Use this portal for appointments, requirements, documents, messages, and health education connected to your record.</p>
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-[32px] border border-rose-100 bg-white shadow-sm">
+          <div className="h-56 bg-slate-100">
+            <img src="/clinic/reception-information.jpg" alt="Clinic reception and information desk" className="h-full w-full object-cover" />
+          </div>
+          <div className="p-5">
+            <p className="section-kicker">Front-desk workflow</p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-900">Know what to bring before your visit.</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Check your document status, review requirements, and message the clinic if anything is missing before your schedule.</p>
+          </div>
         </div>
       </div>
 
@@ -90,18 +111,11 @@ export default function PatientDashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.06fr_0.94fr]">
-        <RealtimeVitalsPanel
-          latestVitals={dashboard.latestVitals}
-          activePregnancy={dashboard.activePregnancy}
-          title="Realtime maternal monitor"
-        />
-        <PregnancyWireframeScene
-          dashboard={dashboard}
-          latestVitals={dashboard.latestVitals}
-          tips={featuredTips}
-        />
-      </div>
+      <RealtimeVitalsPanel
+        latestVitals={dashboard.latestVitals}
+        activePregnancy={dashboard.activePregnancy}
+        title="Latest maternal monitor"
+      />
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
         <Link to="/my/doctors" className="card-hover">
@@ -147,7 +161,7 @@ export default function PatientDashboardPage() {
             ) : (
               <div className="space-y-3">
                 {suggestionList.map((item) => (
-                  <div key={item.id} className="rounded-3xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-4">
+                  <div key={item.id} className="rounded-3xl border border-rose-100 bg-rose-50 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-rose-500">{item.type}</p>
                       <span className="badge badge-gray">{item.priority || 'info'}</span>
@@ -163,8 +177,8 @@ export default function PatientDashboardPage() {
           <div className="card">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="section-title mb-1">3D Videos And Illustrations</h3>
-                <p className="text-sm text-gray-500">Educational media from the clinic team, paired with the new 3D-style maternal visualization.</p>
+                <h3 className="section-title mb-1">Health Tips & Education</h3>
+                <p className="text-sm text-gray-500">Clinic-approved pregnancy, postnatal, newborn-care, breastfeeding, nutrition, and wellness media.</p>
               </div>
               <span className="badge badge-gray">{featuredMedia.length}</span>
             </div>
@@ -229,7 +243,7 @@ export default function PatientDashboardPage() {
               <p className="text-sm text-gray-500">Stay in touch with the clinic and review the latest follow-up instructions.</p>
               <p className="mt-1 text-xs text-gray-400">{dashboard.unreadMessages ?? 0} unread threads and {dashboard.openCareTasks ?? 0} active care tasks.</p>
             </div>
-            <Link to="/my/interactions" className="btn-primary">Open Care Team</Link>
+            <Link to="/my/messages" className="btn-primary">Open Care Team</Link>
           </div>
 
           <div className="card">

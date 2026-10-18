@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../utils/api'
 
 const clinicQuery = 'TMC Copino Birthing Home and Medical Clinic Gajo Tiwi Albay'
@@ -16,6 +16,7 @@ const buildService = (type, title, description, query, cta) => ({
 })
 
 export default function PatientEmergencyPage() {
+  const queryClient = useQueryClient()
   const [requestForm, setRequestForm] = useState({
     requestType: 'ambulance',
     pickupLocation: '',
@@ -25,10 +26,21 @@ export default function PatientEmergencyPage() {
     callbackNumber: '',
     companionNotes: '',
   })
+  const [liveLocation, setLiveLocation] = useState(null)
+  const [locationState, setLocationState] = useState('idle')
+  const [locationError, setLocationError] = useState('')
+  const locationWatchRef = useRef(null)
+  const lastLocationPostRef = useRef(0)
+  const isLocationSharingRef = useRef(false)
 
   const { data: patient } = useQuery({
     queryKey: ['patient-me-emergency'],
     queryFn: () => api.get('/patients/me').then((response) => response.data.data),
+  })
+  const { data: activeLocation } = useQuery({
+    queryKey: ['emergency-location-me'],
+    queryFn: () => api.get('/emergency/location/me').then((response) => response.data.data),
+    refetchInterval: locationState === 'sharing' ? 30000 : false,
   })
 
   const originLabel = useMemo(() => {
@@ -36,24 +48,111 @@ export default function PatientEmergencyPage() {
     return parts.join(', ')
   }, [patient])
 
+  const sharedLocation = liveLocation || activeLocation
+
   const services = useMemo(() => {
     const communityBase = [patient?.barangay, patient?.city, patient?.province].filter(Boolean).join(' ')
     const communityQuery = communityBase ? `${communityBase} barangay health station` : 'Barangay health station Tiwi Albay'
     const ambulanceQuery = communityBase ? `${communityBase} ambulance service` : 'Ambulance service Tiwi Albay'
     const referralQuery = communityBase ? `hospital near ${communityBase}` : 'Hospital near Tiwi Albay'
 
-    return [
+    const baseServices = [
       buildService('clinic', 'Clinic triage hub', 'Open the clinic location in Google Maps for rapid arrival and referral coordination.', clinicQuery, 'Open clinic route'),
       buildService('barangay', 'Barangay healthcare service', 'Find the nearest barangay health station for immediate first response and local assistance.', communityQuery, 'Open barangay route'),
       buildService('ambulance', 'Emergency transport', 'Use the request form below, then open an ambulance-related map search for nearby transport options.', ambulanceQuery, 'Search ambulance route'),
       buildService('hospital', 'Referral hospital', 'Locate the nearest hospital in case the clinic or barangay team advises direct hospital transfer.', referralQuery, 'Open hospital route'),
     ]
-  }, [patient])
+    if (!sharedLocation) return baseServices
+
+    return [
+      buildService('live-location', 'My shared live location', `Device location last updated ${new Date(sharedLocation.sharedAt || Date.now()).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}. Emergency staff can use this point for coordination.`, `${sharedLocation.latitude},${sharedLocation.longitude}`, 'Open live location'),
+      ...baseServices,
+    ]
+  }, [patient, sharedLocation])
 
   const [selectedService, setSelectedService] = useState('clinic')
 
   const activeService = services.find((item) => item.type === selectedService) || services[0]
   const emergencyNumber = '911'
+
+  const locationMutation = useMutation({
+    mutationFn: (payload) => api.post('/emergency/location', payload).then((response) => response.data.data),
+    onSuccess: (data) => {
+      setLiveLocation(data)
+      setLocationState('sharing')
+      setLocationError('')
+      setSelectedService('live-location')
+      queryClient.setQueryData(['emergency-location-me'], data)
+    },
+    onError: (error) => setLocationError(error.response?.data?.message || 'We could not share your device location. Please check your connection and try again.'),
+  })
+
+  const stopLocationMutation = useMutation({
+    mutationFn: () => api.delete('/emergency/location'),
+    onSuccess: () => {
+      setLiveLocation(null)
+      setLocationState('idle')
+      setLocationError('')
+      queryClient.setQueryData(['emergency-location-me'], null)
+    },
+    onError: (error) => setLocationError(error.response?.data?.message || 'We stopped device tracking, but could not confirm that the saved share was removed. Please try again.'),
+  })
+
+  const stopLiveLocation = () => {
+    if (locationWatchRef.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(locationWatchRef.current)
+    locationWatchRef.current = null
+    isLocationSharingRef.current = false
+    setLocationState('idle')
+    stopLocationMutation.mutate()
+  }
+
+  const startLiveLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('This device does not support location sharing. Enter your pickup location manually or use your saved address.')
+      return
+    }
+
+    setLocationState('requesting')
+    setLocationError('')
+    isLocationSharingRef.current = true
+    locationWatchRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const payload = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracyMeters: position.coords.accuracy,
+          consent: true,
+        }
+        setLiveLocation({ ...payload, sharedAt: new Date().toISOString() })
+        setLocationState('sharing')
+        setRequestForm((current) => current.pickupLocation ? current : ({
+          ...current,
+          pickupLocation: `Current GPS location (${payload.latitude.toFixed(5)}, ${payload.longitude.toFixed(5)})`,
+        }))
+
+        const now = Date.now()
+        if (now - lastLocationPostRef.current >= 10000) {
+          lastLocationPostRef.current = now
+          locationMutation.mutate(payload)
+        }
+      },
+      (error) => {
+        isLocationSharingRef.current = false
+        if (locationWatchRef.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(locationWatchRef.current)
+        locationWatchRef.current = null
+        setLocationState('idle')
+        setLocationError(error.code === 1
+          ? 'Location permission was not granted. You can still use your saved address or enter a pickup location.'
+          : 'We could not get your current location. Please check location services and try again.')
+      },
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+    )
+  }
+
+  useEffect(() => () => {
+    if (locationWatchRef.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(locationWatchRef.current)
+    if (isLocationSharingRef.current) void api.delete('/emergency/location').catch(() => {})
+  }, [])
 
   const emergencyMutation = useMutation({
     mutationFn: () => {
@@ -66,6 +165,7 @@ export default function PatientEmergencyPage() {
         `Preferred destination: ${requestForm.destination || 'TMC Copino Clinic'}`,
         `Callback number: ${requestForm.callbackNumber || patient?.phone || 'Not provided'}`,
         `Companion notes: ${requestForm.companionNotes || 'None'}`,
+        `Live GPS: ${sharedLocation ? `${sharedLocation.latitude}, ${sharedLocation.longitude} (accuracy ${Math.round(sharedLocation.accuracyMeters || 0)} m)` : 'Not shared'}`,
       ].join('\n')
 
       return api.post('/interactions/threads', {
@@ -106,7 +206,24 @@ export default function PatientEmergencyPage() {
         <div className="card">
           <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Care team</p>
           <p className="mt-3 text-sm font-semibold text-slate-900">Clinic and barangay escalation</p>
-          <Link to="/my/interactions" className="btn-secondary btn-sm mt-4 justify-center">Open messages</Link>
+          <Link to="/my/messages" className="btn-secondary btn-sm mt-4 justify-center">Open messages</Link>
+        </div>
+      </div>
+
+      <div className={`card ${locationState === 'sharing' ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200'}`}>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Live pickup location</p>
+            <h2 className="mt-2 text-lg font-semibold text-slate-900">{locationState === 'sharing' ? 'Your device location is being shared with emergency staff' : 'Share your current device location during an emergency'}</h2>
+            <p className="mt-2 max-w-3xl text-sm text-slate-600">Location sharing is optional. It is sent only to authorized clinic staff for emergency coordination, automatically expires after 15 minutes without an update, and stops when you leave this page or choose Stop sharing.</p>
+            {sharedLocation && <p className="mt-2 text-xs text-slate-500">Last device update: {new Date(sharedLocation.sharedAt).toLocaleString('en-PH')} {sharedLocation.accuracyMeters ? `· accuracy about ${Math.round(sharedLocation.accuracyMeters)} m` : ''}</p>}
+            {locationError && <p className="mt-2 text-sm text-red-700" role="alert">{locationError}</p>}
+          </div>
+          {locationState === 'sharing' ? (
+            <button type="button" className="btn-danger justify-center" disabled={stopLocationMutation.isPending} onClick={stopLiveLocation}>{stopLocationMutation.isPending ? 'Stopping...' : 'Stop sharing'}</button>
+          ) : (
+            <button type="button" className="btn-primary justify-center" disabled={locationState === 'requesting'} onClick={startLiveLocation}>{locationState === 'requesting' ? 'Requesting location...' : 'Share live location'}</button>
+          )}
         </div>
       </div>
 
@@ -219,7 +336,7 @@ export default function PatientEmergencyPage() {
             </div>
 
             <div className="flex justify-end gap-2">
-              <button type="button" className="btn-secondary" onClick={() => setRequestForm((current) => ({ ...current, pickupLocation: originLabel || current.pickupLocation }))}>Use recorded location</button>
+              <button type="button" className="btn-secondary" onClick={() => setRequestForm((current) => ({ ...current, pickupLocation: sharedLocation ? `Current GPS location (${sharedLocation.latitude.toFixed(5)}, ${sharedLocation.longitude.toFixed(5)})` : originLabel || current.pickupLocation }))}>{sharedLocation ? 'Use live location' : 'Use saved address'}</button>
               <button type="submit" className="btn-primary" disabled={emergencyMutation.isPending}>
                 {emergencyMutation.isPending ? 'Sending request...' : 'Send urgent transport request'}
               </button>

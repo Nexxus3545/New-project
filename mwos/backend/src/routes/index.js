@@ -22,6 +22,9 @@ const medicineCtrl = require('../controllers/medicine.controller');
 const aiCtrl = require('../controllers/ai.controller');
 const uploadSessionCtrl = require('../controllers/upload.controller');
 const staffCtrl = require('../controllers/staff.controller');
+const staffDocumentCtrl = require('../controllers/staffDocument.controller');
+const requirementsCtrl = require('../controllers/requirements.controller');
+const emergencyLocationCtrl = require('../controllers/emergencyLocation.controller');
 const securityCtrl = require('../controllers/security.controller');
 const { uploadVideo, uploadDocument, uploadMedicineImage } = require('../middleware/uploads');
 const { signClinicalRecord } = require('../utils/security');
@@ -75,6 +78,20 @@ router.get('/documents/my', authorize('patient'), documentCtrl.getMine);
 router.post('/documents/my', authorize('patient'), uploadDocument.single('file'), documentCtrl.uploadMine);
 router.get('/documents', authorize('admin','doctor','midwife','nurse'), documentCtrl.list);
 router.patch('/documents/:id/verify', authenticate, authorizePermission('clinical:documents:review'), documentCtrl.verify);
+
+// ── PATIENT SERVICE REQUIREMENTS ───────────────────────────────────────────────
+router.get('/requirements/services', authorize('admin','doctor','midwife','nurse','patient'), requirementsCtrl.listServices);
+router.post('/requirements/services', authorize('admin'), requirementsCtrl.upsertServiceRequirement);
+router.get('/requirements/my', authorize('patient'), requirementsCtrl.getMine);
+router.post('/requirements/my/:requirementId/submit', authorize('patient'), requirementsCtrl.submitMine);
+router.get('/requirements/patient/:patientId', authorize('admin','doctor','midwife','nurse'), requirementsCtrl.getByPatient);
+router.patch('/requirements/submissions/:id/review', authorizePermission('clinical:documents:review'), requirementsCtrl.reviewSubmission);
+
+// ── CONSENT-BASED EMERGENCY LOCATION SHARING ───────────────────────────────────
+router.get('/emergency/location/me', authorize('patient'), emergencyLocationCtrl.getMine);
+router.post('/emergency/location', authorize('patient'), emergencyLocationCtrl.shareMine);
+router.delete('/emergency/location', authorize('patient'), emergencyLocationCtrl.stopSharingMine);
+router.get('/emergency/locations', authorize('admin','doctor','midwife','nurse'), emergencyLocationCtrl.listActive);
 
 // ── MEDICINES ──────────────────────────────────────────────────────────────────
 router.get('/medicines', medicineCtrl.getAll);
@@ -470,6 +487,15 @@ router.get('/users', authenticate, authorize('admin'), async (req, res, next) =>
          sr.license_type AS staff_license_type,
          sr.license_status AS staff_license_status,
          sr.credential_notes AS staff_credential_notes,
+         sr.profile_photo_url AS staff_profile_photo_url,
+         sr.specialization AS staff_specialization,
+         sr.years_experience AS staff_years_experience,
+         sr.education_background AS staff_education_background,
+         sr.professional_qualifications AS staff_professional_qualifications,
+         sr.certifications AS staff_certifications,
+         sr.training_summary AS staff_training_summary,
+         sr.public_profile_summary AS staff_public_profile_summary,
+         sr.credential_expires_at AS staff_credential_expires_at,
          sr.verified_at AS staff_verified_at,
          sr.last_reviewed_at AS staff_last_reviewed_at,
          verifier.first_name || ' ' || verifier.last_name AS staff_verified_by_name,
@@ -513,6 +539,12 @@ router.patch('/users/:id/toggle', authenticate, authorize('admin'), requireStepU
 // ── NOTIFICATIONS ─────────────────────────────────────────────────────────────
 router.get('/staff/registry', authenticate, authorize('admin'), staffCtrl.listRegistry);
 router.get('/staff/registry/me', authenticate, authorize('admin','doctor','midwife','nurse'), staffCtrl.getMine);
+router.get('/staff/registry/me/documents', authenticate, authorize('admin','doctor','midwife','nurse'), staffDocumentCtrl.listMine);
+router.post('/staff/registry/me/documents', authenticate, authorize('admin','doctor','midwife','nurse'), uploadDocument.single('file'), staffDocumentCtrl.uploadMine);
+router.get('/staff/registry/documents/expiring', authenticate, authorize('admin'), staffDocumentCtrl.listExpiring);
+router.get('/staff/registry/:staffId/documents', authenticate, authorize('admin'), staffDocumentCtrl.listForStaff);
+router.post('/staff/registry/:staffId/documents', authenticate, authorize('admin'), uploadDocument.single('file'), staffDocumentCtrl.uploadForStaff);
+router.patch('/staff/documents/:id/review', authenticate, authorize('admin'), staffDocumentCtrl.reviewDocument);
 router.patch('/staff/registry/:userId/license', authenticate, authorize('admin'), requireStepUp('license-change'), staffCtrl.updateLicense);
 router.get('/notifications', authenticate, notificationCtrl.getMine);
 router.patch('/notifications/:id/read', authenticate, notificationCtrl.markRead);

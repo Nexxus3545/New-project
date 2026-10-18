@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts'
 import api from '../../utils/api'
-import PregnancyWireframeScene from '../../components/patient/PregnancyWireframeScene'
 import RealtimeVitalsPanel from '../../components/patient/RealtimeVitalsPanel'
 
 const formatDate = (value) => new Date(value).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
@@ -48,7 +47,7 @@ export default function PatientReportsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Reports</h1>
-          <p className="page-sub">Moving vitals, a 3D pregnancy guide, and record highlights in the same patient portal.</p>
+          <p className="page-sub">Review recent vitals, care summaries, and record highlights in one clear patient portal.</p>
         </div>
       </div>
 
@@ -59,18 +58,11 @@ export default function PatientReportsPage() {
         <div className="card"><p className="text-xs font-medium uppercase tracking-[0.18em] text-gray-500">Clinic rating</p><p className="mt-3 text-3xl font-semibold text-gray-900">{Number(dashboard?.reviewSummary?.average_rating || 0).toFixed(2)}</p></div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <RealtimeVitalsPanel
-          latestVitals={latestVitals}
-          activePregnancy={dashboard?.activePregnancy}
-          title="Realtime vitals report"
-        />
-        <PregnancyWireframeScene
-          dashboard={dashboard}
-          latestVitals={latestVitals}
-          tips={featuredTips}
-        />
-      </div>
+      <RealtimeVitalsPanel
+        latestVitals={latestVitals}
+        activePregnancy={dashboard?.activePregnancy}
+        title="Latest vitals report"
+      />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <div className="card">

@@ -1,5 +1,5 @@
 import React from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import api from '../../utils/api'
 import { useAuthStore } from '../../store/authStore'
@@ -108,7 +108,7 @@ export function PatientDashboardPage() {
           <p className="text-sm text-gray-500">Stay in touch with the clinic and review the latest follow-up instructions.</p>
           <p className="text-xs text-gray-400 mt-1">{d.unreadMessages ?? 0} unread message threads and {d.openCareTasks ?? 0} active care tasks.</p>
         </div>
-        <Link to="/my/interactions" className="btn-primary">
+        <Link to="/my/messages" className="btn-primary">
           Open Care Team
         </Link>
       </div>
@@ -218,16 +218,117 @@ export function PatientVitalsPage() {
 
 // ── PATIENT RECORDS ───────────────────────────────────────────
 export function PatientRecordsPage() {
+  const queryClient = useQueryClient()
   const { data: meData } = useQuery({ queryKey: ['patient-me'], queryFn: () => api.get('/patients/me').then(r => r.data.data) })
   const patientId = meData?.id
 
   const { data: labs } = useQuery({ queryKey: ['labs-me'], queryFn: () => api.get(`/emr/labs/${patientId}`).then(r => r.data.data), enabled: !!patientId })
   const { data: rx } = useQuery({ queryKey: ['rx-me'], queryFn: () => api.get(`/emr/prescriptions/${patientId}`).then(r => r.data.data), enabled: !!patientId })
+  const { data: documents = [] } = useQuery({
+    queryKey: ['patient-documents'],
+    queryFn: () => api.get('/documents/my').then(r => r.data.data),
+  })
+  const { data: requirements = [], isLoading: isLoadingRequirements } = useQuery({
+    queryKey: ['patient-requirements'],
+    queryFn: () => api.get('/requirements/my').then(r => r.data.data),
+  })
+  const [selectedDocuments, setSelectedDocuments] = React.useState({})
+  const [requirementNotice, setRequirementNotice] = React.useState('')
+
+  const submitRequirement = useMutation({
+    mutationFn: ({ requirementId, documentId }) => api.post(`/requirements/my/${requirementId}/submit`, { documentId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patient-requirements'] })
+      setRequirementNotice('Document submitted for clinic review.')
+    },
+    onError: (error) => setRequirementNotice(error.response?.data?.message || 'We could not submit this requirement. Please try again.'),
+  })
+
+  const requirementTone = (status) => ({
+    approved: 'badge-success',
+    submitted: 'badge-info',
+    pending_review: 'badge-warning',
+    rejected: 'badge-danger',
+    missing: 'badge-danger',
+  }[status] || 'badge-gray')
+
+  const missingRequirements = requirements.filter((requirement) => requirement.isRequired && !['approved', 'submitted', 'pending_review'].includes(requirement.submission?.status)).length
 
   return (
     <div>
       <div className="page-header"><h1 className="page-title">My Records</h1></div>
       <div className="space-y-6">
+        <div className="card">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h3 className="section-title mb-1">Patient Requirements</h3>
+              <p className="text-sm text-gray-500">Submit the correct document for each clinic service. The clinic reviews every submission before it is approved.</p>
+            </div>
+            {!isLoadingRequirements && requirements.length > 0 && (
+              <span className={`badge ${missingRequirements > 0 ? 'badge-warning' : 'badge-success'}`}>
+                {missingRequirements > 0 ? `${missingRequirements} action${missingRequirements === 1 ? '' : 's'} needed` : 'Requirements complete'}
+              </span>
+            )}
+          </div>
+
+          {requirementNotice && <p className={`mt-4 text-sm ${submitRequirement.isError ? 'text-red-700' : 'text-emerald-700'}`}>{requirementNotice}</p>}
+
+          <div className="mt-5 space-y-3">
+            {isLoadingRequirements ? (
+              <div className="flex justify-center py-5"><div className="loading-spinner w-6 h-6" /></div>
+            ) : requirements.length === 0 ? (
+              <p className="text-sm text-gray-400">The clinic has not configured document requirements for your services yet.</p>
+            ) : requirements.map((requirement) => {
+              const status = requirement.submission?.status || 'missing'
+              const canSubmit = !['approved', 'submitted', 'pending_review'].includes(status)
+              const selectedDocumentId = selectedDocuments[requirement.id] || ''
+
+              return (
+                <div key={requirement.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">{requirement.serviceName}</p>
+                      <p className="mt-1 font-semibold text-slate-900">{requirement.requirementName}</p>
+                      {requirement.description && <p className="mt-1 text-sm text-slate-500">{requirement.description}</p>}
+                      {requirement.submission?.reviewNotes && <p className="mt-2 text-xs text-slate-500">Clinic note: {requirement.submission.reviewNotes}</p>}
+                    </div>
+                    <span className={`badge ${requirementTone(status)}`}>{status.replace(/_/g, ' ')}</span>
+                  </div>
+
+                  {requirement.submission?.documentName && (
+                    <a className="mt-3 inline-block text-sm font-medium text-[var(--accent)]" href={requirement.submission.documentUrl} target="_blank" rel="noreferrer">
+                      View submitted document: {requirement.submission.documentName}
+                    </a>
+                  )}
+
+                  {canSubmit && (
+                    <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+                      <select
+                        className="input"
+                        value={selectedDocumentId}
+                        onChange={(event) => setSelectedDocuments((current) => ({ ...current, [requirement.id]: event.target.value }))}
+                      >
+                        <option value="">Select an uploaded document</option>
+                        {documents.map((document) => <option key={document.id} value={document.id}>{document.document_type}: {document.original_name}</option>)}
+                      </select>
+                      <button
+                        type="button"
+                        className="btn-primary justify-center"
+                        disabled={!selectedDocumentId || submitRequirement.isPending}
+                        onClick={() => submitRequirement.mutate({ requirementId: requirement.id, documentId: selectedDocumentId })}
+                      >
+                        {submitRequirement.isPending ? 'Submitting...' : 'Submit for review'}
+                      </button>
+                    </div>
+                  )}
+
+                  {canSubmit && documents.length === 0 && <p className="mt-3 text-xs text-slate-500">Upload your document in Profile before submitting it for clinic review.</p>}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
         <div className="card">
           <h3 className="section-title">Lab Results</h3>
           {!labs?.length ? <p className="text-gray-400 text-sm">No lab results yet</p> : (
