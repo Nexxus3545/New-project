@@ -1,12 +1,32 @@
 ﻿import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import api from '../utils/api'
+
+const oauthErrors = {
+  google_unavailable: 'Google sign-in is not available yet. Please use your MWOS email and password.',
+  facebook_unavailable: 'Facebook sign-in is not available yet. Please use your MWOS email and password.',
+  oauth_state_invalid: 'Your sign-in session could not be verified. Please try again.',
+  oauth_account_exists: 'This email already has an MWOS password account. Sign in with your password first to keep it protected.',
+  oauth_email_required: 'Your provider did not share a verified email address. Please use your MWOS password instead.',
+  oauth_profile_incomplete: 'Your provider profile needs a first and last name before it can create an account.',
+  oauth_role_restricted: 'Google and Facebook sign-in are available for patient accounts only.',
+  oauth_account_inactive: 'This account is not active. Please contact TMC Copino for assistance.',
+  oauth_failed: 'We could not complete your provider sign-in. Please try again or use your MWOS password.',
+}
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' })
   const [showPass, setShowPass] = useState(false)
   const { login, loginWithPasskey, isLoading, error, clearError } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
+  const [providerError, setProviderError] = useState('')
+
+  useEffect(() => {
+    setProviderError(oauthErrors[new URLSearchParams(location.search).get('oauth_error')] || '')
+  }, [location.search])
 
   const handleChange = (event) => {
     clearError()
@@ -31,6 +51,12 @@ export default function LoginPage() {
     }
   }
 
+  const handleProviderLogin = (provider) => {
+    clearError()
+    setProviderError('')
+    window.location.assign(`${api.defaults.baseURL}/auth/${provider}`)
+  }
+
   return (
     <div className="auth-form-stack">
       <div className="auth-form-heading">
@@ -41,7 +67,7 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {error ? <div className="alert-critical auth-form-alert" role="alert">{error}</div> : null}
+      {error || providerError ? <div className="alert-critical auth-form-alert" role="alert">{error || providerError}</div> : null}
 
       <form onSubmit={handleSubmit} className="auth-login-form">
         <div>
@@ -113,6 +139,21 @@ export default function LoginPage() {
         >
           Sign in with passkey
         </button>
+
+        <div className="auth-provider-section">
+          <p>Or continue with</p>
+          <div className="auth-provider-actions">
+            <button type="button" disabled={isLoading} onClick={() => handleProviderLogin('google')} className="auth-provider-button">
+              <span className="auth-provider-mark auth-provider-mark-google" aria-hidden="true">G</span>
+              Continue with Google
+            </button>
+            <button type="button" disabled={isLoading} onClick={() => handleProviderLogin('facebook')} className="auth-provider-button">
+              <span className="auth-provider-mark auth-provider-mark-facebook" aria-hidden="true">f</span>
+              Continue with Facebook
+            </button>
+          </div>
+          <p className="auth-provider-note">Available for patient accounts. TMC Copino staff accounts remain clinic-managed.</p>
+        </div>
 
         <p className="text-center text-sm leading-6 text-slate-500 dark:text-slate-400">
           New patient? <Link to="/register" className="font-semibold text-[var(--accent)] hover:underline">Create your secure account</Link>

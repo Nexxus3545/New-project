@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import api from '../utils/api'
 
 const roles = ['patient', 'nurse', 'midwife', 'doctor', 'admin']
 const steps = [
@@ -57,6 +58,11 @@ export default function RegisterPage() {
     setStep((current) => Math.max(0, current - 1))
   }
 
+  const handleProviderRegistration = (provider) => {
+    clearError()
+    window.location.assign(`${api.defaults.baseURL}/auth/${provider}`)
+  }
+
   return (
     <div className="auth-form-stack auth-register-stack">
       <div className="auth-form-heading">
@@ -89,6 +95,23 @@ export default function RegisterPage() {
       </nav>
 
       {error ? <div className="alert-critical auth-form-alert" role="alert">{error}</div> : null}
+
+      {step === 0 ? (
+        <div className="auth-provider-section auth-provider-section-register">
+          <p>Create a patient account with</p>
+          <div className="auth-provider-actions">
+            <button type="button" disabled={isLoading} onClick={() => handleProviderRegistration('google')} className="auth-provider-button">
+              <span className="auth-provider-mark auth-provider-mark-google" aria-hidden="true">G</span>
+              Continue with Google
+            </button>
+            <button type="button" disabled={isLoading} onClick={() => handleProviderRegistration('facebook')} className="auth-provider-button">
+              <span className="auth-provider-mark auth-provider-mark-facebook" aria-hidden="true">f</span>
+              Continue with Facebook
+            </button>
+          </div>
+          <p className="auth-provider-note">Social sign-in creates patient accounts only. You will provide your date of birth before opening the care portal.</p>
+        </div>
+      ) : null}
 
       <form onSubmit={onSubmit} className="auth-register-form">
         <div className="space-y-5">

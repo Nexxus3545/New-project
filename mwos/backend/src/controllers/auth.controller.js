@@ -283,7 +283,7 @@ const refreshToken = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Refresh token reuse detected' });
     }
 
-    const { accessToken, refreshToken: newRefreshToken } = generateTokens(user.id, user.role);
+    const { accessToken, refreshToken: newRefreshToken } = generateSessionTokens(user.id, user.role);
     await query('UPDATE users SET refresh_token = $1, updated_at = NOW() WHERE id = $2', [newRefreshToken, user.id]);
 
     res.json({

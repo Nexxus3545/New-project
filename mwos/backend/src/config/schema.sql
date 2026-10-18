@@ -169,6 +169,30 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_preferences JSONB DEFAULT '{"theme
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
 
+-- External login identities are kept separate from the user record. This prevents
+-- a provider account with a matching email from taking over an existing MWOS login.
+CREATE TABLE IF NOT EXISTS oauth_identities (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  provider VARCHAR(24) NOT NULL CHECK (provider IN ('google', 'facebook')),
+  provider_subject VARCHAR(255) NOT NULL,
+  provider_email VARCHAR(255),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (provider, provider_subject),
+  UNIQUE (user_id, provider)
+);
+
+-- OAuth callbacks redirect with a one-time code, never an MWOS access or refresh token.
+CREATE TABLE IF NOT EXISTS oauth_login_codes (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  code_hash VARCHAR(64) UNIQUE NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 UPDATE users
 SET ui_preferences = '{"theme":"light","accent":"rose","density":"comfortable","surface":"solid","motion":"full"}'
 WHERE ui_preferences IS NULL
@@ -873,6 +897,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_request_id ON audit_logs(request_id);
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_oauth_identities_user_id ON oauth_identities(user_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_login_codes_expires_at ON oauth_login_codes(expires_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
 CREATE INDEX IF NOT EXISTS idx_emergency_location_shares_expires_at ON emergency_location_shares(expires_at);

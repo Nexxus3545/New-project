@@ -112,6 +112,35 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
+  completeOAuthLogin: async (code) => {
+    set({ isLoading: true, error: null })
+    try {
+      const res = await api.post('/auth/oauth/exchange', { code })
+      const { accessToken, refreshToken, user } = res.data.data
+      setSessionTokens(accessToken, refreshToken)
+      applyAuthenticatedUser(user, set)
+      set({ stepUpToken: null })
+      return { success: true, user }
+    } catch (err) {
+      const msg = friendlyAuthError(err, 'We could not complete your provider sign-in. Please try again.')
+      set({ isLoading: false, error: msg })
+      return { success: false, error: msg }
+    }
+  },
+
+  completeOAuthPatientProfile: async (form) => {
+    set({ isLoading: true, error: null })
+    try {
+      const res = await api.post('/auth/oauth/complete-profile', form)
+      applyAuthenticatedUser(res.data.data, set)
+      return { success: true, user: res.data.data }
+    } catch (err) {
+      const msg = friendlyAuthError(err, 'We could not complete your patient profile. Please try again.')
+      set({ isLoading: false, error: msg })
+      return { success: false, error: msg }
+    }
+  },
+
   loginWithPasskey: async (email) => {
     set({ isLoading: true, error: null })
     try {

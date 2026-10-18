@@ -14,8 +14,10 @@ export default function AuthLayout() {
   const isHydrating = useAuthStore((state) => state.isHydrating)
   const location = useLocation()
   const isRegistration = location.pathname === '/register'
+  const isOAuthCallback = location.pathname === '/oauth-callback'
 
-  if (user) return <Navigate to="/" replace />
+  // A new OAuth patient must finish the required birth details before leaving this screen.
+  if (user && !isOAuthCallback) return <Navigate to="/" replace />
   if (isHydrating) {
     return <div className="flex min-h-screen items-center justify-center"><div className="loading-spinner h-10 w-10" /></div>
   }

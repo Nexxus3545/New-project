@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const { passport, initializeOAuth } = require('./config/oauth');
 
 const { testConnection } = require('./config/database');
 const { setupSwagger } = require('./config/swagger');
@@ -80,6 +81,8 @@ app.use('/api/v1/auth/login', authLimiter);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+initializeOAuth();
+app.use(passport.initialize());
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
 if (process.env.NODE_ENV !== 'test') {

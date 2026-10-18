@@ -28,6 +28,8 @@ const emergencyLocationCtrl = require('../controllers/emergencyLocation.controll
 const securityCtrl = require('../controllers/security.controller');
 const { uploadVideo, uploadDocument, uploadMedicineImage } = require('../middleware/uploads');
 const { signClinicalRecord } = require('../utils/security');
+const oauthCtrl = require('../controllers/oauth.controller');
+const { passport } = require('../config/oauth');
 
 // ── AUTH ──────────────────────────────────────────────────────
 router.post('/auth/login', authCtrl.login);
@@ -46,6 +48,12 @@ router.post('/auth/webauthn/register/start', authenticate, authorize('admin','do
 router.post('/auth/webauthn/register/finish', authenticate, authorize('admin','doctor','midwife','nurse'), securityCtrl.finishWebAuthnRegistration);
 router.post('/auth/webauthn/login/start', securityCtrl.startWebAuthnLogin);
 router.post('/auth/webauthn/login/finish', securityCtrl.finishWebAuthnLogin);
+router.get('/auth/google', oauthCtrl.start('google', passport));
+router.get('/auth/google/callback', oauthCtrl.ensureConfigured('google'), oauthCtrl.validateState('google'), oauthCtrl.callback('google', passport));
+router.get('/auth/facebook', oauthCtrl.start('facebook', passport));
+router.get('/auth/facebook/callback', oauthCtrl.ensureConfigured('facebook'), oauthCtrl.validateState('facebook'), oauthCtrl.callback('facebook', passport));
+router.post('/auth/oauth/exchange', oauthCtrl.exchange);
+router.post('/auth/oauth/complete-profile', authenticate, authorize('patient'), oauthCtrl.completePatientProfile);
 
 // ── PUBLIC CONTENT ──────────────────────────────────────────────────────────────
 router.get('/media-feed/posts', mediaCtrl.list);

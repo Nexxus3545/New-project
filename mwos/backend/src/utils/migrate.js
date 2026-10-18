@@ -23,7 +23,7 @@ async function migrate({ reset = false, closePool = true } = {}) {
           immunizations, postpartum_records, prescriptions,
           ultrasounds, lab_results, labor_progress, deliveries,
           vitals, appointments, pregnancies, patients,
-          password_reset_tokens, users
+          oauth_login_codes, oauth_identities, password_reset_tokens, users
         CASCADE;
       `);
       console.log('Existing tables removed');
