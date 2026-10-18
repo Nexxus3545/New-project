@@ -7,6 +7,10 @@ const apiBaseUrl = configuredApiUrl
   ? (configuredApiUrl.endsWith('/api') ? configuredApiUrl : `${configuredApiUrl}/api`)
   : '/api'
 
+// Local development uses Vite's proxy. A hosted portal needs the separate API
+// origin before OAuth can safely leave the MWOS site.
+export const socialAuthAvailable = Boolean(configuredApiUrl) || import.meta.env.DEV
+
 const api = axios.create({
   baseURL: apiBaseUrl,
   timeout: 15000,

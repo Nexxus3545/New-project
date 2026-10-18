@@ -2,7 +2,7 @@
 import { useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import api from '../utils/api'
+import api, { socialAuthAvailable } from '../utils/api'
 
 const oauthErrors = {
   google_unavailable: 'Google sign-in is not available yet. Please use your MWOS email and password.',
@@ -54,6 +54,10 @@ export default function LoginPage() {
   const handleProviderLogin = (provider) => {
     clearError()
     setProviderError('')
+    if (!socialAuthAvailable) {
+      setProviderError("Google and Facebook sign-in will be available once the clinic's secure service connection is activated.")
+      return
+    }
     window.location.assign(`${api.defaults.baseURL}/auth/${provider}`)
   }
 

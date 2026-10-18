@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import api from '../utils/api'
+import api, { socialAuthAvailable } from '../utils/api'
 
 const roles = ['patient', 'nurse', 'midwife', 'doctor', 'admin']
 const steps = [
@@ -15,6 +15,7 @@ export default function RegisterPage() {
   const navigate = useNavigate()
   const { register, isLoading, error, clearError } = useAuthStore()
   const [step, setStep] = useState(0)
+  const [providerError, setProviderError] = useState('')
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -28,6 +29,7 @@ export default function RegisterPage() {
 
   const onChange = (e) => {
     clearError()
+    setProviderError('')
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
@@ -60,6 +62,11 @@ export default function RegisterPage() {
 
   const handleProviderRegistration = (provider) => {
     clearError()
+    setProviderError('')
+    if (!socialAuthAvailable) {
+      setProviderError("Google and Facebook registration will be available once the clinic's secure service connection is activated.")
+      return
+    }
     window.location.assign(`${api.defaults.baseURL}/auth/${provider}`)
   }
 
@@ -94,7 +101,7 @@ export default function RegisterPage() {
         </div>
       </nav>
 
-      {error ? <div className="alert-critical auth-form-alert" role="alert">{error}</div> : null}
+      {error || providerError ? <div className="alert-critical auth-form-alert" role="alert">{error || providerError}</div> : null}
 
       {step === 0 ? (
         <div className="auth-provider-section auth-provider-section-register">
