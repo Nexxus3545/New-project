@@ -40,6 +40,17 @@ const setSessionTokens = (accessToken, refreshToken, stepUpToken = null) => {
   persistStepUpToken(stepUpToken)
 }
 
+const friendlyAuthError = (error, fallback) => {
+  const status = error.response?.status
+  const message = error.response?.data?.message
+
+  if ([404, 405, 502, 503, 504].includes(status) || /route .* not found/i.test(message || '')) {
+    return 'The clinic service is temporarily unavailable. Please try again shortly or contact TMC Copino for assistance.'
+  }
+
+  return message || error.message || fallback
+}
+
 export const useAuthStore = create((set, get) => ({
   user: getStoredUser(),
   stepUpToken: localStorage.getItem('stepUpToken'),
@@ -79,7 +90,23 @@ export const useAuthStore = create((set, get) => ({
       set({ stepUpToken: null })
       return { success: true, user }
     } catch (err) {
-      const msg = err.response?.data?.message || 'Login failed. Please try again.'
+      const msg = friendlyAuthError(err, 'Login failed. Please try again.')
+      set({ isLoading: false, error: msg })
+      return { success: false, error: msg }
+    }
+  },
+
+  register: async (form) => {
+    set({ isLoading: true, error: null })
+    try {
+      const res = await api.post('/auth/register', form)
+      const { accessToken, refreshToken, user } = res.data.data
+      setSessionTokens(accessToken, refreshToken)
+      applyAuthenticatedUser(user, set)
+      set({ stepUpToken: null })
+      return { success: true, user }
+    } catch (err) {
+      const msg = friendlyAuthError(err, 'We could not create your account. Please try again.')
       set({ isLoading: false, error: msg })
       return { success: false, error: msg }
     }
@@ -102,7 +129,7 @@ export const useAuthStore = create((set, get) => ({
       set({ stepUpToken: stepUpToken || null })
       return { success: true, user, stepUpToken }
     } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Passkey sign-in failed.'
+      const msg = friendlyAuthError(err, 'Passkey sign-in failed.')
       set({ isLoading: false, error: msg })
       return { success: false, error: msg }
     }
@@ -127,7 +154,7 @@ export const useAuthStore = create((set, get) => ({
       set({ isLoading: false, error: null })
       return { success: true, ...finishRes.data.data }
     } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Passkey registration failed.'
+      const msg = friendlyAuthError(err, 'Passkey registration failed.')
       set({ isLoading: false, error: msg })
       return { success: false, error: msg }
     }
@@ -140,7 +167,7 @@ export const useAuthStore = create((set, get) => ({
       set({ isLoading: false, error: null })
       return { success: true, ...res.data.data }
     } catch (err) {
-      const msg = err.response?.data?.message || 'Request failed. Please try again.'
+      const msg = friendlyAuthError(err, 'Request failed. Please try again.')
       set({ isLoading: false, error: msg })
       return { success: false, error: msg }
     }
@@ -155,7 +182,7 @@ export const useAuthStore = create((set, get) => ({
       set({ isLoading: false, error: null, stepUpToken })
       return { success: true, stepUpToken }
     } catch (err) {
-      const msg = err.response?.data?.message || 'OTP verification failed. Please try again.'
+      const msg = friendlyAuthError(err, 'OTP verification failed. Please try again.')
       set({ isLoading: false, error: msg })
       return { success: false, error: msg }
     }
@@ -168,7 +195,7 @@ export const useAuthStore = create((set, get) => ({
       set({ isLoading: false, error: null })
       return { success: true, message: res.data?.message || 'Reset link sent' }
     } catch (err) {
-      const msg = err.response?.data?.message || 'Request failed. Please try again.'
+      const msg = friendlyAuthError(err, 'Request failed. Please try again.')
       set({ isLoading: false, error: msg })
       return { success: false, error: msg }
     }
@@ -181,7 +208,7 @@ export const useAuthStore = create((set, get) => ({
       set({ isLoading: false, error: null })
       return { success: true, message: res.data?.message || 'Password reset complete' }
     } catch (err) {
-      const msg = err.response?.data?.message || 'Password reset failed. Please try again.'
+      const msg = friendlyAuthError(err, 'Password reset failed. Please try again.')
       set({ isLoading: false, error: msg })
       return { success: false, error: msg }
     }
