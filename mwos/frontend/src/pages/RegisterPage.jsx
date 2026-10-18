@@ -58,54 +58,40 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-[32px] border border-white/80 bg-white/85 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/75">
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="auth-form-stack auth-register-stack">
+      <div className="auth-form-heading">
+        <p className="auth-kicker">Patient account registration</p>
+        <h2>Create your account</h2>
+        <p>
+          Complete the short form to manage clinic follow-ups, records, and care-team communication securely.
+        </p>
+      </div>
+
+      <nav className="auth-step-nav" aria-label="Account creation progress">
+        <div className="auth-step-scroll">
           {steps.map((item, index) => (
             <button
               key={item.label}
               type="button"
               onClick={() => setStep(index)}
-              className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+              aria-current={step === index ? 'step' : undefined}
+              className={`auth-step-button ${
                 step === index
-                  ? 'bg-[var(--accent)] text-white shadow-lg'
-                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+                  ? 'auth-step-button-active'
+                  : ''
               }`}
             >
+              <span>{index + 1}</span>
               {item.label}
             </button>
           ))}
         </div>
-        <h2 className="mt-4 text-3xl font-semibold text-slate-900 dark:text-slate-50">Create account</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-500 dark:text-slate-400">
-          Set up a secure MWOS account to manage clinic follow-ups, records, and care team access.
-        </p>
-      </div>
+      </nav>
 
-      {error ? <div className="alert-critical text-sm">{error}</div> : null}
+      {error ? <div className="alert-critical auth-form-alert" role="alert">{error}</div> : null}
 
-      <form onSubmit={onSubmit} className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
-        <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
-          <aside className="rounded-[28px] border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/70">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Steps</p>
-            <div className="mt-4 space-y-3">
-              {steps.map((item, index) => (
-                <div key={item.label} className="flex items-start gap-3">
-                  <div className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold ${
-                    step === index ? 'border-[var(--accent)] bg-[var(--accent)] text-white' : 'border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300'
-                  }`}>
-                    {index + 1}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{item.label}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{item.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </aside>
-
-          <div className="space-y-5">
+      <form onSubmit={onSubmit} className="auth-register-form">
+        <div className="space-y-5">
             {step === 0 ? (
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
@@ -202,11 +188,10 @@ export default function RegisterPage() {
                 {isLoading ? 'Saving...' : step === steps.length - 1 ? 'Create account' : 'Continue'}
               </button>
             </div>
-          </div>
         </div>
       </form>
 
-      <p className="text-center text-sm text-slate-600 dark:text-slate-300">
+      <p className="auth-switch-copy">
         Already have an account? <Link to="/login" className="font-semibold text-[var(--accent)] hover:underline">Sign in</Link>
       </p>
     </div>
