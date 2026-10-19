@@ -15,8 +15,8 @@ The MWOS web application and API are separate Vercel projects. The public patien
    - `FRONTEND_URL=https://tmc-copino-mwos.vercel.app`
    - `NODE_ENV=production`
    - `AUTO_MIGRATE_ON_START=false`
-   - Optional Google sign-in: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_CALLBACK_URL=https://<your-api-domain>/api/v1/auth/google/callback`
-   - Optional Facebook sign-in: `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, and `FACEBOOK_CALLBACK_URL=https://<your-api-domain>/api/v1/auth/facebook/callback`
+   - Optional Google sign-in: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_CALLBACK_URL=https://<your-api-domain>/api/auth/google/callback`
+   - Optional Facebook sign-in: `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, and `FACEBOOK_CALLBACK_URL=https://<your-api-domain>/api/auth/facebook/callback`
    - Optional SMS sign-in: `SMS_GATEWAY_URL`, `SMS_GATEWAY_TOKEN`, and a unique `OTP_SECRET`. The configured gateway must accept `POST` JSON with `to` and `message` fields and return a successful `2xx` response only after accepting the message for delivery.
 5. Run the MWOS database migration against the production database from an approved administrative environment before sending users to the new API:
 
