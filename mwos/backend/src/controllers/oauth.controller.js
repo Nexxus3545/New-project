@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const { getClient, query } = require('../config/database');
+const { getClient, query, testConnection } = require('../config/database');
 const { isProviderConfigured } = require('../config/oauth');
 const { generateUniqueCode } = require('../utils/identifiers');
 const { generateSessionTokens } = require('../utils/tokens');
@@ -185,10 +185,27 @@ const createOneTimeCode = async (userId) => {
   return code;
 };
 
-const start = (providerName, passport) => (req, res, next) => {
+const providerStatus = async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const databaseReady = await testConnection();
+
+  return res.json({
+    success: true,
+    data: {
+      google: databaseReady && isProviderConfigured('google'),
+      facebook: databaseReady && isProviderConfigured('facebook'),
+    },
+  });
+};
+
+const start = (providerName, passport) => async (req, res, next) => {
   const provider = getProvider(providerName);
   if (!provider || !isProviderConfigured(provider)) {
     return frontendRedirect(res, '/login', { oauth_error: `${provider || 'provider'}_unavailable` });
+  }
+
+  if (!await testConnection()) {
+    return frontendRedirect(res, '/login', { oauth_error: 'oauth_service_unavailable' });
   }
 
   const state = crypto.randomBytes(32).toString('base64url');
@@ -366,6 +383,7 @@ module.exports = {
   ensureConfigured,
   exchange,
   finish,
+  providerStatus,
   start,
   validateState,
   frontendRedirect,

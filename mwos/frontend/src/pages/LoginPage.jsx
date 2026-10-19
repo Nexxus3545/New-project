@@ -8,6 +8,7 @@ import { FacebookProviderIcon, GoogleProviderIcon, SmsProviderIcon } from '../co
 const oauthErrors = {
   google_unavailable: 'Google sign-in is not available yet. Please use your MWOS email and password.',
   facebook_unavailable: 'Facebook sign-in is not available yet. Please use your MWOS email and password.',
+  oauth_service_unavailable: 'The clinic service is temporarily unavailable. Please try again later or contact TMC Copino.',
   oauth_state_invalid: 'Your sign-in session could not be verified. Please try again.',
   oauth_account_exists: 'This email already has an MWOS password account. Sign in with your password first to keep it protected.',
   oauth_email_required: 'Your provider did not share a verified email address. Please use your MWOS password instead.',
@@ -28,12 +29,31 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [providerError, setProviderError] = useState('')
+  const [providerStatus, setProviderStatus] = useState(null)
 
   useEffect(() => {
     const query = new URLSearchParams(location.search)
     setProviderError(oauthErrors[query.get('oauth_error')] || '')
     if (query.get('sms') === '1') setSmsStage('request')
   }, [location.search])
+
+  useEffect(() => {
+    if (!socialAuthAvailable) {
+      setProviderStatus({ google: false, facebook: false })
+      return undefined
+    }
+
+    let active = true
+    api.get('/auth/providers', { timeout: 6000 })
+      .then((response) => {
+        if (active) setProviderStatus(response.data?.data || { google: false, facebook: false })
+      })
+      .catch(() => {
+        if (active) setProviderStatus({ google: false, facebook: false })
+      })
+
+    return () => { active = false }
+  }, [])
 
   const handleChange = (event) => {
     clearError()
@@ -61,8 +81,8 @@ export default function LoginPage() {
   const handleProviderLogin = (provider) => {
     clearError()
     setProviderError('')
-    if (!socialAuthAvailable) {
-      setProviderError("Google and Facebook sign-in will be available once the clinic's secure service connection is activated.")
+    if (!socialAuthAvailable || !providerStatus?.[provider]) {
+      setProviderError(`${provider === 'google' ? 'Google' : 'Facebook'} sign-in is not ready yet. Please use your MWOS email and password.`)
       return
     }
     window.location.assign(`${api.defaults.baseURL}/auth/${provider}`)
@@ -178,11 +198,11 @@ export default function LoginPage() {
         <div className="auth-provider-section">
           <p>Or continue with</p>
           <div className="auth-provider-actions">
-            <button type="button" disabled={isLoading} onClick={() => handleProviderLogin('google')} className="auth-provider-button">
+            <button type="button" disabled={isLoading || !providerStatus?.google} onClick={() => handleProviderLogin('google')} className="auth-provider-button">
               <GoogleProviderIcon />
               Continue with Google
             </button>
-            <button type="button" disabled={isLoading} onClick={() => handleProviderLogin('facebook')} className="auth-provider-button">
+            <button type="button" disabled={isLoading || !providerStatus?.facebook} onClick={() => handleProviderLogin('facebook')} className="auth-provider-button">
               <FacebookProviderIcon />
               Continue with Facebook
             </button>
@@ -191,7 +211,13 @@ export default function LoginPage() {
               Continue with SMS
             </button>
           </div>
-          <p className="auth-provider-note">Google and Facebook are for patient accounts. SMS is available only for a mobile number already linked to an MWOS account.</p>
+          <p className="auth-provider-note" role="status">
+            {!providerStatus
+              ? 'Checking clinic sign-in methods...'
+              : !providerStatus.google && !providerStatus.facebook
+                ? 'Google and Facebook sign-in are awaiting clinic setup. Use your MWOS email and password for now.'
+                : 'Google and Facebook are for patient accounts. SMS is available only for a mobile number already linked to an MWOS account.'}
+          </p>
         </div>
 
         {smsStage !== 'idle' ? (

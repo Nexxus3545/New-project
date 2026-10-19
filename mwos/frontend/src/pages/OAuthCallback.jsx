@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore'
 const callbackErrors = {
   google_unavailable: 'Google sign-in is not available yet. Please use your MWOS email and password.',
   facebook_unavailable: 'Facebook sign-in is not available yet. Please use your MWOS email and password.',
+  oauth_service_unavailable: 'The clinic service is temporarily unavailable. Please try again later or contact TMC Copino.',
   oauth_state_invalid: 'Your sign-in session could not be verified. Please try again from the login page.',
   oauth_account_exists: 'This email already has an MWOS password account. Sign in with your password first to keep it protected.',
   oauth_email_required: 'Your provider did not share a verified email address. Use your MWOS email and password instead.',

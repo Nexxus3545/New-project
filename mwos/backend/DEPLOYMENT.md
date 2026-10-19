@@ -59,3 +59,38 @@ The frontend automatically adds `/api` to this address. For example, `https://mw
 - Verify CORS using the exact production portal URL before enabling patient access.
 - Social sign-in is patient-only. An existing MWOS password account is never auto-linked by matching its email address.
 - Register the exact production callback URLs in the Google Cloud and Meta developer consoles. Keep provider secrets in Vercel's backend environment settings only.
+
+## Activate patient Google and Facebook sign-in
+
+The live frontend is `https://tmc-copino-mwos.vercel.app` and the live API is
+`https://tmc-copino-mwos-api.vercel.app`. The provider settings belong in the
+**API Vercel project**, not the frontend project. Create clinic-owned OAuth
+applications, then set these Production environment variables:
+
+| Variable | Value |
+| --- | --- |
+| `GOOGLE_CLIENT_ID` | Google OAuth Web application client ID |
+| `GOOGLE_CLIENT_SECRET` | Matching Google client secret |
+| `GOOGLE_CALLBACK_URL` | `https://tmc-copino-mwos-api.vercel.app/api/auth/google/callback` |
+| `FACEBOOK_APP_ID` | Clinic Meta app ID |
+| `FACEBOOK_APP_SECRET` | Matching Meta app secret |
+| `FACEBOOK_CALLBACK_URL` | `https://tmc-copino-mwos-api.vercel.app/api/auth/facebook/callback` |
+| `FRONTEND_URL` | `https://tmc-copino-mwos.vercel.app` |
+
+Register the same exact callback URLs in the respective Google and Meta app
+consoles. The Google OAuth client must be a Web application. The Meta app must
+have Facebook Login enabled and permission to request `email`. For public
+patient use, complete each provider's production publishing requirements.
+Never use placeholder IDs or put the secrets in `VITE_*` variables.
+
+Before enabling social sign-in, `/ready` must report `database: "connected"`,
+and the safe schema migration must have created `oauth_identities` and
+`oauth_login_codes`. The public `/api/auth/providers` endpoint reports whether
+each provider is configured and the database is reachable, without exposing
+its keys. Provider-side approval and callback validation still require a real
+sign-in test. After saving Vercel
+environment variables, redeploy the **API**. If the frontend build still uses
+an old API URL, set `VITE_API_BASE_URL=https://tmc-copino-mwos-api.vercel.app`
+in the **frontend** project and redeploy it too. Finally, test new patient
+sign-in with each provider; existing password and staff accounts are not
+auto-linked by email.

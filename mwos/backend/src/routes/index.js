@@ -50,6 +50,7 @@ router.post('/auth/webauthn/register/start', authenticate, authorize('admin','do
 router.post('/auth/webauthn/register/finish', authenticate, authorize('admin','doctor','midwife','nurse'), securityCtrl.finishWebAuthnRegistration);
 router.post('/auth/webauthn/login/start', securityCtrl.startWebAuthnLogin);
 router.post('/auth/webauthn/login/finish', securityCtrl.finishWebAuthnLogin);
+router.get('/auth/providers', oauthCtrl.providerStatus);
 router.get('/auth/google', oauthCtrl.start('google', passport));
 router.get('/auth/google/callback', oauthCtrl.ensureConfigured('google'), oauthCtrl.validateState('google'), oauthCtrl.callback('google', passport));
 router.get('/auth/facebook', oauthCtrl.start('facebook', passport));

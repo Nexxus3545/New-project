@@ -4,6 +4,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "test": "node --test tests/*.test.js",
     "dev": "node src/index.js",
     "dev:watch": "nodemon src/index.js",
     "migrate": "node src/utils/migrate.js",
