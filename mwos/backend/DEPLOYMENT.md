@@ -8,7 +8,8 @@ The MWOS web application and API are separate Vercel projects. The public patien
 2. Set the project root directory to `backend`.
 3. Leave framework detection enabled. Vercel detects `src/index.js` as the Express entry point.
 4. Add the production environment variables from the clinic's secure password manager:
-   - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
+   - `DATABASE_URL` (preferred). For Supabase on Vercel, open the Supabase project, choose **Connect**, then copy the **Transaction pooler** URI. Replace the password placeholder and keep `sslmode=require` when it is included. Do not put this value in the frontend project or Git.
+   - `DATABASE_POOL_MAX=1` for the Vercel serverless API
    - `JWT_SECRET`, `JWT_REFRESH_SECRET`
    - Email settings only if email delivery is enabled
    - `FRONTEND_URL=https://tmc-copino-mwos.vercel.app`
@@ -17,8 +18,29 @@ The MWOS web application and API are separate Vercel projects. The public patien
    - Optional Google sign-in: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_CALLBACK_URL=https://<your-api-domain>/api/v1/auth/google/callback`
    - Optional Facebook sign-in: `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, and `FACEBOOK_CALLBACK_URL=https://<your-api-domain>/api/v1/auth/facebook/callback`
    - Optional SMS sign-in: `SMS_GATEWAY_URL`, `SMS_GATEWAY_TOKEN`, and a unique `OTP_SECRET`. The configured gateway must accept `POST` JSON with `to` and `message` fields and return a successful `2xx` response only after accepting the message for delivery.
-5. Run the MWOS database migration against the production database from an approved administrative environment before sending users to the new API.
-6. Deploy and confirm that `https://<your-api-domain>/health` responds with JSON and `database: "connected"`.
+5. Run the MWOS database migration against the production database from an approved administrative environment before sending users to the new API:
+
+   ```powershell
+   cd backend
+   $env:DATABASE_URL='paste-the-supabase-transaction-pooler-uri-here'
+   $env:DATABASE_POOL_MAX='1'
+   npm run migrate
+   ```
+
+   Do not use `migrate:reset` in production because it deletes clinic records.
+6. Redeploy the API, then confirm that `https://<your-api-domain>/ready` responds with `"database":"connected"`. Only then test a password login.
+
+## Resolve the current production login outage
+
+The login screen's “clinic service is temporarily unavailable” message means the API cannot reach its database. For the deployed MWOS API, complete these steps in this order:
+
+1. In Supabase, open the clinic project and select **Connect**. Copy the **Transaction pooler** connection URI; this is the appropriate mode for Vercel's serverless functions.
+2. In the Vercel project for `tmc-copino-mwos-api`, open **Settings → Environment Variables** and add `DATABASE_URL` with that URI and `DATABASE_POOL_MAX` with `1` for the **Production** environment.
+3. Ensure `JWT_SECRET` and `JWT_REFRESH_SECRET` are set to distinct, high-entropy values. Set `FRONTEND_URL=https://tmc-copino-mwos.vercel.app`, `NODE_ENV=production`, and `AUTO_MIGRATE_ON_START=false`.
+4. Run the safe migration command above once, then redeploy the API.
+5. Visit `/ready`. A `200` with `database: "connected"` confirms that it is safe to allow clinic sign-ins again.
+
+If Supabase has not been created yet, create the project first. The database password and connection URI are clinic secrets: never send them in chat or add them to source files.
 
 ## Connect the web portal
 
