@@ -66,6 +66,14 @@ export default function AuthLayout() {
               <BrandMark compact sublabel="Birthing home & medical clinic" />
             </div>
 
+            <figure className="auth-mobile-clinic lg:hidden">
+              <img src="/clinic/clinic-exterior.jpg" alt="TMC Copino Birthing Home and Medical Clinic building" />
+              <figcaption>
+                <span>TMC Copino Birthing Home</span>
+                <strong>Gajo, Tiwi, Albay</strong>
+              </figcaption>
+            </figure>
+
             <div className="auth-form-panel">
               <Outlet />
             </div>

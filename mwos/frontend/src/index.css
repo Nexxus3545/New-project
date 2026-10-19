@@ -855,11 +855,11 @@ body,
 
 .auth-context-image {
   object-fit: cover;
-  opacity: 0.16;
+  opacity: 0.5;
 }
 
 .auth-context-overlay {
-  background: rgba(255, 248, 251, 0.88);
+  background: rgba(255, 248, 251, 0.78);
 }
 
 .auth-context-content {
@@ -977,6 +977,49 @@ body,
 
 .auth-mobile-brand {
   margin-bottom: 1.75rem;
+}
+
+.auth-mobile-clinic {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.8rem;
+  margin: 0 0 1.25rem;
+  overflow: hidden;
+  border: 1px solid #f1dbe4;
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(86, 42, 61, 0.08);
+}
+
+.auth-mobile-clinic img {
+  width: 5rem;
+  height: 4.75rem;
+  object-fit: cover;
+}
+
+.auth-mobile-clinic figcaption {
+  display: grid;
+  gap: 0.2rem;
+  padding-right: 0.8rem;
+}
+
+.auth-mobile-clinic span {
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.auth-mobile-clinic strong {
+  color: #7c5b69;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+@media (min-width: 1024px) {
+  .auth-mobile-clinic {
+    display: none;
+  }
 }
 
 .auth-form-panel {
@@ -1296,6 +1339,19 @@ body,
   border-color: #334155;
 }
 
+.dark .auth-mobile-clinic {
+  border-color: #334155;
+  background: #111827;
+}
+
+.dark .auth-mobile-clinic span {
+  color: #f8fafc;
+}
+
+.dark .auth-mobile-clinic strong {
+  color: #cbd5e1;
+}
+
 .dark .auth-privacy-note,
 .dark .auth-step-button {
   border-color: #334155;
@@ -1387,6 +1443,15 @@ body,
 
   .auth-mobile-brand {
     margin: 0.25rem 0 1.25rem;
+  }
+
+  .auth-mobile-clinic {
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+  }
+
+  .auth-mobile-clinic img {
+    width: 4.5rem;
+    height: 4.4rem;
   }
 
   .auth-form-panel {
