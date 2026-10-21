@@ -4,17 +4,17 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import api from '../utils/api'
 import useSignInProviders from '../hooks/useSignInProviders'
-import { FacebookProviderIcon, GoogleProviderIcon, SmsProviderIcon } from '../components/common/AuthProviderIcons'
+import { GoogleProviderIcon, SmsProviderIcon } from '../components/common/AuthProviderIcons'
 
 const oauthErrors = {
   google_unavailable: 'Google sign-in is not available yet. Please use your MWOS email and password.',
-  facebook_unavailable: 'Facebook sign-in is not available yet. Please use your MWOS email and password.',
+  facebook_unavailable: 'This sign-in method is not offered. Please use Google or your MWOS email and password.',
   oauth_service_unavailable: 'The clinic service is temporarily unavailable. Please try again later or contact TMC Copino.',
   oauth_state_invalid: 'Your sign-in session could not be verified. Please try again.',
   oauth_account_exists: 'This email already has an MWOS password account. Sign in with your password first to keep it protected.',
   oauth_email_required: 'Your provider did not share a verified email address. Please use your MWOS password instead.',
   oauth_profile_incomplete: 'Your provider profile needs a first and last name before it can create an account.',
-  oauth_role_restricted: 'Google and Facebook sign-in are available for patient accounts only.',
+  oauth_role_restricted: 'Google sign-in is available for patient accounts only.',
   oauth_account_inactive: 'This account is not active. Please contact TMC Copino for assistance.',
   oauth_failed: 'We could not complete your provider sign-in. Please try again or use your MWOS password.',
 }
@@ -36,7 +36,7 @@ export default function LoginPage() {
   useEffect(() => {
     const query = new URLSearchParams(location.search)
     const code = query.get('oauth_error')
-    const setupNotice = ['google_unavailable', 'facebook_unavailable', 'oauth_service_unavailable'].includes(code)
+    const setupNotice = ['google_unavailable', 'oauth_service_unavailable'].includes(code)
     setProviderError(setupNotice ? '' : oauthErrors[code] || '')
     setProviderNotice(setupNotice
       ? 'Social sign-in could not be started. Please use your MWOS email and password.'
@@ -69,14 +69,14 @@ export default function LoginPage() {
     }
   }
 
-  const handleProviderLogin = (provider) => {
+  const handleGoogleLogin = () => {
     clearError()
     setProviderError('')
-    if (!providerStatus?.[provider]) {
-      setProviderNotice(`${provider === 'google' ? 'Google' : 'Facebook'} sign-in is being set up. Please use your MWOS email and password.`)
+    if (!providerStatus?.google) {
+      setProviderNotice('Google sign-in is unavailable right now. Please use your MWOS email and password.')
       return
     }
-    window.location.assign(`${api.defaults.baseURL}/auth/${provider}`)
+    window.location.assign(`${api.defaults.baseURL}/auth/google`)
   }
 
   const openSmsLogin = () => {
@@ -189,13 +189,9 @@ export default function LoginPage() {
         <div className="auth-provider-section">
           <p>Or continue with</p>
           <div className="auth-provider-actions">
-            <button type="button" disabled={isLoading || !providerStatus?.google} onClick={() => handleProviderLogin('google')} className="auth-provider-button">
+            <button type="button" disabled={isLoading || !providerStatus?.google} onClick={handleGoogleLogin} className="auth-provider-button">
               <GoogleProviderIcon />
               Continue with Google
-            </button>
-            <button type="button" disabled={isLoading || !providerStatus?.facebook} onClick={() => handleProviderLogin('facebook')} className="auth-provider-button">
-              <FacebookProviderIcon />
-              Continue with Facebook
             </button>
             <button type="button" disabled={isLoading} onClick={openSmsLogin} className="auth-provider-button">
               <SmsProviderIcon />

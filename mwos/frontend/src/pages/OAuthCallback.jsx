@@ -4,13 +4,13 @@ import { useAuthStore } from '../store/authStore'
 
 const callbackErrors = {
   google_unavailable: 'Google sign-in is not available yet. Please use your MWOS email and password.',
-  facebook_unavailable: 'Facebook sign-in is not available yet. Please use your MWOS email and password.',
+  facebook_unavailable: 'This sign-in method is not offered. Please use Google or your MWOS email and password.',
   oauth_service_unavailable: 'The clinic service is temporarily unavailable. Please try again later or contact TMC Copino.',
   oauth_state_invalid: 'Your sign-in session could not be verified. Please try again from the login page.',
   oauth_account_exists: 'This email already has an MWOS password account. Sign in with your password first to keep it protected.',
   oauth_email_required: 'Your provider did not share a verified email address. Use your MWOS email and password instead.',
   oauth_profile_incomplete: 'Your provider profile needs a first and last name before it can create an MWOS account.',
-  oauth_role_restricted: 'Google and Facebook sign-in are available for patient accounts only.',
+  oauth_role_restricted: 'Google sign-in is available for patient accounts only.',
   oauth_account_inactive: 'This account is not active. Please contact TMC Copino for assistance.',
   oauth_failed: 'We could not complete your provider sign-in. Please try again or use your MWOS password.',
 }

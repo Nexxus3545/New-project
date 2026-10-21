@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 import api, { socialAuthAvailable } from '../utils/api'
 
-const unavailableProviders = { google: false, facebook: false }
+const unavailableProviders = { google: false }
+
+export const getSignInProviderNote = (providers, checkFailed) => {
+  if (!providers) return 'Checking sign-in options...'
+  if (checkFailed) return "We couldn't check Google sign-in availability. Please use the email and password form."
+  if (!providers.google) return 'Google sign-in is unavailable right now. Use the email and password form to continue.'
+  return 'Google sign-in is for patient accounts. Staff should use their clinic email and password.'
+}
 
 export default function useSignInProviders() {
   const [providers, setProviders] = useState(null)
@@ -17,7 +24,7 @@ export default function useSignInProviders() {
     api.get('/auth/providers', { timeout: 6000, signal: controller.signal })
       .then(({ data }) => {
         if (!controller.signal.aborted) {
-          setProviders({ google: data?.data?.google === true, facebook: data?.data?.facebook === true })
+          setProviders({ google: data?.data?.google === true })
         }
       })
       .catch(() => {
@@ -29,13 +36,7 @@ export default function useSignInProviders() {
     return () => controller.abort()
   }, [])
 
-  const note = !providers
-    ? 'Checking sign-in options...'
-    : checkFailed
-      ? "We couldn't check social sign-in availability. Please use the email and password form."
-      : !providers.google && !providers.facebook
-        ? 'Google and Facebook are being set up. Use the email and password form to continue.'
-        : 'Google and Facebook are for patient accounts. Staff should use their clinic email and password.'
+  const note = getSignInProviderNote(providers, checkFailed)
 
   return { providers, note }
 }
