@@ -36,8 +36,9 @@ const publicStaffProfile = (row) => {
   };
 };
 
-const fetchStaffProfileByUserId = async (userId) => {
-  const result = await query(
+const fetchStaffProfileByUserId = async (userId, client) => {
+  const executor = client || { query };
+  const result = await executor.query(
     `SELECT
        sr.*,
        verifier.first_name || ' ' || verifier.last_name AS verified_by_name

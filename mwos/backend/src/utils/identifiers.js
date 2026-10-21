@@ -5,10 +5,11 @@ const buildDateStamp = () => new Date().toISOString().slice(0, 10).replace(/-/g,
 
 const createCandidate = (prefix) => `${prefix}-${buildDateStamp()}-${crypto.randomInt(1000, 9999)}`;
 
-const generateUniqueCode = async ({ table, column, prefix }) => {
+const generateUniqueCode = async ({ table, column, prefix, client }) => {
+  const executor = client || { query };
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const candidate = createCandidate(prefix);
-    const existing = await query(`SELECT 1 FROM ${table} WHERE ${column} = $1 LIMIT 1`, [candidate]);
+    const existing = await executor.query(`SELECT 1 FROM ${table} WHERE ${column} = $1 LIMIT 1`, [candidate]);
     if (existing.rows.length === 0) {
       return candidate;
     }

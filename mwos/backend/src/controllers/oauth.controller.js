@@ -289,6 +289,7 @@ const exchange = async (req, res, next) => {
         [refreshToken, user.id]
       );
       await auditOAuthEvent(client, { userId: user.id, action: 'oauth_login', provider: 'external', req });
+      const userPayload = await buildUserPayload(user, client);
       await client.query('COMMIT');
 
       return res.json({
@@ -296,7 +297,7 @@ const exchange = async (req, res, next) => {
         data: {
           accessToken,
           refreshToken,
-          user: await buildUserPayload(user),
+          user: userPayload,
         },
       });
     } catch (error) {
@@ -334,8 +335,8 @@ const completePatientProfile = async (req, res, next) => {
 
       const existingPatient = await client.query('SELECT id FROM patients WHERE user_id = $1', [user.id]);
       if (existingPatient.rows.length === 0) {
-        const patientCode = await generateUniqueCode({ table: 'patients', column: 'patient_code', prefix: 'MWOS-PAT' });
-        const birthingId = await generateUniqueCode({ table: 'patients', column: 'birthing_id', prefix: 'TMC-BIR' });
+        const patientCode = await generateUniqueCode({ table: 'patients', column: 'patient_code', prefix: 'MWOS-PAT', client });
+        const birthingId = await generateUniqueCode({ table: 'patients', column: 'birthing_id', prefix: 'TMC-BIR', client });
         await client.query(
           `INSERT INTO patients (
              user_id, patient_code, birthing_id, first_name, last_name, date_of_birth, city, phone, email, created_by

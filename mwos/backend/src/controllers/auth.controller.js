@@ -36,14 +36,16 @@ const sanitizeUiPreferences = (input = {}) => {
   return normalized;
 };
 
-const buildUserPayload = async (user) => {
+const buildUserPayload = async (user, client) => {
+  // Transaction callers must not acquire a second connection from a one-client pool.
+  const executor = client || { query };
   const [patientResult, staffProfile] = await Promise.all([
     user.role === 'patient'
-      ? query('SELECT id FROM patients WHERE user_id = $1', [user.id])
+      ? executor.query('SELECT id FROM patients WHERE user_id = $1', [user.id])
       : Promise.resolve({ rows: [] }),
     user.role === 'patient'
       ? Promise.resolve(null)
-      : fetchStaffProfileByUserId(user.id),
+      : fetchStaffProfileByUserId(user.id, client),
   ]);
 
   const patientId = patientResult.rows[0]?.id || null;
@@ -242,6 +244,7 @@ const verifySmsLogin = async (req, res, next) => {
       'UPDATE users SET refresh_token = $1, last_login_at = NOW(), last_seen_at = NOW(), updated_at = NOW() WHERE id = $2',
       [refreshToken, user.id]
     );
+    const userPayload = await buildUserPayload(user, client);
     await client.query('COMMIT');
 
     return res.json({
@@ -250,7 +253,7 @@ const verifySmsLogin = async (req, res, next) => {
       data: {
         accessToken,
         refreshToken,
-        user: await buildUserPayload(user),
+        user: userPayload,
       },
     });
   } catch (err) {
@@ -402,8 +405,8 @@ const register = async (req, res, next) => {
       }
 
       if (role === 'patient') {
-        const patientCode = await generateUniqueCode({ table: 'patients', column: 'patient_code', prefix: 'MWOS-PAT' });
-        const birthingId = await generateUniqueCode({ table: 'patients', column: 'birthing_id', prefix: 'TMC-BIR' });
+        const patientCode = await generateUniqueCode({ table: 'patients', column: 'patient_code', prefix: 'MWOS-PAT', client });
+        const birthingId = await generateUniqueCode({ table: 'patients', column: 'birthing_id', prefix: 'TMC-BIR', client });
 
         await client.query(
           `INSERT INTO patients (
@@ -426,6 +429,7 @@ const register = async (req, res, next) => {
 
       const { accessToken, refreshToken } = generateSessionTokens(user.id, user.role);
       await client.query('UPDATE users SET refresh_token = $1, last_seen_at = NOW() WHERE id = $2', [refreshToken, user.id]);
+      const userPayload = await buildUserPayload(user, client);
       await client.query('COMMIT');
 
       res.status(201).json({
@@ -434,7 +438,7 @@ const register = async (req, res, next) => {
         data: {
           accessToken,
           refreshToken,
-          user: await buildUserPayload(user),
+          user: userPayload,
         },
       });
     } catch (err) {
