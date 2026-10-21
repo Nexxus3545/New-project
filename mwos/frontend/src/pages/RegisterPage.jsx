@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import api, { socialAuthAvailable } from '../utils/api'
+import api from '../utils/api'
+import useSignInProviders from '../hooks/useSignInProviders'
 import { FacebookProviderIcon, GoogleProviderIcon, SmsProviderIcon } from '../components/common/AuthProviderIcons'
 
 const roles = ['patient', 'nurse', 'midwife', 'doctor', 'admin']
@@ -16,7 +17,8 @@ export default function RegisterPage() {
   const navigate = useNavigate()
   const { register, isLoading, error, clearError } = useAuthStore()
   const [step, setStep] = useState(0)
-  const [providerError, setProviderError] = useState('')
+  const [providerNotice, setProviderNotice] = useState('')
+  const { providers, note: providerNote } = useSignInProviders()
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -30,7 +32,7 @@ export default function RegisterPage() {
 
   const onChange = (e) => {
     clearError()
-    setProviderError('')
+    setProviderNotice('')
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
@@ -63,9 +65,9 @@ export default function RegisterPage() {
 
   const handleProviderRegistration = (provider) => {
     clearError()
-    setProviderError('')
-    if (!socialAuthAvailable) {
-      setProviderError("Google and Facebook registration will be available once the clinic's secure service connection is activated.")
+    setProviderNotice('')
+    if (!providers?.[provider]) {
+      setProviderNotice(`${provider === 'google' ? 'Google' : 'Facebook'} registration is being set up. Please complete the form below.`)
       return
     }
     window.location.assign(`${api.defaults.baseURL}/auth/${provider}`)
@@ -102,22 +104,22 @@ export default function RegisterPage() {
         </div>
       </nav>
 
-      {error || providerError ? <div className="alert-critical auth-form-alert" role="alert">{error || providerError}</div> : null}
+      {error ? <div className="alert-critical auth-form-alert" role="alert">{error}</div> : null}
 
       {step === 0 ? (
         <div className="auth-provider-section auth-provider-section-register">
           <p>Create a patient account with</p>
           <div className="auth-provider-actions">
-            <button type="button" disabled={isLoading} onClick={() => handleProviderRegistration('google')} className="auth-provider-button">
+            <button type="button" disabled={isLoading || !providers?.google} onClick={() => handleProviderRegistration('google')} className="auth-provider-button">
               <GoogleProviderIcon />
               Continue with Google
             </button>
-            <button type="button" disabled={isLoading} onClick={() => handleProviderRegistration('facebook')} className="auth-provider-button">
+            <button type="button" disabled={isLoading || !providers?.facebook} onClick={() => handleProviderRegistration('facebook')} className="auth-provider-button">
               <FacebookProviderIcon />
               Continue with Facebook
             </button>
           </div>
-          <p className="auth-provider-note">Social sign-in creates patient accounts only. You will provide your date of birth before opening the care portal.</p>
+          <p className="auth-provider-note" role="status">{providerNotice || providerNote}</p>
           <Link to="/login?sms=1" className="auth-sms-signin-link">
             <SmsProviderIcon className="auth-provider-icon auth-provider-icon-sms" />
             Already registered? Sign in with SMS

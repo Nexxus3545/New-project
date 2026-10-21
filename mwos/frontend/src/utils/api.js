@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getAuthRecoveryAction, isPublicAuthRequest } from './authRequests'
 
 const configuredApiUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
 // Local development uses the Vite /api proxy. A hosted origin is normalized so
@@ -32,6 +33,11 @@ const clearAuth = () => {
 // Attach auth and step-up headers to every request.
 api.interceptors.request.use(
   (config) => {
+    if (isPublicAuthRequest(config.url)) {
+      config.headers.delete('Authorization')
+      config.headers.delete('X-Step-Up-Token')
+      return config
+    }
     const token = localStorage.getItem('accessToken')
     if (token) config.headers.Authorization = `Bearer ${token}`
 
@@ -59,7 +65,7 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config
 
-    if (error.response?.status === 401 && !original._retry) {
+    if (getAuthRecoveryAction(error) !== 'none') {
       if (error.response?.data?.code === 'TOKEN_EXPIRED') {
         if (isRefreshing) {
           return new Promise((resolve, reject) => {

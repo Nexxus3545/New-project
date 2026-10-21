@@ -2,7 +2,8 @@
 import { useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import api, { socialAuthAvailable } from '../utils/api'
+import api from '../utils/api'
+import useSignInProviders from '../hooks/useSignInProviders'
 import { FacebookProviderIcon, GoogleProviderIcon, SmsProviderIcon } from '../components/common/AuthProviderIcons'
 
 const oauthErrors = {
@@ -29,34 +30,24 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [providerError, setProviderError] = useState('')
-  const [providerStatus, setProviderStatus] = useState(null)
+  const [providerNotice, setProviderNotice] = useState('')
+  const { providers: providerStatus, note: providerNote } = useSignInProviders()
 
   useEffect(() => {
     const query = new URLSearchParams(location.search)
-    setProviderError(oauthErrors[query.get('oauth_error')] || '')
+    const code = query.get('oauth_error')
+    const setupNotice = ['google_unavailable', 'facebook_unavailable', 'oauth_service_unavailable'].includes(code)
+    setProviderError(setupNotice ? '' : oauthErrors[code] || '')
+    setProviderNotice(setupNotice
+      ? 'Social sign-in could not be started. Please use your MWOS email and password.'
+      : '')
     if (query.get('sms') === '1') setSmsStage('request')
   }, [location.search])
 
-  useEffect(() => {
-    if (!socialAuthAvailable) {
-      setProviderStatus({ google: false, facebook: false })
-      return undefined
-    }
-
-    let active = true
-    api.get('/auth/providers', { timeout: 6000 })
-      .then((response) => {
-        if (active) setProviderStatus(response.data?.data || { google: false, facebook: false })
-      })
-      .catch(() => {
-        if (active) setProviderStatus({ google: false, facebook: false })
-      })
-
-    return () => { active = false }
-  }, [])
-
   const handleChange = (event) => {
     clearError()
+    setProviderNotice('')
+    setProviderError('')
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }))
   }
 
@@ -81,8 +72,8 @@ export default function LoginPage() {
   const handleProviderLogin = (provider) => {
     clearError()
     setProviderError('')
-    if (!socialAuthAvailable || !providerStatus?.[provider]) {
-      setProviderError(`${provider === 'google' ? 'Google' : 'Facebook'} sign-in is not ready yet. Please use your MWOS email and password.`)
+    if (!providerStatus?.[provider]) {
+      setProviderNotice(`${provider === 'google' ? 'Google' : 'Facebook'} sign-in is being set up. Please use your MWOS email and password.`)
       return
     }
     window.location.assign(`${api.defaults.baseURL}/auth/${provider}`)
@@ -212,11 +203,7 @@ export default function LoginPage() {
             </button>
           </div>
           <p className="auth-provider-note" role="status">
-            {!providerStatus
-              ? 'Checking clinic sign-in methods...'
-              : !providerStatus.google && !providerStatus.facebook
-                ? 'Google and Facebook sign-in are awaiting clinic setup. Use your MWOS email and password for now.'
-                : 'Google and Facebook are for patient accounts. SMS is available only for a mobile number already linked to an MWOS account.'}
+            {providerNotice || providerNote}
           </p>
         </div>
 
