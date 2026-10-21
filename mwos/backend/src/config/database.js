@@ -3,6 +3,7 @@ const { Pool } = require('pg');
 const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 const isServerlessRuntime = process.env.VERCEL === '1' || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
 const requestedPoolSize = Number.parseInt(process.env.DATABASE_POOL_MAX, 10);
+const requestedConnectionTimeout = Number.parseInt(process.env.DATABASE_CONNECTION_TIMEOUT_MS, 10);
 const defaultPoolSize = isServerlessRuntime ? 1 : 20;
 
 const poolConfig = {
@@ -12,7 +13,10 @@ const poolConfig = {
     ? requestedPoolSize
     : defaultPoolSize,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  // This also limits pool queue waits, including managed database cold starts.
+  connectionTimeoutMillis: Number.isInteger(requestedConnectionTimeout) && requestedConnectionTimeout > 0
+    ? requestedConnectionTimeout
+    : isServerlessRuntime ? 10000 : 2000,
 };
 
 if (connectionString) {

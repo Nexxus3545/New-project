@@ -2,52 +2,42 @@ const { query } = require('../config/database');
 
 const getDashboard = async (req, res, next) => {
   try {
-    const [
-      totalPatients, activePregnancies, todayAppointments,
-      deliveriesThisMonth, highRiskPatients, pendingBills,
-      lowInventory, recentVitalsAlerts, unreadThreads, openCareTasks,
-      totalUsers, weeklyActiveUsers, mediaUploads, documentsUploaded,
-      medicineUploads, reviewsAggregate, latestBackup
-    ] = await Promise.all([
-      query('SELECT COUNT(*) FROM patients'),
-      query("SELECT COUNT(*) FROM pregnancies WHERE status = 'active'"),
-      query("SELECT COUNT(*) FROM appointments WHERE scheduled_date = CURRENT_DATE AND status NOT IN ('cancelled','no_show')"),
-      query("SELECT COUNT(*) FROM deliveries WHERE DATE_TRUNC('month', delivery_date) = DATE_TRUNC('month', CURRENT_DATE)"),
-      query("SELECT COUNT(*) FROM patients WHERE risk_level = 'high'"),
-      query("SELECT COUNT(*) FROM billing WHERE payment_status = 'pending'"),
-      query('SELECT COUNT(*) FROM inventory WHERE quantity <= reorder_level'),
-      query(`SELECT COUNT(*) FROM vitals WHERE created_at >= NOW() - INTERVAL '24 hours'
-             AND (bp_systolic >= 140 OR bp_diastolic >= 90 OR fetal_movement = 'absent')`),
-      query(
-        `SELECT COUNT(*)::int
-         FROM conversation_participants cp
-         JOIN conversation_threads ct ON ct.id = cp.thread_id
-         WHERE cp.user_id = $1
-           AND EXISTS (
-             SELECT 1
-             FROM conversation_messages cm
-             WHERE cm.thread_id = ct.id
-               AND cm.sender_id <> $1
-               AND cm.created_at > COALESCE(cp.last_read_at, TIMESTAMPTZ '1970-01-01')
-           )`,
-        [req.user.id]
-      ),
-      req.user.role === 'admin'
-        ? query(`SELECT COUNT(*) FROM care_tasks WHERE status NOT IN ('completed', 'cancelled')`)
-        : query(
-            `SELECT COUNT(*) FROM care_tasks
-             WHERE status NOT IN ('completed', 'cancelled')
-               AND assigned_to = $1`,
-            [req.user.id]
-          ),
-      query('SELECT COUNT(*) FROM users'),
-      query("SELECT COUNT(*) FROM users WHERE last_login_at >= NOW() - INTERVAL '7 days'"),
-      query("SELECT COUNT(*) FROM media_feed_posts WHERE is_published = true"),
-      query('SELECT COUNT(*) FROM patient_documents'),
-      query("SELECT COUNT(*) FROM inventory WHERE category = 'medication'"),
-      query('SELECT COUNT(*)::int AS total_reviews, COALESCE(ROUND(AVG(rating)::numeric, 2), 0) AS average_rating FROM reviews WHERE is_published = true'),
-      query("SELECT created_at, status FROM backup_logs ORDER BY created_at DESC LIMIT 1"),
-    ]);
+    // One round trip avoids exhausting the one-connection serverless pool.
+    const summary = await query(`
+      SELECT
+        (SELECT COUNT(*) FROM patients) AS total_patients,
+        (SELECT COUNT(*) FROM pregnancies WHERE status = 'active') AS active_pregnancies,
+        (SELECT COUNT(*) FROM appointments WHERE scheduled_date = CURRENT_DATE
+          AND status NOT IN ('cancelled', 'no_show')) AS today_appointments,
+        (SELECT COUNT(*) FROM deliveries WHERE DATE_TRUNC('month', delivery_date)
+          = DATE_TRUNC('month', CURRENT_DATE)) AS deliveries_this_month,
+        (SELECT COUNT(*) FROM patients WHERE risk_level = 'high') AS high_risk_patients,
+        (SELECT COUNT(*) FROM billing WHERE payment_status = 'pending') AS pending_bills,
+        (SELECT COUNT(*) FROM inventory WHERE quantity <= reorder_level) AS low_inventory,
+        (SELECT COUNT(*) FROM vitals WHERE created_at >= NOW() - INTERVAL '24 hours'
+          AND (bp_systolic >= 140 OR bp_diastolic >= 90 OR fetal_movement = 'absent')) AS recent_alerts,
+        (SELECT COUNT(*) FROM conversation_participants cp
+          JOIN conversation_threads ct ON ct.id = cp.thread_id
+          WHERE cp.user_id = $1 AND EXISTS (
+            SELECT 1 FROM conversation_messages cm WHERE cm.thread_id = ct.id
+              AND cm.sender_id <> $1
+              AND cm.created_at > COALESCE(cp.last_read_at, TIMESTAMPTZ '1970-01-01')
+          )) AS unread_threads,
+        (SELECT COUNT(*) FROM care_tasks WHERE status NOT IN ('completed', 'cancelled')
+          AND ($2 = 'admin' OR assigned_to = $1)) AS open_care_tasks,
+        (SELECT COUNT(*) FROM users) AS total_users,
+        (SELECT COUNT(*) FROM users WHERE last_login_at >= NOW() - INTERVAL '7 days') AS weekly_active_users,
+        (SELECT COUNT(*) FROM media_feed_posts WHERE is_published = true) AS media_uploads,
+        (SELECT COUNT(*) FROM patient_documents) AS documents_uploaded,
+        (SELECT COUNT(*) FROM inventory WHERE category = 'medication') AS medicine_uploads,
+        (SELECT COUNT(*) FROM reviews WHERE is_published = true) AS total_reviews,
+        (SELECT COALESCE(ROUND(AVG(rating)::numeric, 2), 0) FROM reviews
+          WHERE is_published = true) AS average_rating,
+        (SELECT row_to_json(latest) FROM (
+          SELECT created_at, status FROM backup_logs ORDER BY created_at DESC LIMIT 1
+        ) latest) AS latest_backup
+    `, [req.user.id, req.user.role]);
+    const totals = summary.rows[0];
 
     // Monthly delivery trends (last 6 months)
     const deliveryTrend = await query(`
@@ -85,28 +75,28 @@ const getDashboard = async (req, res, next) => {
       success: true,
       data: {
         stats: {
-          totalPatients: parseInt(totalPatients.rows[0].count),
-          activePregnancies: parseInt(activePregnancies.rows[0].count),
-          todayAppointments: parseInt(todayAppointments.rows[0].count),
-          deliveriesThisMonth: parseInt(deliveriesThisMonth.rows[0].count),
-          highRiskPatients: parseInt(highRiskPatients.rows[0].count),
-          pendingBills: parseInt(pendingBills.rows[0].count),
-          lowInventory: parseInt(lowInventory.rows[0].count),
-          recentAlerts: parseInt(recentVitalsAlerts.rows[0].count),
-          unreadThreads: parseInt(unreadThreads.rows[0].count),
-          openCareTasks: parseInt(openCareTasks.rows[0].count),
-          totalUsers: parseInt(totalUsers.rows[0].count),
-          weeklyActiveUsers: parseInt(weeklyActiveUsers.rows[0].count),
-          mediaUploads: parseInt(mediaUploads.rows[0].count),
-          documentsUploaded: parseInt(documentsUploaded.rows[0].count),
-          medicineUploads: parseInt(medicineUploads.rows[0].count),
-          totalReviews: parseInt(reviewsAggregate.rows[0].total_reviews),
-          averageRating: parseFloat(reviewsAggregate.rows[0].average_rating || 0),
+          totalPatients: parseInt(totals.total_patients),
+          activePregnancies: parseInt(totals.active_pregnancies),
+          todayAppointments: parseInt(totals.today_appointments),
+          deliveriesThisMonth: parseInt(totals.deliveries_this_month),
+          highRiskPatients: parseInt(totals.high_risk_patients),
+          pendingBills: parseInt(totals.pending_bills),
+          lowInventory: parseInt(totals.low_inventory),
+          recentAlerts: parseInt(totals.recent_alerts),
+          unreadThreads: parseInt(totals.unread_threads),
+          openCareTasks: parseInt(totals.open_care_tasks),
+          totalUsers: parseInt(totals.total_users),
+          weeklyActiveUsers: parseInt(totals.weekly_active_users),
+          mediaUploads: parseInt(totals.media_uploads),
+          documentsUploaded: parseInt(totals.documents_uploaded),
+          medicineUploads: parseInt(totals.medicine_uploads),
+          totalReviews: parseInt(totals.total_reviews),
+          averageRating: parseFloat(totals.average_rating || 0),
         },
         deliveryTrend: deliveryTrend.rows,
         todayAppointments: todayList.rows,
         usageTrend: usageTrend.rows,
-        backupStatus: latestBackup.rows[0] || null,
+        backupStatus: totals.latest_backup || null,
       },
     });
   } catch (err) {

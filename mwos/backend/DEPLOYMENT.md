@@ -10,6 +10,7 @@ The MWOS web application and API are separate Vercel projects. The public patien
 4. Add the production environment variables from the clinic's secure password manager:
    - `DATABASE_URL` (preferred). For Supabase on Vercel, open the Supabase project, choose **Connect**, then copy the **Transaction pooler** URI. Replace the password placeholder and keep `sslmode=require` when it is included. Do not put this value in the frontend project or Git.
    - `DATABASE_POOL_MAX=1` for the Vercel serverless API
+   - Optional `DATABASE_CONNECTION_TIMEOUT_MS` to override the serverless connection/queue timeout (default: `10000` milliseconds)
    - `JWT_SECRET`, `JWT_REFRESH_SECRET`
    - Email settings only if email delivery is enabled
    - `FRONTEND_URL=https://tmc-copino-mwos.vercel.app`
@@ -28,6 +29,7 @@ The MWOS web application and API are separate Vercel projects. The public patien
    ```
 
    Do not use `migrate:reset` in production because it deletes clinic records.
+   Do not run `npm run seed` in production; it creates demonstration accounts and records.
 6. Redeploy the API, then confirm that `https://<your-api-domain>/ready` responds with `"database":"connected"`. Only then test a password login.
 
 ## Resolve the current production login outage

@@ -968,4 +968,34 @@ CREATE INDEX IF NOT EXISTS idx_care_tasks_assigned_to ON care_tasks(assigned_to)
 CREATE INDEX IF NOT EXISTS idx_care_tasks_patient_id ON care_tasks(patient_id);
 CREATE INDEX IF NOT EXISTS idx_care_tasks_status ON care_tasks(status);
 
+-- MWOS uses the backend for authorization, not direct Supabase Data API access.
+-- Protect every app table even when the database grants browser roles by default.
+DO $$
+DECLARE
+  mwos_table text;
+BEGIN
+  FOREACH mwos_table IN ARRAY ARRAY[
+    'users', 'staff_registry', 'license_verification_events', 'role_permissions',
+    'permission_overrides', 'auth_credentials', 'webauthn_credentials',
+    'otp_challenges', 'sms_login_challenges', 'digital_signatures', 'security_audit',
+    'oauth_identities', 'oauth_login_codes', 'password_reset_tokens', 'patients',
+    'pregnancies', 'appointments', 'vitals', 'deliveries', 'labor_progress',
+    'lab_results', 'ultrasounds', 'prescriptions', 'postpartum_records',
+    'immunizations', 'education_content', 'media_feed_posts', 'patient_documents',
+    'service_requirements', 'patient_requirement_submissions', 'staff_documents',
+    'upload_sessions', 'reviews', 'inventory', 'billing', 'audit_logs',
+    'notifications', 'emergency_location_shares', 'conversation_threads',
+    'conversation_participants', 'conversation_messages', 'tele_consult_sessions',
+    'care_tasks', 'backup_logs'
+  ] LOOP
+    EXECUTE format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY', current_schema(), mwos_table);
+    IF to_regrole('anon') IS NOT NULL THEN
+      EXECUTE format('REVOKE ALL ON TABLE %I.%I FROM anon', current_schema(), mwos_table);
+    END IF;
+    IF to_regrole('authenticated') IS NOT NULL THEN
+      EXECUTE format('REVOKE ALL ON TABLE %I.%I FROM authenticated', current_schema(), mwos_table);
+    END IF;
+  END LOOP;
+END $$;
+
 SELECT 'Migration completed successfully' as status;
