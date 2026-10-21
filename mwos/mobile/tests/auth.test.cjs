@@ -28,6 +28,10 @@ function runtime() {
       return { data: { data: url === '/auth/providers' ? { google: true } : user } };
     },
     post: async (url, body) => { requests.push({ url, body }); return { data: { data: session } }; },
+    patch: async (url, body) => {
+      requests.push({ url, body, method: 'patch' });
+      return { data: { data: { ...user, phone: body.phone } } };
+    },
   };
   const modules = new Map();
   const stubs = {
@@ -173,4 +177,19 @@ test('public login errors do not clear a saved session', async () => {
   const error = { config: { url: '/auth/login' }, response: { status: 401 } };
   await assert.rejects(r.hooks.failure(error), (received) => received === error);
   assert.equal(r.secure.get('refreshToken'), 'saved-session');
+});
+
+test('saving a contact after restoring the small cache preserves the current profile avatar', async () => {
+  const r = runtime();
+  const avatar = 'data:image/png;base64,' + 'A'.repeat(4000);
+  r.user.avatarUrl = avatar;
+  const store = r.load('src/hooks/useAuthStore.js').useAuthStore;
+  await store.getState().login('test@example.invalid', 'test');
+  await store.getState().initialize();
+  assert.equal(store.getState().user.avatarUrl, null);
+  assert.equal((await store.getState().updateContact('09170000000')).success, true);
+  const updated = r.requests.find((request) => request.method === 'patch');
+  assert.ok(r.requests.some((request) => request.url === '/auth/me'));
+  assert.equal(updated.body.avatarUrl, avatar);
+  assert.equal(updated.body.phone, '09170000000');
 });

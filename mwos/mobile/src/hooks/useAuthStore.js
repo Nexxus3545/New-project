@@ -239,7 +239,9 @@ export const useAuthStore = create((set, get) => ({
   updateContact: async (phone) => {
     set({ isLoading: true, error: null });
     try {
-      const user = get().user;
+      // The small restored cache omits large avatars; never overwrite profile fields from that cache.
+      const current = await api.get('/auth/me');
+      const user = current.data.data;
       const response = await api.patch('/auth/profile', {
         email: user.email, firstName: user.firstName, lastName: user.lastName, avatarUrl: user.avatarUrl, phone,
       });
