@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { getMediaSource } from '../src/utils/mediaSource.js'
+import { getMediaSource, CLINIC_TULI_REPLAY } from '../src/utils/mediaSource.js'
 
 test('public Facebook videos use a fixed video embed, while a clinic page is only a link', () => {
   const video = getMediaSource('https://web.facebook.com/clinic/videos/123456789/')
@@ -8,6 +8,7 @@ test('public Facebook videos use a fixed video embed, while a clinic page is onl
   assert.equal(new URL(video.embedUrl).hostname, 'www.facebook.com')
   assert.equal(new URL(video.embedUrl).pathname, '/plugins/video.php')
   assert.equal(getMediaSource('https://www.facebook.com/people/clinic/123/').kind, 'link')
+  assert.equal(getMediaSource(CLINIC_TULI_REPLAY).kind, 'link')
 })
 test('direct video files and YouTube have playable sources without embedding arbitrary websites', () => {
   assert.equal(getMediaSource('https://cdn.example/video.mp4?token=public').kind, 'video')

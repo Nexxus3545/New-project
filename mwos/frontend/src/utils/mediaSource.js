@@ -1,4 +1,5 @@
 export const CLINIC_FACEBOOK_PAGE = 'https://www.facebook.com/people/TMC-Copino-Birthing-Home/61575314979762/'
+export const CLINIC_TULI_REPLAY = 'https://www.facebook.com/reel/2538336333249251/'
 
 export const getMediaSource = (value) => {
   try {

@@ -5,7 +5,7 @@ import api from '../../utils/api'
 import { useAuthStore } from '../../store/authStore'
 import RealtimeVitalsPanel from '../../components/patient/RealtimeVitalsPanel'
 import ClinicMediaPlayer from '../../components/patient/ClinicMediaPlayer'
-import { CLINIC_FACEBOOK_PAGE } from '../../utils/mediaSource'
+import { CLINIC_FACEBOOK_PAGE, CLINIC_TULI_REPLAY } from '../../utils/mediaSource'
 
 export default function PatientDashboardPage() {
   const user = useAuthStore((state) => state.user)
@@ -189,6 +189,10 @@ export default function PatientDashboardPage() {
               Clinic videos and event replays appear only after the clinic publishes their direct links.
               {' '}<a href={CLINIC_FACEBOOK_PAGE} target="_blank" rel="noopener noreferrer" className="font-semibold text-[var(--accent)] underline">Open the clinic Facebook page</a>
             </p>
+            <a href={CLINIC_TULI_REPLAY} target="_blank" rel="noopener noreferrer" className="mb-4 block rounded-2xl border border-slate-200 p-4 text-sm font-semibold text-[var(--accent)]">
+              Watch Summer Tuli 2026 replay on Facebook
+              <span className="mt-1 block font-normal text-slate-500">Past clinic event, not a livestream. Opens the original public video.</span>
+            </a>
             <div className="grid gap-4 md:grid-cols-3">
               {featuredMedia.length === 0 ? (
                 <p className="text-sm text-gray-400 md:col-span-3">No educational posts are available yet.</p>

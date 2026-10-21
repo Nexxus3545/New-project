@@ -282,6 +282,12 @@ export default function PatientHomeScreen({ navigation }) {
         <Button title="Clinic videos & community events" variant="secondary" icon="video-outline"
           onPress={() => Linking.openURL('https://www.facebook.com/people/TMC-Copino-Birthing-Home/61575314979762/')}
           style={{ marginBottom: spacing.sm }} />
+        <Button title="Summer Tuli 2026 replay on Facebook" variant="secondary" icon="play-circle-outline"
+          onPress={() => Linking.openURL('https://www.facebook.com/reel/2538336333249251/')}
+          style={{ marginBottom: spacing.sm }} />
+        <Text style={{ color: colors.gray[500], fontSize: 12, marginBottom: spacing.sm }}>
+          Past clinic event, not a livestream. Opens the original public video.
+        </Text>
         {!featuredMedia.length ? (
           <EmptyState
             icon="MD"

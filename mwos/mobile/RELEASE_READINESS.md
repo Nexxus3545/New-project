@@ -10,6 +10,7 @@
 - Background locking removes the usable access/refresh tokens. Private clinical responses are not cached in plain AsyncStorage.
 - Contact numbers can be saved after login, but are NOT marked verified. SMS verification/recovery is blocked until the clinic provisions a real SMS provider.
 - Facebook login is not offered. The clinic's supplied Facebook page can still be opened for its videos and events.
+- The clinic's public Summer Tuli 2026 reel (2538336333249251) was verified on its Facebook page. It is linked as a past-event replay, not a livestream. Facebook's own embed dialog returned Video Unavailable, so this reel opens on Facebook instead of pretending inline playback works.
 
 ## Build And Test
 
