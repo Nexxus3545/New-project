@@ -7,6 +7,7 @@ import {
   RefreshControl,
   StyleSheet,
   Image,
+  Linking,
 } from 'react-native'
 import { useQuery } from '@tanstack/react-query'
 import { StatusBar } from 'expo-status-bar'
@@ -21,9 +22,11 @@ import {
   Badge,
   Input,
 } from '../../components/ui'
+import { IconTile, MobileIcon } from '../../components/Icon'
 import { colors, spacing, radius, shadow } from '../../components/theme'
 
 const logo = require('../../../assets/icon.png')
+const receptionInformation = require('../../../assets/clinic/reception-information.jpg')
 
 const resultTypeMeta = {
   media: { label: 'Media Feed', variant: 'info' },
@@ -33,37 +36,59 @@ const resultTypeMeta = {
   record: { label: 'Record', variant: 'gray' },
 }
 
-function RecommendationCard({ item }) {
+function RecommendationCard({ item, onPress }) {
   const palette = item.priority === 'high'
     ? { bg: '#fff1f2', border: '#fecdd3', text: colors.rose[700] }
     : item.priority === 'medium'
       ? { bg: '#fffbeb', border: '#fde68a', text: '#92400e' }
       : { bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8' }
 
+  const Wrapper = onPress ? TouchableOpacity : View
+
   return (
-    <View style={[styles.recommendationCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+    <Wrapper
+      onPress={onPress}
+      activeOpacity={0.8}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={onPress ? `Open recommended action: ${item.title}` : undefined}
+      style={[styles.recommendationCard, { backgroundColor: palette.bg, borderColor: palette.border }]}
+    >
       <View style={styles.recommendationHead}>
         <Text style={[styles.recommendationType, { color: palette.text }]}>{String(item.type || 'guide').toUpperCase()}</Text>
         <Badge label={item.priority || 'info'} variant="gray" />
       </View>
       <Text style={styles.recommendationTitle}>{item.title}</Text>
       <Text style={styles.recommendationBody}>{item.description}</Text>
-      {item.route ? <Text style={styles.recommendationRoute}>Suggested screen: {item.route}</Text> : null}
-    </View>
+      {onPress ? <View style={styles.recommendationAction}><Text style={styles.recommendationRoute}>Open workflow</Text><MobileIcon name="chevron-right" size={19} color={palette.text} /></View> : null}
+    </Wrapper>
   )
 }
 
 function FeedPreviewCard({ post }) {
   const previewImage = post.poster_url || post.thumbnail_url || (post.media_type === 'image' ? post.media_url : null)
+  const launchUrl = post.media_url || post.video_url || post.poster_url
+
+  const openMedia = async () => {
+    if (launchUrl && await Linking.canOpenURL(launchUrl)) {
+      await Linking.openURL(launchUrl)
+    }
+  }
 
   return (
-    <View style={styles.feedCard}>
+    <TouchableOpacity
+      disabled={!launchUrl}
+      onPress={openMedia}
+      activeOpacity={launchUrl ? 0.8 : 1}
+      accessibilityRole="link"
+      accessibilityLabel={`Open ${post.title}`}
+      style={styles.feedCard}
+    >
       <View style={styles.feedMediaShell}>
         {previewImage ? (
           <Image source={{ uri: previewImage }} style={styles.feedImage} resizeMode="cover" />
         ) : (
           <View style={styles.feedPlaceholder}>
-            <Text style={styles.feedPlaceholderText}>{post.media_type === 'video' ? 'VIDEO' : 'IMAGE'}</Text>
+            <IconTile icon={post.media_type === 'video' ? 'play-circle-outline' : 'image-outline'} size={54} />
           </View>
         )}
         <View style={styles.feedOverlay}>
@@ -74,20 +99,29 @@ function FeedPreviewCard({ post }) {
         <Text style={styles.feedTitle} numberOfLines={2}>{post.title}</Text>
         <Text style={styles.feedMeta}>{post.category || 'General'} | {post.engagement_views || 0} views</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   )
 }
 
-function SearchResultCard({ result }) {
+function SearchResultCard({ result, onPress }) {
   const meta = resultTypeMeta[result.result_type] || resultTypeMeta.record
+  const Wrapper = onPress ? TouchableOpacity : View
   return (
-    <View style={styles.searchResultCard}>
+    <Wrapper
+      onPress={onPress}
+      activeOpacity={0.8}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={onPress ? `Open ${result.title}` : undefined}
+      style={styles.searchResultCard}
+    >
+      <IconTile icon={result.result_type === 'patient' ? 'account-outline' : result.result_type === 'medicine' ? 'pill' : result.result_type === 'inventory' ? 'package-variant-closed' : 'file-document-outline'} size={38} />
       <View style={{ flex: 1 }}>
         <Text style={styles.searchResultTitle}>{result.title}</Text>
         <Text style={styles.searchResultMeta}>{result.category || meta.label}</Text>
       </View>
       <Badge label={meta.label} variant={meta.variant} />
-    </View>
+      {onPress ? <MobileIcon name="chevron-right" size={19} color={colors.gray[400]} /> : null}
+    </Wrapper>
   )
 }
 
@@ -143,11 +177,45 @@ export default function StaffHomeScreen({ navigation }) {
     ])
   }
 
+  const openRecommendation = (route) => {
+    const screenByRoute = {
+      '/dashboard': 'Home',
+      '/patients': 'Patients',
+      '/appointments': 'Appointments',
+      '/deliveries': 'Deliveries',
+      '/inventory': 'Inventory',
+      '/emergency-map': 'EmergencyMap',
+    }
+    const screen = screenByRoute[route]
+    if (screen) navigation.navigate(screen)
+  }
+
+  const hasRecommendationTarget = (route) => [
+    '/dashboard',
+    '/patients',
+    '/appointments',
+    '/deliveries',
+    '/inventory',
+    '/emergency-map',
+  ].includes(route)
+
+  const openSearchResult = (result) => {
+    if (result.result_type === 'patient') {
+      navigation.navigate('PatientDetail', { patientId: result.id, patientName: result.title })
+      return
+    }
+
+    if (result.result_type === 'medicine' || result.result_type === 'inventory') {
+      navigation.navigate('Inventory')
+      return
+    }
+
+    if (result.result_type === 'record') navigation.navigate('Patients')
+  }
+
   return (
     <View style={styles.root}>
       <StatusBar style="dark" />
-      <View style={styles.orbA} />
-      <View style={styles.orbB} />
 
       <View style={styles.header}>
         <View style={styles.headerTop}>
@@ -160,14 +228,16 @@ export default function StaffHomeScreen({ navigation }) {
               <Text style={styles.headerSub}>TMC Copino care command center</Text>
             </View>
           </View>
-          <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
-            <Text style={styles.logoutText}>Exit</Text>
+          <TouchableOpacity onPress={logout} style={styles.logoutBtn} accessibilityRole="button" accessibilityLabel="Sign out">
+            <MobileIcon name="logout-variant" size={17} color={colors.brand.copper} />
+            <Text style={styles.logoutText}>Sign out</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.headerGlass}>
-          <Text style={styles.headerTitle}>A purpose-built mobile dashboard with the same MWOS logic</Text>
-          <Text style={styles.headerDesc}>Search records, review care priorities, track appointments, and move through the same clinic workflow used on web and desktop.</Text>
+          <Image source={receptionInformation} style={styles.headerClinicImage} resizeMode="cover" />
+          <Text style={styles.headerTitle}>Staff workflow starts from clinic intake.</Text>
+          <Text style={styles.headerDesc}>Review alerts, appointments, monitoring queues, documents, and messages using the same MWOS data as web and desktop.</Text>
         </View>
       </View>
 
@@ -185,18 +255,18 @@ export default function StaffHomeScreen({ navigation }) {
           />
         )}
 
-        <SectionHeader title="Overview" />
+        <SectionHeader title="Today's Overview" />
         <View style={styles.statsGrid}>
-          <StatCard icon="PT" label="Patients" value={stats.totalPatients} color="teal" />
-          <StatCard icon="PG" label="Pregnancies" value={stats.activePregnancies} color="blue" />
+          <StatCard icon="PT" label="Patients" value={stats.totalPatients} color="teal" onPress={() => navigation.navigate('Patients')} />
+          <StatCard icon="PG" label="Pregnancies" value={stats.activePregnancies} color="blue" onPress={() => navigation.navigate('Patients')} />
         </View>
         <View style={[styles.statsGrid, { marginTop: spacing.sm }]}> 
-          <StatCard icon="AP" label="Today" value={stats.todayAppointments} color="teal" />
-          <StatCard icon="DL" label="This Month" value={stats.deliveriesThisMonth} color="teal" />
+          <StatCard icon="AP" label="Today" value={stats.todayAppointments} color="teal" onPress={() => navigation.navigate('Appointments')} />
+          <StatCard icon="DL" label="This Month" value={stats.deliveriesThisMonth} color="teal" onPress={() => navigation.navigate('Deliveries')} />
         </View>
         <View style={[styles.statsGrid, { marginTop: spacing.sm }]}> 
-          <StatCard icon="CH" label="Threads" value={stats.unreadThreads} color="blue" />
-          <StatCard icon="TK" label="Tasks" value={stats.openCareTasks} color="amber" />
+          <StatCard icon="CH" label="Threads" value={stats.unreadThreads} color="blue" onPress={() => navigation.navigate('Patients')} />
+          <StatCard icon="TK" label="Tasks" value={stats.openCareTasks} color="amber" onPress={() => navigation.navigate('Patients')} />
         </View>
 
         <SectionHeader title="Unified Search" />
@@ -217,7 +287,11 @@ export default function StaffHomeScreen({ navigation }) {
           ) : (
             <View style={styles.stackGap}>
               {searchResults.slice(0, 4).map((result) => (
-                <SearchResultCard key={`${result.result_type}-${result.id}`} result={result} />
+                <SearchResultCard
+                  key={`${result.result_type}-${result.id}`}
+                  result={result}
+                  onPress={['patient', 'medicine', 'inventory', 'record'].includes(result.result_type) ? () => openSearchResult(result) : undefined}
+                />
               ))}
             </View>
           )}
@@ -228,11 +302,11 @@ export default function StaffHomeScreen({ navigation }) {
           <Card><Text style={styles.emptyText}>Recommendations will appear here as staff activity grows.</Text></Card>
         ) : (
           <View style={styles.stackGap}>
-            {recommendations.map((item) => <RecommendationCard key={item.id} item={item} />)}
+            {recommendations.map((item) => <RecommendationCard key={item.id} item={item} onPress={hasRecommendationTarget(item.route) ? () => openRecommendation(item.route) : undefined} />)}
           </View>
         )}
 
-        <SectionHeader title="Featured Health Feed" action="Refresh" onAction={() => mediaQuery.refetch()} />
+        <SectionHeader title="Health Tips & Education" action="Refresh" onAction={() => mediaQuery.refetch()} />
         {featuredMedia.length === 0 ? (
           <Card><Text style={styles.emptyText}>No educational media uploaded yet.</Text></Card>
         ) : (
@@ -249,7 +323,7 @@ export default function StaffHomeScreen({ navigation }) {
             </View>
           ) : (
             todayAppointments.map((appointment, index) => (
-              <View key={`${appointment.patient_name}-${index}`} style={[styles.appointmentRow, index === todayAppointments.length - 1 && { borderBottomWidth: 0 }]}> 
+              <TouchableOpacity key={`${appointment.patient_name}-${index}`} onPress={() => navigation.navigate('Appointments')} activeOpacity={0.78} accessibilityRole="button" accessibilityLabel={`Open appointment for ${appointment.patient_name}`} style={[styles.appointmentRow, index === todayAppointments.length - 1 && { borderBottomWidth: 0 }]}>
                 <View style={styles.appointmentTime}>
                   <Text style={styles.appointmentTimeText}>{appointment.scheduled_time?.slice(0, 5)}</Text>
                 </View>
@@ -261,7 +335,8 @@ export default function StaffHomeScreen({ navigation }) {
                   label={appointment.risk_level || 'low'}
                   variant={appointment.risk_level === 'high' ? 'danger' : appointment.risk_level === 'moderate' ? 'warning' : 'success'}
                 />
-              </View>
+                <MobileIcon name="chevron-right" size={19} color={colors.gray[400]} />
+              </TouchableOpacity>
             ))
           )}
         </Card>
@@ -269,10 +344,11 @@ export default function StaffHomeScreen({ navigation }) {
         <SectionHeader title="Quick Actions" />
         <View style={styles.quickActions}>
           {[
-            { label: 'Patients', screen: 'Patients', code: 'PT' },
-            { label: 'Schedule', screen: 'Appointments', code: 'AP' },
-            { label: 'Deliveries', screen: 'Deliveries', code: 'DL' },
-            { label: 'Medicines', screen: 'Inventory', code: 'RX' },
+            { label: 'Patients', screen: 'Patients', icon: 'account-group-outline' },
+            { label: 'Appointments', screen: 'Appointments', icon: 'calendar-check-outline' },
+            { label: 'Deliveries', screen: 'Deliveries', icon: 'baby-carriage' },
+            { label: 'Medicines', screen: 'Inventory', icon: 'pill' },
+            { label: 'Emergency map', screen: 'EmergencyMap', icon: 'map-marker-radius-outline' },
           ].map((action) => (
             <TouchableOpacity
               key={action.screen}
@@ -280,7 +356,7 @@ export default function StaffHomeScreen({ navigation }) {
               style={styles.quickBtn}
               activeOpacity={0.84}
             >
-              <View style={styles.quickBadge}><Text style={styles.quickCode}>{action.code}</Text></View>
+              <View style={styles.quickBadge}><MobileIcon name={action.icon} size={21} color={colors.brand.copper} /></View>
               <Text style={styles.quickBtnLabel}>{action.label}</Text>
             </TouchableOpacity>
           ))}
@@ -352,6 +428,9 @@ const styles = StyleSheet.create({
     color: colors.gray[500],
   },
   logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: radius.full,
@@ -372,6 +451,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.78)',
     ...shadow.md,
+  },
+  headerClinicImage: {
+    width: '100%',
+    height: 150,
+    borderRadius: radius.lg,
+    marginBottom: spacing.md,
   },
   headerTitle: {
     fontSize: 16,
@@ -432,6 +517,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1.2,
   },
+  recommendationAction: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   feedRail: {
     gap: spacing.md,
     paddingRight: spacing.md,
@@ -459,12 +550,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.brand.blush,
-  },
-  feedPlaceholderText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.brand.copper,
-    letterSpacing: 1.2,
   },
   feedOverlay: {
     position: 'absolute',
@@ -574,11 +659,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.blush,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  quickCode: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.brand.copper,
   },
   quickBtnLabel: {
     fontSize: 12,

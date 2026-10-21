@@ -33,8 +33,10 @@ const { passport } = require('../config/oauth');
 
 // ── AUTH ──────────────────────────────────────────────────────
 router.post('/auth/login', authCtrl.login);
-router.post('/auth/sms-login/request', authCtrl.requestSmsLogin);
-router.post('/auth/sms-login/verify', authCtrl.verifySmsLogin);
+// SMS is reserved for verified contacts/recovery, not public passwordless sign-in.
+router.post(['/auth/sms-login/request', '/auth/sms-login/verify'], (_req, res) =>
+  res.status(410).json({ success: false, message: 'SMS sign-in is no longer offered. Sign in with Google or your clinic account.' })
+);
 router.post('/auth/register', authCtrl.register);
 router.post('/auth/forgot-password', authCtrl.forgotPassword);
 router.post('/auth/reset-password', authCtrl.resetPassword);

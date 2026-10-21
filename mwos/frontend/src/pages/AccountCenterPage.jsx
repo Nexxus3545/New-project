@@ -6,6 +6,7 @@ import { uploadResumableFile } from '../utils/chunkedUpload'
 import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
 import { accentPresets, appearanceOptions, normalizeAppearance } from '../utils/appearance'
+import ContactNumberCard from '../components/common/ContactNumberCard'
 
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -523,6 +524,8 @@ export default function AccountCenterPage() {
       ) : null}
 
       {localError ? <div className="alert-critical text-sm">{localError}</div> : null}
+
+      <ContactNumberCard />
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-6">

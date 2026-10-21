@@ -1,179 +1,153 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useState } from 'react'
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  KeyboardAvoidingView, Platform, StyleSheet, Image, Animated,
+  View, Text, ScrollView,
+  KeyboardAvoidingView, Platform, StyleSheet, Image,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { useAuthStore } from '../hooks/useAuthStore'
 import { Button, Input, AlertBox } from '../components/ui'
+import { IconButton } from '../components/Icon'
 import { colors, spacing, radius, shadow } from '../components/theme'
 
 const logo = require('../../assets/icon.png')
-
-const DEMO_ACCOUNTS = [
-  { label: 'Admin', email: 'admin@tmccopino.com', password: 'admin1234' },
-  { label: 'Doctor', email: 'doctor@tmccopino.com', password: 'password123' },
-  { label: 'Midwife', email: 'midwife@tmccopino.com', password: 'password123' },
-  { label: 'Patient', email: 'patient@example.com', password: 'patient123' },
-]
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
-  const { login, loginWithBiometrics, biometricEnabled, isLoading, error, clearError } = useAuthStore()
-  const floatAnim = useRef(new Animated.Value(0)).current
-  const pulseAnim = useRef(new Animated.Value(1)).current
-
-  useEffect(() => {
-    const floatLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, { toValue: -10, duration: 2600, useNativeDriver: true }),
-        Animated.timing(floatAnim, { toValue: 0, duration: 2600, useNativeDriver: true }),
-      ])
-    )
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 2200, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 2200, useNativeDriver: true }),
-      ])
-    )
-
-    floatLoop.start()
-    pulseLoop.start()
-
-    return () => {
-      floatLoop.stop()
-      pulseLoop.stop()
-    }
-  }, [floatAnim, pulseAnim])
-
+  const {
+    login,
+    loginWithGoogle,
+    loginWithBiometrics,
+    biometricEnabled,
+    biometricPending,
+    biometricLabel,
+    isLoading,
+    error,
+    clearError,
+  } = useAuthStore()
   const handleLogin = async () => {
     if (!email.trim() || !password) return
     await login(email, password)
   }
 
   const handleBiometricLogin = async () => {
-    const result = await loginWithBiometrics()
-    if (result.success && result.user) {
-      navigation.replace(result.user.role === 'patient' ? 'PatientNavigator' : 'StaffTabs')
-    }
-  }
-
-  const fillDemo = (account) => {
-    clearError()
-    setEmail(account.email)
-    setPassword(account.password)
+    await loginWithBiometrics()
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <StatusBar style="dark" />
-      <View style={styles.orbA} />
-      <View style={styles.orbB} />
-      <View style={styles.gridGlow} />
-
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView
+        style={styles.root}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.header}>
-          <Animated.View style={[styles.logoAura, { transform: [{ scale: pulseAnim }] }]} />
-          <Animated.View style={[styles.logoShell, { transform: [{ translateY: floatAnim }] }]}>
-            <Image source={logo} style={styles.logoImage} resizeMode="cover" />
-          </Animated.View>
-          <Text style={styles.title}>TMC Copino MWOS</Text>
-          <Text style={styles.subtitle}>A calm, connected maternal care workspace across web, mobile, and desktop.</Text>
+        <StatusBar style="dark" />
+        <View style={styles.orbA} />
+        <View style={styles.orbB} />
 
-          <View style={styles.featureRow}>
-            <View style={styles.featureChip}><Text style={styles.featureText}>Shared backend</Text></View>
-            <View style={styles.featureChip}><Text style={styles.featureText}>Secure roles</Text></View>
-            <View style={styles.featureChip}><Text style={styles.featureText}>Care timeline</Text></View>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <View style={styles.logoAura} />
+            <View style={styles.logoShell}>
+              <Image source={logo} style={styles.logoImage} resizeMode="contain" />
+            </View>
+            <Text style={styles.title}>TMC Copino MWOS</Text>
+            <Text style={styles.subtitle}>Secure access to your maternal care information and clinic services.</Text>
           </View>
-        </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Sign in</Text>
-          <Text style={styles.cardSub}>Use your clinic account to enter the maternal wellness workspace.</Text>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Sign in securely</Text>
+            <Text style={styles.cardSub}>
+              {biometricPending
+                ? `This saved session is locked. Use ${biometricLabel} or enter your password.`
+                : 'Use the email and password issued for your TMC Copino account.'}
+            </Text>
 
-          {error && <AlertBox type="critical" message={error} />}
+            {error && <AlertBox type="critical" message={error} />}
 
-          <Input
-            label="Email address"
-            value={email}
-            onChangeText={(text) => { clearError(); setEmail(text) }}
-            placeholder="you@tmccopino.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-
-          <View>
             <Input
-              label="Password"
-              value={password}
-              onChangeText={(text) => { clearError(); setPassword(text) }}
-              placeholder="Enter your password"
-              secureTextEntry={!showPass}
+              label="Email address"
+              value={email}
+              onChangeText={(text) => { clearError(); setEmail(text) }}
+              placeholder="you@tmccopino.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
+              returnKeyType="next"
             />
-            <TouchableOpacity onPress={() => setShowPass(!showPass)} style={styles.showPass}>
-              <Text style={styles.showPassText}>{showPass ? 'Hide' : 'Show'}</Text>
-            </TouchableOpacity>
-          </View>
 
-          <Button
-            title={isLoading ? 'Signing in...' : 'Sign in'}
-            onPress={handleLogin}
-            loading={isLoading}
-            disabled={!email || !password}
-            style={{ marginTop: spacing.sm }}
-          />
+            <View>
+              <Input
+                label="Password"
+                value={password}
+                onChangeText={(text) => { clearError(); setPassword(text) }}
+                placeholder="Enter your password"
+                secureTextEntry={!showPass}
+                autoComplete="current-password"
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
+              />
+              <IconButton
+                icon={showPass ? 'eye-off-outline' : 'eye-outline'}
+                label={showPass ? 'Hide password' : 'Show password'}
+                onPress={() => setShowPass(!showPass)}
+                size={34}
+                backgroundColor="transparent"
+                style={styles.showPass}
+              />
+            </View>
 
-          {biometricEnabled ? (
             <Button
-              title="Use biometric unlock"
-              variant="secondary"
-              onPress={handleBiometricLogin}
+              title={isLoading ? 'Signing in...' : 'Sign in securely'}
+              onPress={handleLogin}
+              loading={isLoading}
+              disabled={!email || !password}
+              icon="login"
               style={{ marginTop: spacing.sm }}
             />
-          ) : null}
 
-          <Button
-            title="Create patient account"
-            variant="secondary"
-            onPress={() => navigation.navigate('Register')}
-            style={{ marginTop: spacing.sm }}
-          />
+            <Button title="Continue with Google" variant="secondary" onPress={loginWithGoogle}
+              disabled={isLoading} icon="google" style={{ marginTop: spacing.sm }} />
+            <Text style={styles.cardSub}>Google sign-in is for patient accounts. Staff use their clinic account.</Text>
 
-          <View style={styles.demoSection}>
-            <Text style={styles.demoLabel}>Quick demo access</Text>
-            <View style={styles.demoGrid}>
-              {DEMO_ACCOUNTS.map((account) => (
-                <TouchableOpacity
-                  key={account.label}
-                  onPress={() => fillDemo(account)}
-                  style={styles.demoBtn}
-                  activeOpacity={0.82}
-                >
-                  <Text style={styles.demoBtnText}>{account.label}</Text>
-                </TouchableOpacity>
-              ))}
+            {biometricEnabled && biometricPending ? (
+              <Button
+                title={`Unlock with ${biometricLabel}`}
+                variant="secondary"
+                onPress={handleBiometricLogin}
+                icon="fingerprint"
+                style={{ marginTop: spacing.sm }}
+              />
+            ) : null}
+
+            <Button
+              title="Create a patient account"
+              variant="secondary"
+              onPress={() => navigation.navigate('Register')}
+              icon="account-plus-outline"
+              style={{ marginTop: spacing.sm }}
+            />
+
+            <View style={styles.securityNote}>
+              <Text style={styles.securityNoteText}>
+                Your health information is protected and available only to authorized clinic personnel.
+              </Text>
             </View>
           </View>
-        </View>
 
-        <View style={styles.footerWrap}>
-          <Text style={styles.footer}>TMC Copino Birthing Home and Medical Clinic - Gajo, Albay</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Register')} activeOpacity={0.84}>
-            <Text style={styles.footerLink}>New here? Set up your patient access</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <View style={styles.footerWrap}>
+            <Text style={styles.footer}>TMC Copino Birthing Home and Medical Clinic - Gajo, Albay</Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   )
 }
 
@@ -200,17 +174,11 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: 'rgba(15,118,110,0.14)',
   },
-  gridGlow: {
-    position: 'absolute',
-    inset: 0,
-    opacity: 0.22,
-    borderWidth: 0,
-  },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: spacing.xl,
-    paddingTop: 54,
-    paddingBottom: 40,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxl,
   },
   header: {
     alignItems: 'center',
@@ -225,21 +193,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(201,137,148,0.18)',
   },
   logoShell: {
-    width: 110,
-    height: 110,
-    padding: 10,
-    borderRadius: 34,
+    width: 92,
+    height: 92,
+    padding: 9,
+    borderRadius: 30,
     backgroundColor: 'rgba(255,255,255,0.7)',
     ...shadow.lg,
   },
   logoImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 24,
+    borderRadius: 20,
   },
   title: {
-    marginTop: 18,
-    fontSize: 30,
+    marginTop: 16,
+    fontSize: 27,
     fontWeight: '700',
     color: colors.brand.copper,
     textAlign: 'center',
@@ -252,30 +220,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 320,
   },
-  featureRow: {
-    marginTop: 16,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  featureChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.76)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.84)',
-  },
-  featureText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.brand.copper,
-  },
   card: {
     backgroundColor: 'rgba(255,255,255,0.84)',
     borderRadius: radius.xl,
-    padding: spacing.xxl,
+    padding: spacing.xl,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.78)',
     ...shadow.lg,
@@ -294,46 +242,21 @@ const styles = StyleSheet.create({
   },
   showPass: {
     position: 'absolute',
-    right: 14,
-    bottom: 28,
+    right: 8,
+    bottom: 20,
   },
-  showPassText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.brand.copper,
-  },
-  demoSection: {
-    marginTop: 24,
-    paddingTop: 18,
-    borderTopWidth: 1,
-    borderTopColor: colors.gray[100],
-  },
-  demoLabel: {
-    fontSize: 12,
-    color: colors.gray[500],
-    textAlign: 'center',
-    marginBottom: 10,
-    fontWeight: '600',
-  },
-  demoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  demoBtn: {
-    flex: 1,
-    minWidth: '45%',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.78)',
-    backgroundColor: 'rgba(243,221,226,0.62)',
+  securityNote: {
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderRadius: radius.lg,
-    paddingVertical: 10,
-    alignItems: 'center',
+    backgroundColor: 'rgba(243,221,226,0.58)',
   },
-  demoBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.brand.copper,
+  securityNoteText: {
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    color: colors.gray[600],
   },
   footer: {
     textAlign: 'center',
@@ -343,11 +266,5 @@ const styles = StyleSheet.create({
   footerWrap: {
     marginTop: 24,
     gap: 8,
-  },
-  footerLink: {
-    textAlign: 'center',
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.brand.copper,
   },
 })

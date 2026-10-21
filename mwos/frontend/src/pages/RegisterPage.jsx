@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import api from '../utils/api'
 import useSignInProviders from '../hooks/useSignInProviders'
-import { GoogleProviderIcon, SmsProviderIcon } from '../components/common/AuthProviderIcons'
+import { GoogleProviderIcon } from '../components/common/AuthProviderIcons'
 
 const roles = ['patient', 'nurse', 'midwife', 'doctor', 'admin']
 const steps = [
@@ -116,10 +116,6 @@ export default function RegisterPage() {
             </button>
           </div>
           <p className="auth-provider-note" role="status">{providerNotice || providerNote}</p>
-          <Link to="/login?sms=1" className="auth-sms-signin-link">
-            <SmsProviderIcon className="auth-provider-icon auth-provider-icon-sms" />
-            Already registered? Sign in with SMS
-          </Link>
         </div>
       ) : null}
 

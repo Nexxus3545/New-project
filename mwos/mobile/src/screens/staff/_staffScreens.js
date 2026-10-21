@@ -385,6 +385,8 @@ export function StaffProfileScreen() {
     enableBiometricUnlock,
     disableBiometricUnlock,
     biometricEnabled,
+    biometricAvailable,
+    biometricLabel,
     stepUpToken,
     clearStepUp,
   } = useAuthStore();
@@ -489,7 +491,13 @@ export function StaffProfileScreen() {
           <Button title="Verify OTP" onPress={handleVerifyOtp} style={{ flex: 1, minWidth: 120 }} />
         </View>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          <Button title={biometricEnabled ? 'Disable biometrics' : 'Enable biometrics'} variant="secondary" onPress={biometricEnabled ? handleDisableBiometric : handleEnableBiometric} style={{ flex: 1, minWidth: 120 }} />
+          <Button
+            title={biometricEnabled ? 'Disable biometrics' : `Enable ${biometricLabel}`}
+            variant="secondary"
+            onPress={biometricEnabled ? handleDisableBiometric : handleEnableBiometric}
+            disabled={!biometricEnabled && !biometricAvailable}
+            style={{ flex: 1, minWidth: 120 }}
+          />
           <Button title="Clear step-up" variant="ghost" onPress={handleClearStepUp} style={{ flex: 1, minWidth: 120 }} />
         </View>
       </Card>

@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../../utils/api'
 import { useAuthStore } from '../../store/authStore'
 import RealtimeVitalsPanel from '../../components/patient/RealtimeVitalsPanel'
+import ClinicMediaPlayer from '../../components/patient/ClinicMediaPlayer'
+import { CLINIC_FACEBOOK_PAGE } from '../../utils/mediaSource'
 
 export default function PatientDashboardPage() {
   const user = useAuthStore((state) => state.user)
@@ -49,7 +51,7 @@ export default function PatientDashboardPage() {
   const dashboard = data || {}
   const suggestionList = recommendations?.suggestions || []
   const documentSummary = dashboard.documentSummary || {}
-  const featuredMedia = (recommendations?.featuredMedia || mediaFeed).slice(0, 3)
+  const featuredMedia = (mediaFeed.length ? mediaFeed : recommendations?.featuredMedia || []).slice(0, 6)
   const featuredDoctors = (directory?.staff || []).filter((member) => ['doctor', 'midwife'].includes(member.role)).slice(0, 3)
   const unreadNotifications = notifications.filter((item) => !item.is_read).length
   const featuredTips = education.slice(0, 3)
@@ -183,16 +185,20 @@ export default function PatientDashboardPage() {
               <span className="badge badge-gray">{featuredMedia.length}</span>
             </div>
 
+            <p className="mb-4 text-sm text-slate-500">
+              Clinic videos and event replays appear only after the clinic publishes their direct links.
+              {' '}<a href={CLINIC_FACEBOOK_PAGE} target="_blank" rel="noopener noreferrer" className="font-semibold text-[var(--accent)] underline">Open the clinic Facebook page</a>
+            </p>
             <div className="grid gap-4 md:grid-cols-3">
               {featuredMedia.length === 0 ? (
                 <p className="text-sm text-gray-400 md:col-span-3">No educational posts are available yet.</p>
               ) : featuredMedia.map((post) => (
                 <div key={post.id} className="overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-sm">
-                  <div className="relative aspect-[4/5] overflow-hidden bg-slate-100">
+                  <div className="relative bg-slate-100">
                     {post.media_type === 'image' ? (
                       <img src={post.media_url} alt={post.title} className="h-full w-full object-cover" />
                     ) : (
-                      <video src={post.media_url || post.video_url} poster={post.poster_url || undefined} className="h-full w-full object-cover" muted playsInline controls />
+                      <ClinicMediaPlayer src={post.media_url || post.video_url} poster={post.poster_url} title={post.title} />
                     )}
                     <div className="absolute left-3 top-3 rounded-full bg-slate-950/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white">
                       {post.media_type || 'media'}

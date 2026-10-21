@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { StatusBar } from 'expo-status-bar'
 import { Button } from '../components/ui'
+import { IconTile } from '../components/Icon'
 import { colors, radius, shadow, spacing } from '../components/theme'
 import { usePatientExperienceStore } from '../hooks/usePatientExperienceStore'
 
@@ -53,9 +54,9 @@ export default function OnboardingScreen() {
           <Text style={styles.stepBadgeText}>{slide.step}</Text>
         </View>
         <View style={styles.heroPanel}>
-          <View style={styles.heroTile} />
-          <View style={[styles.heroTile, styles.heroTileTall]} />
-          <View style={styles.heroTile} />
+          <View style={styles.heroTile}><IconTile icon="calendar-check-outline" size={56} /></View>
+          <View style={[styles.heroTile, styles.heroTileTall]}><IconTile icon="heart-pulse" size={66} /></View>
+          <View style={styles.heroTile}><IconTile icon="message-text-outline" size={56} /></View>
         </View>
       </View>
 
@@ -82,6 +83,8 @@ export default function OnboardingScreen() {
           title={isLast ? 'Get started' : 'Continue'}
           onPress={isLast ? completeOnboarding : () => setIndex((current) => current + 1)}
           size="lg"
+          icon={isLast ? 'check-circle-outline' : 'arrow-right'}
+          iconPosition="right"
         />
         {!isLast ? (
           <Button
@@ -90,6 +93,7 @@ export default function OnboardingScreen() {
             onPress={() => setIndex((current) => Math.max(0, current - 1))}
             disabled={index === 0}
             size="lg"
+            icon="arrow-left"
             style={{ marginTop: spacing.sm }}
           />
         ) : null}

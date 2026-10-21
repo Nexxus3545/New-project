@@ -49,6 +49,25 @@ test('both OAuth starts use the configured provider callback', async () => {
   }
 });
 
+test('native Google start accepts S256 state but does not permit arbitrary redirect URLs', async () => {
+  const challenge = 'x'.repeat(43);
+  const response = await fetch(`${baseUrl}/api/auth/google?client=mobile&code_challenge_method=S256&code_challenge=${challenge}`, { redirect: 'manual' });
+  const state = new URL(response.headers.get('location')).searchParams.get('state');
+  assert.equal(response.status, 302);
+  assert.match(state, /^m1\.[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}$/);
+  const invalid = await fetch(`${baseUrl}/api/auth/google?client=mobile&redirect_uri=https://attacker.invalid`, { redirect: 'manual' });
+  assert.equal(invalid.status, 400);
+});
+
+test('legacy public SMS login endpoints are retired', async () => {
+  for (const endpoint of ['request', 'verify']) {
+    const response = await fetch(`${baseUrl}/api/auth/sms-login/${endpoint}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    assert.equal(response.status, 410);
+  }
+});
+
 test('a disconnected database blocks provider starts before leaving MWOS', async () => {
   databaseReady = false;
 

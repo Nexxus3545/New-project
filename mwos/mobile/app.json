@@ -2,6 +2,7 @@
   "expo": {
     "name": "TMC Copino MWOS",
     "slug": "mwos-tmccopino",
+    "scheme": "tmccopinomwos",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +15,10 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.tmccopino.mwos"
+      "bundleIdentifier": "com.tmccopino.mwos",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "MWOS uses your location only when you choose to share it for emergency pickup coordination with authorized clinic staff."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,11 +31,24 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      ["expo-secure-store", { "configureAndroidBackup": true, "faceIDPermission": "Use Face ID to unlock your saved MWOS session on this device." }],
       [
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
           "color": "#c98994"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "MWOS uses your location only when you choose to share it for emergency pickup coordination with authorized clinic staff."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow TMC Copino MWOS to use Face ID to unlock your protected clinic account on this device."
         }
       ]
     ]

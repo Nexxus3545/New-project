@@ -1,15 +1,15 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { resolveApiUrl, isPublicAuthRequest } from './apiConfig';
 
-const DEFAULT_BASE_URL = Platform.select({
-  android: 'http://10.0.2.2:5000/api',
-  ios: 'http://127.0.0.1:5000/api',
-  default: 'http://localhost:5000/api',
-});
-
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL?.trim() || DEFAULT_BASE_URL;
+const BASE_URL = resolveApiUrl(process.env.EXPO_PUBLIC_API_URL);
+const biometricOptions = {
+  requireAuthentication: true,
+  keychainService: 'mwos-biometric-session',
+  keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+  authenticationPrompt: 'Unlock your MWOS session',
+};
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -26,11 +26,29 @@ const getToken = async (key) => {
 };
 
 const setToken = async (key, value) => {
-  try {
-    await SecureStore.setItemAsync(key, value);
-  } catch (e) {
-    console.error('SecureStore set error:', e);
+  if (key === 'refreshToken' && await getToken('biometricEnabled') === 'true') {
+    await SecureStore.setItemAsync('biometricRefreshToken', value, biometricOptions);
   }
+  await SecureStore.setItemAsync(key, value);
+};
+
+const unlockRefreshToken = () => SecureStore.getItemAsync('biometricRefreshToken', biometricOptions);
+const enableBiometricToken = async () => {
+  const token = await getToken('refreshToken');
+  if (!token) throw new Error('Sign in again before enabling fingerprint unlock.');
+  await SecureStore.setItemAsync('biometricRefreshToken', token, biometricOptions);
+  await setToken('biometricEnabled', 'true');
+  await setToken('biometricVaultVersion', '1');
+};
+const removeBiometricToken = async () => {
+  await SecureStore.deleteItemAsync('biometricRefreshToken', biometricOptions);
+  await SecureStore.deleteItemAsync('biometricEnabled');
+  await SecureStore.deleteItemAsync('biometricVaultVersion');
+};
+const lockTokens = async () => {
+  await SecureStore.deleteItemAsync('accessToken');
+  await SecureStore.deleteItemAsync('refreshToken');
+  await SecureStore.deleteItemAsync('stepUpToken');
 };
 
 const clearTokens = async () => {
@@ -39,6 +57,9 @@ const clearTokens = async () => {
     await SecureStore.deleteItemAsync('refreshToken');
     await SecureStore.deleteItemAsync('user');
     await SecureStore.deleteItemAsync('stepUpToken');
+    await removeBiometricToken();
+    const keys = await AsyncStorage.getAllKeys();
+    await AsyncStorage.multiRemove(keys.filter((key) => key.startsWith('offline-cache:')));
   } catch {}
 };
 
@@ -50,12 +71,17 @@ const clearStepUp = async () => {
 
 const buildCacheKey = (config) => {
   const params = config?.params ? JSON.stringify(config.params) : '';
-  return `offline-cache:${config?.url || ''}:${params}`;
+  return `public-cache:${config?.url || ''}:${params}`;
+};
+const isPublicContent = (config) => ['/media-feed/posts', '/reviews/summary'].includes(config?.url);
+const purgePrivateCache = async () => {
+  const keys = await AsyncStorage.getAllKeys();
+  await AsyncStorage.multiRemove(keys.filter((key) => key.startsWith('offline-cache:')));
 };
 
 const saveGetCache = async (config, data) => {
   try {
-    if (config.method?.toLowerCase() !== 'get') return;
+    if (config.method?.toLowerCase() !== 'get' || !isPublicContent(config)) return;
     await AsyncStorage.setItem(
       buildCacheKey(config),
       JSON.stringify({ cachedAt: new Date().toISOString(), data })
@@ -65,6 +91,7 @@ const saveGetCache = async (config, data) => {
 
 const loadGetCache = async (config) => {
   try {
+    if (!isPublicContent(config)) return null;
     const cachedRaw = await AsyncStorage.getItem(buildCacheKey(config));
     if (!cachedRaw) return null;
     const parsed = JSON.parse(cachedRaw);
@@ -76,6 +103,11 @@ const loadGetCache = async (config) => {
 
 api.interceptors.request.use(
   async (config) => {
+    if (isPublicAuthRequest(config.url)) {
+      delete config.headers.Authorization;
+      delete config.headers['X-Step-Up-Token'];
+      return config;
+    }
     const token = await getToken('accessToken');
     if (token) config.headers.Authorization = `Bearer ${token}`;
 
@@ -103,7 +135,7 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
 
-    if (error.response?.status === 401 && !original?._retry) {
+    if (error.response?.status === 401 && original && !original._retry && !isPublicAuthRequest(original.url)) {
       if (error.response?.data?.code === 'TOKEN_EXPIRED') {
         if (isRefreshing) {
           return new Promise((resolve, reject) => {
@@ -119,6 +151,8 @@ api.interceptors.response.use(
 
         const refreshToken = await getToken('refreshToken');
         if (!refreshToken) {
+          processQueue(error, null);
+          isRefreshing = false;
           await clearTokens();
           return Promise.reject(error);
         }
@@ -165,5 +199,5 @@ api.interceptors.response.use(
   }
 );
 
-export { getToken, setToken, clearTokens };
+export { getToken, setToken, clearTokens, lockTokens, unlockRefreshToken, enableBiometricToken, removeBiometricToken, purgePrivateCache };
 export default api;

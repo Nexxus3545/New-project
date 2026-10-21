@@ -3,11 +3,14 @@
   "version": "1.0.0",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "apk:preview": "powershell -ExecutionPolicy Bypass -File ./scripts/build-android-apk.ps1 -Variant standalone",
     "start": "powershell -ExecutionPolicy Bypass -File ./scripts/start-mobile-offline.ps1",
+    "start:offline": "powershell -ExecutionPolicy Bypass -File ./scripts/start-mobile-offline.ps1",
     "android": "powershell -ExecutionPolicy Bypass -File ./scripts/start-android-offline.ps1 -Offline -AvdName Pixel_9a",
     "android:offline": "powershell -ExecutionPolicy Bypass -File ./scripts/start-android-offline.ps1 -Offline -AvdName Pixel_9a",
     "android:repair": "powershell -ExecutionPolicy Bypass -File ./scripts/start-android-offline.ps1 -RepairOnly -AvdName Pixel_9a",
-    "apk:debug": "powershell -ExecutionPolicy Bypass -File ./scripts/build-android-apk.ps1",
+    "apk:debug": "powershell -ExecutionPolicy Bypass -File ./scripts/build-android-apk.ps1 -Variant debug",
     "ios": "expo start --ios --offline",
     "web": "expo start --web --offline"
   },
@@ -20,11 +23,14 @@
     "axios": "^1.6.5",
     "date-fns": "^3.3.1",
     "expo": "~51.0.28",
+    "expo-crypto": "~13.0.2",
     "expo-document-picker": "~12.0.2",
     "expo-local-authentication": "~14.0.1",
+    "expo-location": "~17.0.1",
     "expo-notifications": "~0.28.19",
     "expo-secure-store": "~13.0.2",
     "expo-status-bar": "~1.12.1",
+    "expo-web-browser": "~13.0.3",
     "react": "18.2.0",
     "react-native": "0.74.5",
     "react-native-chart-kit": "^6.12.0",
@@ -37,4 +43,3 @@
     "@babel/core": "^7.24.0"
   }
 }
-

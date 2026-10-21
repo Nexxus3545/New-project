@@ -5,9 +5,9 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { AlertBox, Button, Input } from '../components/ui'
 import { colors, radius, shadow, spacing } from '../components/theme'
@@ -84,19 +84,21 @@ export default function RegisterScreen({ navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <StatusBar style="dark" />
-      <View style={styles.orbA} />
-      <View style={styles.orbB} />
-
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView
+        style={styles.root}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        <StatusBar style="dark" />
+        <View style={styles.orbA} />
+        <View style={styles.orbB} />
+
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.header}>
           <Text style={styles.eyebrow}>Patient registration</Text>
           <Text style={styles.title}>Create your MWOS care access</Text>
@@ -114,24 +116,21 @@ export default function RegisterScreen({ navigation }) {
 
           {joinedError ? <AlertBox type="critical" message={joinedError} /> : null}
 
-          <View style={styles.row}>
-            <View style={styles.half}>
-              <Input
-                label="First name"
-                value={form.firstName}
-                onChangeText={(value) => setField('firstName', value)}
-                placeholder="Maria"
-              />
-            </View>
-            <View style={styles.half}>
-              <Input
-                label="Last name"
-                value={form.lastName}
-                onChangeText={(value) => setField('lastName', value)}
-                placeholder="Santos"
-              />
-            </View>
-          </View>
+          <Input
+            label="First name"
+            value={form.firstName}
+            onChangeText={(value) => setField('firstName', value)}
+            placeholder="Maria"
+            autoComplete="given-name"
+          />
+
+          <Input
+            label="Last name"
+            value={form.lastName}
+            onChangeText={(value) => setField('lastName', value)}
+            placeholder="Santos"
+            autoComplete="family-name"
+          />
 
           <Input
             label="Email address"
@@ -141,27 +140,25 @@ export default function RegisterScreen({ navigation }) {
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
+            autoComplete="email"
           />
 
-          <View style={styles.row}>
-            <View style={styles.half}>
-              <Input
-                label="Phone"
-                value={form.phone}
-                onChangeText={(value) => setField('phone', value)}
-                placeholder="09xx xxx xxxx"
-                keyboardType="phone-pad"
-              />
-            </View>
-            <View style={styles.half}>
-              <Input
-                label="City"
-                value={form.city}
-                onChangeText={(value) => setField('city', value)}
-                placeholder="Tabaco City"
-              />
-            </View>
-          </View>
+          <Input
+            label="Phone"
+            value={form.phone}
+            onChangeText={(value) => setField('phone', value)}
+            placeholder="09xx xxx xxxx"
+            keyboardType="phone-pad"
+            autoComplete="tel"
+          />
+
+          <Input
+            label="City / Municipality"
+            value={form.city}
+            onChangeText={(value) => setField('city', value)}
+            placeholder="Tabaco City"
+            autoComplete="address-city"
+          />
 
           <Input
             label="Date of birth"
@@ -171,32 +168,32 @@ export default function RegisterScreen({ navigation }) {
             autoCapitalize="none"
           />
 
-          <View style={styles.row}>
-            <View style={styles.half}>
-              <Input
-                label="Password"
-                value={form.password}
-                onChangeText={(value) => setField('password', value)}
-                placeholder="Create a password"
-                secureTextEntry
-              />
-            </View>
-            <View style={styles.half}>
-              <Input
-                label="Confirm password"
-                value={form.confirmPassword}
-                onChangeText={(value) => setField('confirmPassword', value)}
-                placeholder="Repeat password"
-                secureTextEntry
-              />
-            </View>
-          </View>
+          <Input
+            label="Password"
+            value={form.password}
+            onChangeText={(value) => setField('password', value)}
+            placeholder="Create a password"
+            secureTextEntry
+            autoComplete="new-password"
+          />
+
+          <Input
+            label="Confirm password"
+            value={form.confirmPassword}
+            onChangeText={(value) => setField('confirmPassword', value)}
+            placeholder="Repeat password"
+            secureTextEntry
+            autoComplete="new-password"
+            returnKeyType="done"
+            onSubmitEditing={handleSubmit}
+          />
 
           <Button
             title={isLoading ? 'Creating account...' : 'Create patient account'}
             onPress={handleSubmit}
             loading={isLoading}
             disabled={!canSubmit}
+            icon="account-plus-outline"
             style={{ marginTop: spacing.sm }}
           />
 
@@ -204,11 +201,13 @@ export default function RegisterScreen({ navigation }) {
             title="Back to sign in"
             variant="secondary"
             onPress={() => navigation.goBack()}
+            icon="arrow-left"
             style={{ marginTop: spacing.sm }}
           />
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   )
 }
 
@@ -238,8 +237,8 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     paddingHorizontal: spacing.xl,
-    paddingTop: 54,
-    paddingBottom: 40,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxl,
   },
   header: {
     marginBottom: 24,
@@ -266,7 +265,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: 'rgba(255,255,255,0.86)',
     borderRadius: radius.xl,
-    padding: spacing.xxl,
+    padding: spacing.xl,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.8)',
     ...shadow.lg,
@@ -282,12 +281,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: colors.gray[500],
-  },
-  row: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  half: {
-    flex: 1,
   },
 })
