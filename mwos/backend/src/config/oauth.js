@@ -2,17 +2,19 @@ const passport = require('passport');
 const { Strategy: GoogleStrategy } = require('passport-google-oauth20');
 const { Strategy: FacebookStrategy } = require('passport-facebook');
 
+const readOAuthValue = (name) => process.env[name]?.trim() || '';
+
 const PROVIDERS = {
   google: {
-    clientId: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackUrl: process.env.GOOGLE_CALLBACK_URL,
+    clientId: readOAuthValue('GOOGLE_CLIENT_ID'),
+    clientSecret: readOAuthValue('GOOGLE_CLIENT_SECRET'),
+    callbackUrl: readOAuthValue('GOOGLE_CALLBACK_URL'),
     scope: ['profile', 'email'],
   },
   facebook: {
-    clientId: process.env.FACEBOOK_APP_ID,
-    clientSecret: process.env.FACEBOOK_APP_SECRET,
-    callbackUrl: process.env.FACEBOOK_CALLBACK_URL,
+    clientId: readOAuthValue('FACEBOOK_APP_ID'),
+    clientSecret: readOAuthValue('FACEBOOK_APP_SECRET'),
+    callbackUrl: readOAuthValue('FACEBOOK_CALLBACK_URL'),
     scope: ['email'],
   },
 };

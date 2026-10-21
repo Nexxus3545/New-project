@@ -4,10 +4,10 @@ const { after, before, test } = require('node:test');
 process.env.NODE_ENV = 'test';
 process.env.GOOGLE_CLIENT_ID = 'mwos-google-test-client';
 process.env.GOOGLE_CLIENT_SECRET = 'mwos-google-test-secret';
-process.env.GOOGLE_CALLBACK_URL = 'http://localhost:5000/api/auth/google/callback';
+process.env.GOOGLE_CALLBACK_URL = ' http://localhost:5000/api/auth/google/callback\r\n';
 process.env.FACEBOOK_APP_ID = 'mwos-facebook-test-app';
 process.env.FACEBOOK_APP_SECRET = 'mwos-facebook-test-secret';
-process.env.FACEBOOK_CALLBACK_URL = 'http://localhost:5000/api/auth/facebook/callback';
+process.env.FACEBOOK_CALLBACK_URL = '\thttp://localhost:5000/api/auth/facebook/callback\n';
 
 const database = require('../src/config/database');
 let databaseReady = true;
@@ -44,7 +44,7 @@ test('both OAuth starts use the configured provider callback', async () => {
     const location = new URL(response.headers.get('location'));
 
     assert.equal(response.status, 302);
-    assert.equal(location.searchParams.get('redirect_uri'), process.env[`${provider.toUpperCase()}_CALLBACK_URL`]);
+    assert.equal(location.searchParams.get('redirect_uri'), process.env[`${provider.toUpperCase()}_CALLBACK_URL`].trim());
     assert.ok(location.searchParams.get('state'));
   }
 });
