@@ -103,10 +103,11 @@ function Patch-GradleProperties([string]$AndroidProjectRoot) {
   }
 
   $content = [System.IO.File]::ReadAllText($gradlePropertiesFile)
-  if ($content -match 'java\.net\.preferIPv4Stack' -and $content -match 'org\.gradle\.daemon=false') {
+  if ($content -match 'java\.net\.preferIPv4Stack' -and $content -match 'org\.gradle\.daemon=false' -and $content -match 'jdk\.net\.unixdomain\.tmpdir') {
     return
   }
 
+  $javaTmpProperty = $javaTempRoot.Replace('\', '\\')
   if ($content -match '(?m)^org\.gradle\.jvmargs=(.*)$') {
     $content = [regex]::Replace(
       $content,
@@ -117,11 +118,14 @@ function Patch-GradleProperties([string]$AndroidProjectRoot) {
         if ($jvmArgs -notmatch 'java\.net\.preferIPv4Stack') {
           $jvmArgs = "$jvmArgs -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false".Trim()
         }
+        if ($jvmArgs -notmatch 'jdk\.net\.unixdomain\.tmpdir') {
+          $jvmArgs += " -Djdk.net.unixdomain.tmpdir=$javaTmpProperty -Djava.io.tmpdir=$javaTmpProperty"
+        }
         return "org.gradle.jvmargs=$jvmArgs"
       }
     )
   } else {
-    $content += "`r`norg.gradle.jvmargs=-Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false"
+    $content += "`r`norg.gradle.jvmargs=-Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false -Djdk.net.unixdomain.tmpdir=$javaTmpProperty -Djava.io.tmpdir=$javaTmpProperty"
   }
 
   if ($content -notmatch '(?m)^org\.gradle\.daemon=false$') {
@@ -290,6 +294,8 @@ $previousPath = $env:Path
 $previousTemp = $env:TEMP
 $previousTmp = $env:TMP
 $previousJavaToolOptions = $env:JAVA_TOOL_OPTIONS
+$previousUnderscoreJavaOptions = $env:_JAVA_OPTIONS
+$previousJdkJavaOptions = $env:JDK_JAVA_OPTIONS
 $previousApiUrl = $env:EXPO_PUBLIC_API_URL
 $previousNodeEnv = $env:NODE_ENV
 $buildFailed = $false
@@ -313,17 +319,17 @@ try {
   $env:TEMP = $javaTempRoot
   $env:TMP = $javaTempRoot
   $javaSocketOptions = "-Djdk.net.unixdomain.tmpdir=$javaTempRoot -Djava.io.tmpdir=$javaTempRoot"
-  if ($null -ne $previousJavaToolOptions -and $previousJavaToolOptions -ne '') {
-    $env:JAVA_TOOL_OPTIONS = "$previousJavaToolOptions $javaSocketOptions"
-  } else {
-    $env:JAVA_TOOL_OPTIONS = $javaSocketOptions
+  # Android Prefab treats Java's "Picked up ..." stderr banner as a native-library error.
+  # Pass these settings to Gradle explicitly instead of every Java child process.
+  foreach ($name in @('JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS')) {
+    Remove-Item "Env:$name" -ErrorAction SilentlyContinue
   }
   $env:CI = '1'
   if ($Variant -eq 'standalone') {
     $env:NODE_ENV = 'production'
     $env:EXPO_PUBLIC_API_URL = 'https://tmc-copino-mwos-api.vercel.app/api'
   }
-  $gradleJvmOpts = '-Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false'
+  $gradleJvmOpts = "$javaSocketOptions -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false"
   if ($null -ne $previousGradleOpts -and $previousGradleOpts -ne '') {
     $env:GRADLE_OPTS = "$previousGradleOpts $gradleJvmOpts"
   } else {
@@ -457,6 +463,8 @@ finally {
   } else {
     Remove-Item Env:JAVA_TOOL_OPTIONS -ErrorAction SilentlyContinue
   }
+  if ($null -ne $previousUnderscoreJavaOptions) { $env:_JAVA_OPTIONS = $previousUnderscoreJavaOptions } else { Remove-Item Env:_JAVA_OPTIONS -ErrorAction SilentlyContinue }
+  if ($null -ne $previousJdkJavaOptions) { $env:JDK_JAVA_OPTIONS = $previousJdkJavaOptions } else { Remove-Item Env:JDK_JAVA_OPTIONS -ErrorAction SilentlyContinue }
 
   $env:Path = $previousPath
   if ($null -ne $previousApiUrl) { $env:EXPO_PUBLIC_API_URL = $previousApiUrl } else { Remove-Item Env:EXPO_PUBLIC_API_URL -ErrorAction SilentlyContinue }
