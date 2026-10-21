@@ -21,13 +21,15 @@ let auditFailure;
 let payloadFailure;
 let identityLinked;
 let selectedUser;
+let expectedCodeHash;
 
 const execute = async (sql, params = []) => {
   const normalized = sql.replace(/\s+/g, ' ').trim();
   statements.push(normalized);
   if (normalized.startsWith('SELECT c.id AS code_id')) {
-    return { rows: availableCode && !consumed ? [{ ...selectedUser, code_id: 'login-code' }] : [] };
+    return { rows: availableCode && !consumed && (!expectedCodeHash || params[0] === expectedCodeHash) ? [{ ...selectedUser, code_id: 'login-code' }] : [] };
   }
+  if (normalized.startsWith('INSERT INTO oauth_login_codes')) expectedCodeHash = params[1];
   if (normalized.startsWith('UPDATE oauth_login_codes')) consumed = true;
   if (normalized === 'ROLLBACK') consumed = false;
   if (normalized.startsWith('SELECT id FROM patients')) {
@@ -91,6 +93,7 @@ beforeEach(() => {
   payloadFailure = false;
   identityLinked = false;
   selectedUser = { ...user };
+  expectedCodeHash = null;
 });
 
 after(async () => {
@@ -195,7 +198,7 @@ test('existing Google patients finish callback and exchange without creating ano
   const result = await invoke(oauth.finish, { user: { provider: 'google', subject: 'known-subject' } });
   assert.ifError(result.failure);
   assert.equal(new URL(result.location).searchParams.has('new_account'), false);
-  const login = await invoke(oauth.exchange, { body: { code: 'existing-patient-code' } });
+  const login = await invoke(oauth.exchange, { body: { code: new URL(result.location).searchParams.get('code') } });
   assert.ifError(login.failure);
   assert.equal(login.payload.data.user.patientId, patientId);
   assert.equal(statements.some((sql) => sql.startsWith('INSERT INTO users')), false);
@@ -219,4 +222,26 @@ test('SMS session profile lookup also uses its checked-out client', async () => 
   assert.ifError(result.failure);
   assert.equal(result.payload.success, true);
   assert.ok(result.payload.data.accessToken);
+});
+
+test('native OAuth handoff rejects intercepted codes without the original verifier', async () => {
+  const { verifierChallenge } = require('../src/utils/oauthHandoff');
+  const verifier = 'v'.repeat(64);
+  identityLinked = true;
+  const callback = await invoke(oauth.finish, {
+    user: { provider: 'google', subject: 'native-google-subject' },
+    mobileOAuth: { codeChallenge: verifierChallenge(verifier) },
+  });
+  assert.ifError(callback.failure);
+  const destination = new URL(callback.location);
+  assert.equal(destination.protocol, 'tmccopinomwos:');
+  const code = destination.searchParams.get('code');
+  for (const body of [{ code }, { code, codeVerifier: 'wrong'.repeat(13) }]) {
+    const denied = await invoke(oauth.exchange, { body });
+    assert.equal(denied.status, 400);
+    assert.equal(consumed, false);
+  }
+  const accepted = await invoke(oauth.exchange, { body: { code, codeVerifier: verifier } });
+  assert.ifError(accepted.failure);
+  assert.equal(accepted.payload.success, true);
 });

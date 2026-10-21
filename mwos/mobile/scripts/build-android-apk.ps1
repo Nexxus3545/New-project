@@ -1,5 +1,6 @@
 param(
   [string]$BuildRoot = (Join-Path $env:TEMP 'mwos-mobile-apk-build'),
+  [ValidateSet('debug', 'standalone')][string]$Variant = 'standalone',
   [switch]$KeepBuildRoot
 )
 
@@ -10,8 +11,34 @@ $sdkRoot = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
 $logDir = Join-Path $projectRoot 'logs'
 $transcriptPath = Join-Path $logDir 'android-apk-build.log'
 $outputDir = Join-Path $projectRoot 'dist-export'
-$outputApk = Join-Path $outputDir 'MWOS-Android.apk'
+$outputApk = Join-Path $outputDir $(if ($Variant -eq 'standalone') { 'MWOS-Android-Preview.apk' } else { 'MWOS-Android-Debug.apk' })
+$safeTempParent = [System.IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
+
+function Assert-SafeBuildRoot {
+  $resolved = [System.IO.Path]::GetFullPath($BuildRoot).TrimEnd('\')
+  if (-not $resolved.StartsWith($safeTempParent + '\', [System.StringComparison]::OrdinalIgnoreCase) -or
+      -not ([System.IO.Path]::GetFileName($resolved)).StartsWith('mwos-mobile-')) {
+    throw 'The temporary build directory must be an mwos-mobile-* folder under the original TEMP directory.'
+  }
+  if ((Test-Path -LiteralPath $resolved) -and ((Get-Item -LiteralPath $resolved).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+    throw 'The build directory must not be a symbolic link or junction.'
+  }
+}
+
+function Remove-BuildRoot {
+  Assert-SafeBuildRoot
+  $link = Join-Path $BuildRoot 'node_modules'
+  if (Test-Path -LiteralPath $link) {
+    $item = Get-Item -LiteralPath $link -Force
+    if (-not ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+      throw 'Refusing to clean a build directory with an unexpected real node_modules directory.'
+    }
+    [System.IO.Directory]::Delete($item.FullName)
+  }
+  Remove-Item -LiteralPath ([System.IO.Path]::GetFullPath($BuildRoot)) -Recurse -Force
+}
 $nodeModulesTarget = Join-Path $projectRoot 'node_modules'
+$javaTempRoot = 'C:\Temp\mwos-java'
 $javaHomeCandidates = @(
   'C:\Program Files\Android\Android Studio\jbr',
   'C:\Program Files\Android\Android Studio\jre'
@@ -76,10 +103,11 @@ function Patch-GradleProperties([string]$AndroidProjectRoot) {
   }
 
   $content = [System.IO.File]::ReadAllText($gradlePropertiesFile)
-  if ($content -match 'java\.net\.preferIPv4Stack' -and $content -match 'org\.gradle\.daemon=false') {
+  if ($content -match 'java\.net\.preferIPv4Stack' -and $content -match 'org\.gradle\.daemon=false' -and $content -match 'jdk\.net\.unixdomain\.tmpdir') {
     return
   }
 
+  $javaTmpProperty = $javaTempRoot.Replace('\', '\\')
   if ($content -match '(?m)^org\.gradle\.jvmargs=(.*)$') {
     $content = [regex]::Replace(
       $content,
@@ -90,11 +118,14 @@ function Patch-GradleProperties([string]$AndroidProjectRoot) {
         if ($jvmArgs -notmatch 'java\.net\.preferIPv4Stack') {
           $jvmArgs = "$jvmArgs -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false".Trim()
         }
+        if ($jvmArgs -notmatch 'jdk\.net\.unixdomain\.tmpdir') {
+          $jvmArgs += " -Djdk.net.unixdomain.tmpdir=$javaTmpProperty -Djava.io.tmpdir=$javaTmpProperty"
+        }
         return "org.gradle.jvmargs=$jvmArgs"
       }
     )
   } else {
-    $content += "`r`norg.gradle.jvmargs=-Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false"
+    $content += "`r`norg.gradle.jvmargs=-Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false -Djdk.net.unixdomain.tmpdir=$javaTmpProperty -Djava.io.tmpdir=$javaTmpProperty"
   }
 
   if ($content -notmatch '(?m)^org\.gradle\.daemon=false$') {
@@ -121,6 +152,20 @@ function Patch-GradleProperties([string]$AndroidProjectRoot) {
 
   $encoding = New-Object System.Text.UTF8Encoding $false
   [System.IO.File]::WriteAllText($gradlePropertiesFile, $content, $encoding)
+}
+
+function Patch-ReactBundleRoot([string]$AndroidProjectRoot) {
+  $gradleFile = Join-Path $AndroidProjectRoot 'app\build.gradle'
+  $content = [System.IO.File]::ReadAllText($gradleFile)
+  $sourcePath = $projectRoot.Replace('\', '/').Replace("'", "\'")
+  $rootLine = "def projectRoot = '$sourcePath'"
+  if ($content -notmatch '(?m)^def projectRoot = .*') {
+    throw 'The generated Android bundle configuration was not recognized.'
+  }
+  # Bundle in the real source root; Metro cannot reliably follow the temporary node_modules junction.
+  $content = [regex]::Replace($content, '(?m)^def projectRoot = .*', { $rootLine })
+  $content = $content.Replace('react {', "react {`r`n    root = file(projectRoot)")
+  [System.IO.File]::WriteAllText($gradleFile, $content, (New-Object System.Text.UTF8Encoding $false))
 }
 
 function Remove-TopLevelGradleBlock([string[]]$Lines, [string]$StartPattern) {
@@ -153,9 +198,9 @@ function Remove-TopLevelGradleBlock([string[]]$Lines, [string]$StartPattern) {
 
 function Patch-NativeModuleGradleFiles([string]$NodeModulesRoot) {
   $gradleFiles = @(
-    Join-Path $NodeModulesRoot 'react-native-screens\android\build.gradle',
-    Join-Path $NodeModulesRoot 'react-native-safe-area-context\android\build.gradle',
-    Join-Path $NodeModulesRoot '@react-native-async-storage\async-storage\android\build.gradle'
+    (Join-Path -Path $NodeModulesRoot -ChildPath 'react-native-screens\android\build.gradle'),
+    (Join-Path -Path $NodeModulesRoot -ChildPath 'react-native-safe-area-context\android\build.gradle'),
+    (Join-Path -Path $NodeModulesRoot -ChildPath '@react-native-async-storage\async-storage\android\build.gradle')
   )
 
   foreach ($gradleFile in $gradleFiles) {
@@ -174,8 +219,9 @@ function Patch-NativeModuleGradleFiles([string]$NodeModulesRoot) {
 }
 
 function Copy-MobileSource {
+  Assert-SafeBuildRoot
   if (Test-Path $BuildRoot) {
-    Remove-Item -Path $BuildRoot -Recurse -Force
+    Remove-BuildRoot
   }
 
   New-Item -ItemType Directory -Path $BuildRoot -Force | Out-Null
@@ -186,12 +232,14 @@ function Copy-MobileSource {
     'android',
     'ios',
     'dist-export',
+    'dist',
+    'dist-check',
     'logs',
     '.git',
     '_tmp'
   )
 
-  $excludeFiles = @('*.log', '*.zip')
+  $excludeFiles = @('*.log', '*.zip', 'NUL')
 
   $robocopyArgs = @(
     $projectRoot,
@@ -223,7 +271,7 @@ function Copy-MobileSource {
 
   $nodeModulesLink = Join-Path $BuildRoot 'node_modules'
   if (Test-Path $nodeModulesLink) {
-    Remove-Item -Path $nodeModulesLink -Recurse -Force
+    throw 'The new build workspace unexpectedly already contains node_modules.'
   }
 
   New-Item -ItemType Junction -Path $nodeModulesLink -Target $nodeModulesTarget | Out-Null
@@ -243,6 +291,13 @@ $previousAndroidSdkRoot = $env:ANDROID_SDK_ROOT
 $previousCI = $env:CI
 $previousGradleOpts = $env:GRADLE_OPTS
 $previousPath = $env:Path
+$previousTemp = $env:TEMP
+$previousTmp = $env:TMP
+$previousJavaToolOptions = $env:JAVA_TOOL_OPTIONS
+$previousUnderscoreJavaOptions = $env:_JAVA_OPTIONS
+$previousJdkJavaOptions = $env:JDK_JAVA_OPTIONS
+$previousApiUrl = $env:EXPO_PUBLIC_API_URL
+$previousNodeEnv = $env:NODE_ENV
 $buildFailed = $false
 $transcriptStarted = $false
 
@@ -259,8 +314,22 @@ try {
   $env:JAVA_HOME = $javaHome
   $env:ANDROID_HOME = $sdkRoot
   $env:ANDROID_SDK_ROOT = $sdkRoot
+  # JDK selector wakeups need a short, Windows-native temporary socket path.
+  New-Item -ItemType Directory -Path $javaTempRoot -Force | Out-Null
+  $env:TEMP = $javaTempRoot
+  $env:TMP = $javaTempRoot
+  $javaSocketOptions = "-Djdk.net.unixdomain.tmpdir=$javaTempRoot -Djava.io.tmpdir=$javaTempRoot"
+  # Android Prefab treats Java's "Picked up ..." stderr banner as a native-library error.
+  # Pass these settings to Gradle explicitly instead of every Java child process.
+  foreach ($name in @('JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS')) {
+    Remove-Item "Env:$name" -ErrorAction SilentlyContinue
+  }
   $env:CI = '1'
-  $gradleJvmOpts = '-Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false'
+  if ($Variant -eq 'standalone') {
+    $env:NODE_ENV = 'production'
+    $env:EXPO_PUBLIC_API_URL = 'https://tmc-copino-mwos-api.vercel.app/api'
+  }
+  $gradleJvmOpts = "$javaSocketOptions -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false"
   if ($null -ne $previousGradleOpts -and $previousGradleOpts -ne '') {
     $env:GRADLE_OPTS = "$previousGradleOpts $gradleJvmOpts"
   } else {
@@ -290,6 +359,10 @@ try {
       Patch-GradleProperties $androidProjectRoot
     }
 
+    Invoke-Step 'Configuring the bundled app source...' {
+      Patch-ReactBundleRoot $androidProjectRoot
+    }
+
     $gradleInitScript = Join-Path $BuildRoot 'gradle-repository-mirror.init.gradle'
     Invoke-Step 'Writing temporary Gradle repository mirror...' {
       Write-GradleInitScript $gradleInitScript
@@ -297,14 +370,15 @@ try {
 
     Push-Location $androidProjectRoot
     try {
-      Invoke-Step 'Building the debug APK...' {
-        & .\gradlew.bat --no-daemon -I $gradleInitScript assembleDebug
+      Invoke-Step "Building the $Variant APK..." {
+        $task = if ($Variant -eq 'standalone') { 'assembleRelease' } else { 'assembleDebug' }
+        & .\gradlew.bat --no-daemon -I $gradleInitScript $task
       }
     } finally {
       Pop-Location
     }
 
-    $apkSource = Join-Path $androidProjectRoot 'app\build\outputs\apk\debug\app-debug.apk'
+    $apkSource = Join-Path $androidProjectRoot $(if ($Variant -eq 'standalone') { 'app\build\outputs\apk\release\app-release.apk' } else { 'app\build\outputs\apk\debug\app-debug.apk' })
     if (-not (Test-Path $apkSource)) {
       $apkSource = Get-ChildItem -Path (Join-Path $androidProjectRoot 'app\build\outputs\apk') -Recurse -Filter '*.apk' |
         Sort-Object LastWriteTime -Descending |
@@ -320,7 +394,7 @@ try {
 
     Write-Host ""
     Write-Host "Android APK ready: $outputApk" -ForegroundColor Green
-    Write-Host "This is a debug-signed APK built from the current MWOS mobile app." -ForegroundColor Green
+    Write-Host "Testing build only. It is not a Play Store release. Standalone includes its own JS bundle." -ForegroundColor Yellow
   } finally {
     Pop-Location
   }
@@ -339,7 +413,7 @@ finally {
   }
 
   if (-not $KeepBuildRoot -and -not $buildFailed -and (Test-Path $BuildRoot)) {
-    Remove-Item -Path $BuildRoot -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-BuildRoot
   }
 
   if ($null -ne $previousJavaHome -and $previousJavaHome -ne '') {
@@ -372,5 +446,27 @@ finally {
     Remove-Item Env:GRADLE_OPTS -ErrorAction SilentlyContinue
   }
 
+  if ($null -ne $previousTemp -and $previousTemp -ne '') {
+    $env:TEMP = $previousTemp
+  } else {
+    Remove-Item Env:TEMP -ErrorAction SilentlyContinue
+  }
+
+  if ($null -ne $previousTmp -and $previousTmp -ne '') {
+    $env:TMP = $previousTmp
+  } else {
+    Remove-Item Env:TMP -ErrorAction SilentlyContinue
+  }
+
+  if ($null -ne $previousJavaToolOptions -and $previousJavaToolOptions -ne '') {
+    $env:JAVA_TOOL_OPTIONS = $previousJavaToolOptions
+  } else {
+    Remove-Item Env:JAVA_TOOL_OPTIONS -ErrorAction SilentlyContinue
+  }
+  if ($null -ne $previousUnderscoreJavaOptions) { $env:_JAVA_OPTIONS = $previousUnderscoreJavaOptions } else { Remove-Item Env:_JAVA_OPTIONS -ErrorAction SilentlyContinue }
+  if ($null -ne $previousJdkJavaOptions) { $env:JDK_JAVA_OPTIONS = $previousJdkJavaOptions } else { Remove-Item Env:JDK_JAVA_OPTIONS -ErrorAction SilentlyContinue }
+
   $env:Path = $previousPath
+  if ($null -ne $previousApiUrl) { $env:EXPO_PUBLIC_API_URL = $previousApiUrl } else { Remove-Item Env:EXPO_PUBLIC_API_URL -ErrorAction SilentlyContinue }
+  if ($null -ne $previousNodeEnv) { $env:NODE_ENV = $previousNodeEnv } else { Remove-Item Env:NODE_ENV -ErrorAction SilentlyContinue }
 }

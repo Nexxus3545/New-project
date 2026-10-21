@@ -5,6 +5,7 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom/server.js'
 import { createServer } from 'vite'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 let server
 let getSignInProviderNote
@@ -43,7 +44,7 @@ test('login and registration render Google but do not offer Facebook', async () 
     assert.match(html, /Continue with Google/)
     assert.doesNotMatch(html, /Facebook/i)
     assert.match(html, file === 'LoginPage' ? /Sign in securely/ : /Create your account/)
-    assert.match(html, /SMS/)
+    assert.doesNotMatch(html, /Continue with SMS|Sign in with SMS/)
   }
 })
 
@@ -57,4 +58,23 @@ test('provider notices describe only Google in loading, unavailable, and availab
       assert.doesNotMatch(getSignInProviderNote(providers, checkFailed), /Facebook|being set up/i)
     }
   }
+})
+
+test('contact screen never claims an unverified phone is ready for recovery', async () => {
+  const { default: Card } = await server.ssrLoadModule('/src/components/common/ContactNumberCard.jsx')
+  const html = renderToStaticMarkup(React.createElement(QueryClientProvider, { client: new QueryClient() }, React.createElement(Card)))
+  assert.match(html, /Saving it does not verify ownership/)
+  assert.match(html, /SMS verification and SMS recovery are not connected yet/)
+  assert.doesNotMatch(html, /Send verification code/)
+})
+
+test('video player has real playback controls and loads external embeds only after consent', async () => {
+  const { default: Player } = await server.ssrLoadModule('/src/components/patient/ClinicMediaPlayer.jsx')
+  const direct = renderToStaticMarkup(React.createElement(Player, { src: 'https://cdn.example/video.mp4' }))
+  assert.match(direct, /<video/)
+  assert.match(direct, /controls/)
+  assert.match(direct, /preload="none"/)
+  const external = renderToStaticMarkup(React.createElement(Player, { src: 'https://www.facebook.com/clinic/videos/123456789/' }))
+  assert.match(external, /Load Facebook video/)
+  assert.doesNotMatch(external, /<iframe/)
 })

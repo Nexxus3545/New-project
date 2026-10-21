@@ -1,13 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import Svg, {
   Circle,
-  Defs,
   Line,
-  LinearGradient,
   Path,
   Rect,
-  Stop,
 } from 'react-native-svg'
 import { colors, radius, shadow, spacing } from '../theme'
 
@@ -27,21 +24,12 @@ function buildWavePath({ tick, points, amplitude, baseline, frequency, spikeHeig
 }
 
 export default function RealtimeVitalsPanel({ latestVitals, activePregnancy }) {
-  const [tick, setTick] = useState(0)
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTick((value) => value + 1)
-    }, 180)
-
-    return () => clearInterval(timer)
-  }, [])
-
-  const systolic = Math.round((latestVitals?.bp_systolic || 118) + Math.sin(tick / 5) * 2)
-  const diastolic = Math.round((latestVitals?.bp_diastolic || 76) + Math.cos(tick / 6) * 2)
-  const fetalHeartRate = Math.round((latestVitals?.fetal_heart_rate || 145) + Math.sin(tick / 4) * 3)
-  const weight = Number(((latestVitals?.weight_kg || 62) + Math.sin(tick / 10) * 0.3).toFixed(1))
-  const movementText = latestVitals?.fetal_movement || 'Active'
+  const tick = 0
+  const systolic = latestVitals?.bp_systolic ?? '--'
+  const diastolic = latestVitals?.bp_diastolic ?? '--'
+  const fetalHeartRate = latestVitals?.fetal_heart_rate ?? '--'
+  const weight = latestVitals?.weight_kg ?? '--'
+  const movementText = latestVitals?.fetal_movement || 'Not recorded'
 
   const waveA = useMemo(() => buildWavePath({
     tick,
@@ -51,7 +39,7 @@ export default function RealtimeVitalsPanel({ latestVitals, activePregnancy }) {
     frequency: 0.55,
     spikeHeight: 26,
     widthStep: 10.1,
-  }), [tick])
+  }), [])
 
   const waveB = useMemo(() => buildWavePath({
     tick: tick + 5,
@@ -61,16 +49,16 @@ export default function RealtimeVitalsPanel({ latestVitals, activePregnancy }) {
     frequency: 0.35,
     spikeHeight: 12,
     widthStep: 10.1,
-  }), [tick])
+  }), [])
 
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Live maternal telemetry</Text>
-          <Text style={styles.title}>Realtime vitals monitor</Text>
+          <Text style={styles.eyebrow}>Latest recorded vitals</Text>
+          <Text style={styles.title}>Maternal vitals monitor</Text>
           <Text style={styles.body}>
-            A continuously moving vitals display styled like a bedside monitor and anchored to the latest maternal and fetal values.
+            This view uses the most recent saved maternal and fetal values. It updates after clinic records are saved or refreshed.
           </Text>
         </View>
         <View style={styles.riskBadge}>
@@ -80,17 +68,6 @@ export default function RealtimeVitalsPanel({ latestVitals, activePregnancy }) {
 
       <View style={styles.graphWrap}>
         <Svg width="100%" height={180} viewBox="0 0 320 180">
-          <Defs>
-            <LinearGradient id="mobileVitalGlowA" x1="0%" y1="0%" x2="100%" y2="0%">
-              <Stop offset="0%" stopColor="#f472b6" />
-              <Stop offset="100%" stopColor="#fb7185" />
-            </LinearGradient>
-            <LinearGradient id="mobileVitalGlowB" x1="0%" y1="0%" x2="100%" y2="0%">
-              <Stop offset="0%" stopColor="#22d3ee" />
-              <Stop offset="100%" stopColor="#14b8a6" />
-            </LinearGradient>
-          </Defs>
-
           <Rect x="0" y="0" width="320" height="180" rx="24" fill="rgba(2,6,23,0.65)" />
 
           {Array.from({ length: 6 }, (_, index) => (
@@ -117,8 +94,8 @@ export default function RealtimeVitalsPanel({ latestVitals, activePregnancy }) {
             />
           ))}
 
-          <Path d={waveA} fill="none" stroke="url(#mobileVitalGlowA)" strokeWidth="3.1" strokeLinecap="round" strokeLinejoin="round" />
-          <Path d={waveB} fill="none" stroke="url(#mobileVitalGlowB)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.95" />
+          <Path d={waveA} fill="none" stroke="#fb7185" strokeWidth="3.1" strokeLinecap="round" strokeLinejoin="round" />
+          <Path d={waveB} fill="none" stroke="#2dd4bf" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.95" />
           <Circle cx="26" cy="88" r="4" fill="#fb7185" />
           <Circle cx="26" cy="132" r="4" fill="#2dd4bf" />
         </Svg>
@@ -128,7 +105,7 @@ export default function RealtimeVitalsPanel({ latestVitals, activePregnancy }) {
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>Blood pressure</Text>
           <Text style={styles.metricValue}>{systolic}/{diastolic}</Text>
-          <Text style={styles.metricSub}>mmHg live swing</Text>
+          <Text style={styles.metricSub}>mmHg from latest saved visit</Text>
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>Fetal heart rate</Text>
@@ -138,7 +115,7 @@ export default function RealtimeVitalsPanel({ latestVitals, activePregnancy }) {
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>Weight</Text>
           <Text style={styles.metricValue}>{weight}</Text>
-          <Text style={styles.metricSub}>kg pulse tracking</Text>
+          <Text style={styles.metricSub}>kg from latest saved visit</Text>
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>Movement</Text>

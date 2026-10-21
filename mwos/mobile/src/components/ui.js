@@ -4,8 +4,10 @@ import {
   TextInput, StyleSheet,
 } from 'react-native'
 import { colors, spacing, radius, shadow, typography } from './theme'
+import { IconTile, MobileIcon } from './Icon'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-export function Button({ onPress, title, variant = 'primary', size = 'md', loading, disabled, style }) {
+export function Button({ onPress, title, variant = 'primary', size = 'md', loading, disabled, style, icon, iconPosition = 'left' }) {
   const palettes = {
     primary: { backgroundColor: colors.teal[600], color: colors.white },
     patient: { backgroundColor: colors.brand.rose, color: colors.white },
@@ -23,6 +25,9 @@ export function Button({ onPress, title, variant = 'primary', size = 'md', loadi
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.86}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: Boolean(disabled || loading), busy: Boolean(loading) }}
       style={[
         styles.btn,
         { paddingVertical: padV, paddingHorizontal: padH },
@@ -35,7 +40,11 @@ export function Button({ onPress, title, variant = 'primary', size = 'md', loadi
       {loading ? (
         <ActivityIndicator size="small" color={palette.color} />
       ) : (
-        <Text style={{ color: palette.color, fontSize, fontWeight: '700' }}>{title}</Text>
+        <>
+          {icon && iconPosition === 'left' && <MobileIcon name={icon} size={fontSize + 4} color={palette.color} />}
+          <Text style={{ color: palette.color, fontSize, fontWeight: '700' }}>{title}</Text>
+          {icon && iconPosition === 'right' && <MobileIcon name={icon} size={fontSize + 4} color={palette.color} />}
+        </>
       )}
     </TouchableOpacity>
   )
@@ -91,7 +100,7 @@ export function SectionHeader({ title, action, onAction, style }) {
     <View style={[styles.sectionHeader, style]}>
       <Text style={styles.sectionTitle}>{title}</Text>
       {action && (
-        <TouchableOpacity onPress={onAction}>
+        <TouchableOpacity onPress={onAction} accessibilityRole="button" accessibilityLabel={action}>
           <Text style={{ fontSize: 13, color: colors.brand.copper, fontWeight: '700' }}>{action}</Text>
         </TouchableOpacity>
       )}
@@ -99,10 +108,10 @@ export function SectionHeader({ title, action, onAction, style }) {
   )
 }
 
-export function EmptyState({ icon = '[ ]', title, subtitle }) {
+export function EmptyState({ icon = 'information-outline', title, subtitle }) {
   return (
     <View style={styles.emptyState}>
-      <Text style={{ fontSize: 28, marginBottom: spacing.sm }}>{icon}</Text>
+      <IconTile icon={icon} size={54} style={{ marginBottom: spacing.sm }} />
       <Text style={[typography.h3, { textAlign: 'center', marginBottom: 4 }]}>{title}</Text>
       {subtitle && <Text style={[typography.small, { textAlign: 'center' }]}>{subtitle}</Text>}
     </View>
@@ -111,10 +120,10 @@ export function EmptyState({ icon = '[ ]', title, subtitle }) {
 
 export function AlertBox({ type = 'info', message }) {
   const palettes = {
-    critical: { bg: '#fef2f2', border: '#fca5a5', text: '#991b1b', icon: '!' },
-    warning: { bg: '#fffbeb', border: '#fde68a', text: '#92400e', icon: '!' },
-    info: { bg: '#eff6ff', border: '#93c5fd', text: '#1e40af', icon: 'i' },
-    success: { bg: '#f0fdfa', border: '#99f6e4', text: '#0f766e', icon: '+' },
+    critical: { bg: '#fef2f2', border: '#fca5a5', text: '#991b1b', icon: 'alert-circle-outline' },
+    warning: { bg: '#fffbeb', border: '#fde68a', text: '#92400e', icon: 'alert-outline' },
+    info: { bg: '#eff6ff', border: '#93c5fd', text: '#1e40af', icon: 'information-outline' },
+    success: { bg: '#f0fdfa', border: '#99f6e4', text: '#0f766e', icon: 'check-circle-outline' },
   }
   const palette = palettes[type] || palettes.info
   return (
@@ -128,7 +137,7 @@ export function AlertBox({ type = 'info', message }) {
       gap: 8,
       marginBottom: spacing.md,
     }}>
-      <Text style={{ color: palette.text, fontWeight: '700' }}>{palette.icon}</Text>
+      <MobileIcon name={palette.icon} size={19} color={palette.text} />
       <Text style={{ flex: 1, fontSize: 13, color: palette.text, lineHeight: 18 }}>{message}</Text>
     </View>
   )
@@ -151,7 +160,7 @@ export function ListItem({ title, subtitle, right, onPress, leftIcon }) {
     <Wrapper onPress={onPress} activeOpacity={0.75} style={styles.listItem}>
       {leftIcon && (
         <View style={styles.listIcon}>
-          <Text style={{ fontSize: 18 }}>{leftIcon}</Text>
+          <MobileIcon name={leftIcon} size={20} color={colors.brand.copper} />
         </View>
       )}
       <View style={{ flex: 1 }}>
@@ -159,12 +168,12 @@ export function ListItem({ title, subtitle, right, onPress, leftIcon }) {
         {subtitle && <Text style={styles.listSub}>{subtitle}</Text>}
       </View>
       {right && <View>{right}</View>}
-      {onPress && <Text style={{ color: colors.gray[400], fontSize: 18 }}>{'>'}</Text>}
+      {onPress && <MobileIcon name="chevron-right" size={21} color={colors.gray[400]} />}
     </Wrapper>
   )
 }
 
-export function StatCard({ icon, label, value, color = 'teal', patient }) {
+export function StatCard({ icon, label, value, color = 'teal', patient, onPress }) {
   const palette = patient
     ? { bg: colors.brand.blush, iconBg: 'rgba(255,255,255,0.7)', text: colors.brand.copper }
     : color === 'red'
@@ -175,20 +184,34 @@ export function StatCard({ icon, label, value, color = 'teal', patient }) {
           ? { bg: '#eff6ff', iconBg: '#dbeafe', text: '#1e40af' }
           : { bg: colors.teal[50], iconBg: colors.teal[100], text: colors.teal[700] }
 
+  const Wrapper = onPress ? TouchableOpacity : View
+
   return (
-    <View style={[styles.statCard, { backgroundColor: palette.bg }]}>
+    <Wrapper
+      onPress={onPress}
+      activeOpacity={0.78}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={onPress ? `${label}: ${value ?? 'not available'}` : undefined}
+      style={[styles.statCard, { backgroundColor: palette.bg }]}
+    >
       <View style={[styles.statIcon, { backgroundColor: palette.iconBg }]}>
-        <Text style={{ fontSize: 18 }}>{icon}</Text>
+        <MobileIcon name={icon} size={21} color={palette.text} />
       </View>
       <Text style={[typography.h2, { marginTop: 8, color: colors.gray[900] }]}>{value ?? '--'}</Text>
       <Text style={[typography.small, { marginTop: 2, textAlign: 'center', color: palette.text }]}>{label}</Text>
-    </View>
+    </Wrapper>
   )
 }
 
 export function ScreenHeader({ title, subtitle, right, patient }) {
+  const insets = useSafeAreaInsets()
+
   return (
-    <View style={[styles.screenHeader, patient && { backgroundColor: colors.brand.rose }]}>
+    <View style={[
+      styles.screenHeader,
+      { paddingTop: Math.max(insets.top + 8, spacing.lg) },
+      patient && { backgroundColor: colors.brand.rose },
+    ]}>
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 22, fontWeight: '700', color: colors.white }}>{title}</Text>
         {subtitle && <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.82)', marginTop: 2 }}>{subtitle}</Text>}
@@ -212,7 +235,7 @@ export function SelectPicker({ label, value, options, onChange, error }) {
         <Text style={{ color: selected ? colors.gray[800] : colors.gray[400], fontSize: 14 }}>
           {selected ? selected.label : 'Select...'}
         </Text>
-        <Text style={{ color: colors.gray[400] }}>{open ? '^' : 'v'}</Text>
+        <MobileIcon name={open ? 'chevron-up' : 'chevron-down'} size={20} color={colors.gray[400]} />
       </TouchableOpacity>
       {open && (
         <View style={[styles.card, { marginTop: 4, padding: 0 }]}>

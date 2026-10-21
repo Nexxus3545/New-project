@@ -5,6 +5,7 @@ const { isProviderConfigured } = require('../config/oauth');
 const { generateUniqueCode } = require('../utils/identifiers');
 const { generateSessionTokens } = require('../utils/tokens');
 const { buildUserPayload } = require('./auth.controller');
+const { MOBILE_CALLBACK, createState, readMobileState, codeHash, verifierChallenge } = require('../utils/oauthHandoff');
 
 const VALID_PROVIDERS = new Set(['google', 'facebook']);
 const OAUTH_STATE_COOKIE = 'mwos_oauth_state';
@@ -67,7 +68,12 @@ const safelyMatches = (left, right) => {
   return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
 };
 
-const hashCode = (code) => crypto.createHash('sha256').update(code).digest('hex');
+const loginRedirect = (req, res, params) => {
+  if (!req.mobileOAuth) return frontendRedirect(res, '/login', params);
+  const url = new URL(MOBILE_CALLBACK);
+  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+  return res.redirect(url.toString());
+};
 
 const createOAuthError = (code, message) => {
   const error = new Error(message);
@@ -174,13 +180,13 @@ const provisionPatientFromProvider = async (providerProfile, req) => {
   }
 };
 
-const createOneTimeCode = async (userId) => {
+const createOneTimeCode = async (userId, challenge) => {
   const code = crypto.randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + OAUTH_CODE_TTL_MS);
   await query(
     `INSERT INTO oauth_login_codes (user_id, code_hash, expires_at)
      VALUES ($1, $2, $3)`,
-    [userId, hashCode(code), expiresAt]
+    [userId, codeHash(code, challenge), expiresAt]
   );
   return code;
 };
@@ -208,7 +214,12 @@ const start = (providerName, passport) => async (req, res, next) => {
     return frontendRedirect(res, '/login', { oauth_error: 'oauth_service_unavailable' });
   }
 
-  const state = crypto.randomBytes(32).toString('base64url');
+  let state;
+  try {
+    state = createState(req.query);
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
   res.cookie(OAUTH_STATE_COOKIE, state, stateCookieOptions());
   return passport.authenticate(provider, {
     scope: provider === 'google' ? ['profile', 'email'] : ['email'],
@@ -226,6 +237,7 @@ const validateState = (providerName) => (req, res, next) => {
   if (!provider || !safelyMatches(expectedState, receivedState)) {
     return frontendRedirect(res, '/login', { oauth_error: 'oauth_state_invalid' });
   }
+  req.mobileOAuth = readMobileState(receivedState);
   return next();
 };
 
@@ -240,12 +252,13 @@ const ensureConfigured = (providerName) => (req, res, next) => {
 const finish = async (req, res, next) => {
   try {
     const { user, created } = await provisionPatientFromProvider(req.user, req);
-    const code = await createOneTimeCode(user.id);
+    const code = await createOneTimeCode(user.id, req.mobileOAuth?.codeChallenge);
     await query('UPDATE users SET last_login_at = NOW(), last_seen_at = NOW(), updated_at = NOW() WHERE id = $1', [user.id]);
+    if (req.mobileOAuth) return loginRedirect(req, res, { code });
     return frontendRedirect(res, '/oauth-callback', { code, new_account: created ? '1' : undefined });
   } catch (error) {
     if (error.oauthCode) {
-      return frontendRedirect(res, '/login', { oauth_error: error.oauthCode });
+      return loginRedirect(req, res, { oauth_error: error.oauthCode });
     }
     return next(error);
   }
@@ -256,6 +269,14 @@ const exchange = async (req, res, next) => {
     const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
     if (!code) {
       return res.status(400).json({ success: false, message: 'Your sign-in link is incomplete. Please try again.' });
+    }
+    let challenge = '';
+    if (req.body?.codeVerifier !== undefined) {
+      try {
+        challenge = verifierChallenge(req.body.codeVerifier);
+      } catch {
+        return res.status(400).json({ success: false, message: 'Your mobile sign-in proof is invalid. Start sign-in again.' });
+      }
     }
 
     const client = await getClient();
@@ -268,7 +289,7 @@ const exchange = async (req, res, next) => {
          JOIN users u ON u.id = c.user_id
          WHERE c.code_hash = $1 AND c.consumed_at IS NULL AND c.expires_at > NOW()
          FOR UPDATE`,
-        [hashCode(code)]
+        [codeHash(code, challenge)]
       );
 
       if (result.rows.length === 0) {
@@ -374,8 +395,11 @@ module.exports = {
     providerName,
     { session: false },
     (error, providerProfile) => {
-      if (error) return next(error);
-      if (!providerProfile) return frontendRedirect(res, '/login', { oauth_error: 'oauth_failed' });
+      if (error) {
+        if (req.mobileOAuth) return loginRedirect(req, res, { oauth_error: 'oauth_failed' });
+        return next(error);
+      }
+      if (!providerProfile) return loginRedirect(req, res, { oauth_error: 'oauth_failed' });
       req.user = providerProfile;
       return finish(req, res, next);
     }

@@ -5,9 +5,10 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, Respons
 import api from '../utils/api'
 import { uploadResumableFile } from '../utils/chunkedUpload'
 import { useAuthStore } from '../store/authStore'
+import ClinicMediaPlayer from '../components/patient/ClinicMediaPlayer'
 import ClinicControlBoard from '../components/dashboard/ClinicControlBoard'
 
-const mediaCategories = ['health-tip', 'nutrition', 'postpartum', 'safety', 'announcement', 'breastfeeding']
+const mediaCategories = ['health-tip', 'nutrition', 'postpartum', 'safety', 'announcement', 'breastfeeding', 'clinic-operation', 'free-checkup', 'tuli', 'live-event', 'event-replay']
 
 const metricTone = {
   sky: 'from-[#eef6ff] to-white',
@@ -554,7 +555,9 @@ export default function DashboardPage() {
                       uploadForm.mediaType === 'image' ? (
                         <img src={uploadPreviewUrl} alt="Upload preview" className="h-full w-full object-cover" />
                       ) : (
-                        <video src={uploadPreviewUrl} className="h-full w-full object-cover" controls muted playsInline />
+                        uploadForm.file
+                          ? <video src={uploadPreviewUrl} className="h-full w-full object-cover" controls playsInline preload="none" />
+                          : <ClinicMediaPlayer src={uploadPreviewUrl} title={uploadForm.title} />
                       )
                     ) : (
                       <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-400">
@@ -566,6 +569,7 @@ export default function DashboardPage() {
                 <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
                   <p className="font-medium text-slate-900 dark:text-slate-50">Upload guidance</p>
                   <p className="mt-2">Large files upload in resumable chunks, so the clinic can continue after a connection drop instead of starting over.</p>
+                  <p className="mt-2">For Facebook, paste a public video's direct link, not the clinic profile link. Publish only clinic-approved media with appropriate patient/guardian permission. Never post exposed procedures or patient identifiers.</p>
                   {uploadForm.file ? (
                     <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-950">
                       <p className="font-semibold text-slate-900 dark:text-slate-50">{uploadForm.file.name}</p>

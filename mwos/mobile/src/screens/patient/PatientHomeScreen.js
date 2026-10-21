@@ -22,9 +22,13 @@ import {
   SectionHeader,
   StatCard,
 } from '../../components/ui'
+import { IconTile, MobileIcon } from '../../components/Icon'
 import { colors, radius, shadow, spacing } from '../../components/theme'
-import PregnancyWireframeScene from '../../components/patient/PregnancyWireframeScene'
 import RealtimeVitalsPanel from '../../components/patient/RealtimeVitalsPanel'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+
+const clinicExterior = require('../../../assets/clinic/clinic-exterior.jpg')
+const receptionInformation = require('../../../assets/clinic/reception-information.jpg')
 
 const formatShortDate = (value) => (
   value
@@ -36,14 +40,18 @@ function MediaIllustrationCard({ post }) {
   const previewUrl = post.poster_url || (post.media_type === 'image' ? post.media_url : null)
   const launchUrl = post.media_url || post.video_url || post.poster_url
 
+  const openMedia = async () => {
+    if (!/^https:\/\//i.test(launchUrl || '')) return
+    await Linking.openURL(launchUrl)
+  }
+
   return (
     <TouchableOpacity
+      accessibilityRole="link"
+      accessibilityLabel={`Open ${post.title}`}
+      disabled={!launchUrl}
       activeOpacity={launchUrl ? 0.84 : 1}
-      onPress={() => {
-        if (launchUrl) {
-          Linking.openURL(launchUrl)
-        }
-      }}
+      onPress={openMedia}
     >
       <Card patient style={styles.mediaCard}>
         <View style={styles.mediaPreview}>
@@ -51,7 +59,7 @@ function MediaIllustrationCard({ post }) {
             <Image source={{ uri: previewUrl }} style={styles.mediaImage} resizeMode="cover" />
           ) : (
             <View style={styles.mediaFallback}>
-              <Text style={styles.mediaFallbackCode}>3D</Text>
+              <IconTile icon={post.media_type === 'video' ? 'play-circle-outline' : 'image-outline'} size={58} />
             </View>
           )}
           <View style={styles.mediaBadgeRow}>
@@ -68,7 +76,7 @@ function MediaIllustrationCard({ post }) {
   )
 }
 
-function TipsPreview({ items }) {
+function TipsPreview({ items, onPress }) {
   if (!items.length) {
     return (
       <EmptyState
@@ -80,20 +88,31 @@ function TipsPreview({ items }) {
   }
 
   return items.map((item) => (
-    <Card key={item.id} style={{ marginVertical: 4 }}>
-      <View style={styles.tipBadgeRow}>
-        <Badge label={item.category || 'General'} variant="patient" />
-        {item.trimester_target && item.trimester_target !== 'all'
-          ? <Badge label={item.trimester_target} variant="gray" />
-          : null}
-      </View>
-      <Text style={styles.tipTitle}>{item.title}</Text>
-      <Text style={styles.tipBody} numberOfLines={4}>{item.content}</Text>
-    </Card>
+    <TouchableOpacity
+      key={item.id}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Open health tips, including ${item.title}`}
+      activeOpacity={0.8}
+    >
+      <Card style={{ marginVertical: 4 }}>
+        <View style={styles.tipBadgeRow}>
+          <Badge label={item.category || 'General'} variant="patient" />
+          {item.trimester_target && item.trimester_target !== 'all'
+            ? <Badge label={item.trimester_target} variant="gray" />
+            : null}
+          <View style={{ flex: 1 }} />
+          <MobileIcon name="chevron-right" size={20} color={colors.gray[400]} />
+        </View>
+        <Text style={styles.tipTitle}>{item.title}</Text>
+        <Text style={styles.tipBody} numberOfLines={4}>{item.content}</Text>
+      </Card>
+    </TouchableOpacity>
   ))
 }
 
 export default function PatientHomeScreen({ navigation }) {
+  const insets = useSafeAreaInsets()
   const user = useAuthStore((state) => state.user)
 
   const dashboardQuery = useQuery({
@@ -138,17 +157,20 @@ export default function PatientHomeScreen({ navigation }) {
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top + 8, 24) }]}>
         <View>
           <Text style={styles.greeting}>Hello, {user?.firstName}</Text>
-          <Text style={styles.headerSub}>Live pregnancy visuals, moving vitals, and trimester guidance</Text>
+          <Text style={styles.headerSub}>Appointments, saved vital-sign summaries, and trimester guidance</Text>
         </View>
         <TouchableOpacity
           onPress={() => navigation.navigate('PatientNotifications')}
           style={styles.headerAction}
           activeOpacity={0.82}
+          accessibilityRole="button"
+          accessibilityLabel={unreadCount ? `${unreadCount} unread notifications` : 'Notifications'}
         >
-          <Text style={styles.headerActionText}>{unreadCount ? `NT ${unreadCount}` : 'NT'}</Text>
+          <MobileIcon name="bell-outline" size={22} color={colors.white} />
+          {unreadCount ? <View style={styles.notificationCount}><Text style={styles.notificationCountText}>{unreadCount > 9 ? '9+' : unreadCount}</Text></View> : null}
         </TouchableOpacity>
       </View>
 
@@ -174,12 +196,14 @@ export default function PatientHomeScreen({ navigation }) {
             label="Next Appointment"
             value={dashboard.nextAppointment ? formatShortDate(dashboard.nextAppointment.scheduled_date) : 'None'}
             patient
+            onPress={() => navigation.navigate('PatientAppointments')}
           />
           <StatCard
             icon="DD"
             label="Due Date"
             value={dashboard.activePregnancy?.edd ? formatShortDate(dashboard.activePregnancy.edd) : 'N/A'}
             patient
+            onPress={() => navigation.navigate('PatientVitals')}
           />
         </View>
 
@@ -189,13 +213,32 @@ export default function PatientHomeScreen({ navigation }) {
             label="Last BP"
             value={dashboard.latestVitals?.bp_systolic ? `${dashboard.latestVitals.bp_systolic}/${dashboard.latestVitals.bp_diastolic}` : '--'}
             patient
+            onPress={() => navigation.navigate('PatientVitals')}
           />
           <StatCard
             icon="RP"
             label="Pending Docs"
             value={String(dashboard.documentSummary?.pending || 0)}
             patient
+            onPress={() => navigation.navigate('Profile')}
           />
+        </View>
+
+        <View style={styles.clinicImageGrid}>
+          <TouchableOpacity onPress={() => navigation.navigate('PatientAppointments')} activeOpacity={0.82} accessibilityRole="button" accessibilityLabel="Open appointments">
+            <Card patient style={styles.clinicImageCard}>
+              <Image source={clinicExterior} style={styles.clinicImage} resizeMode="cover" />
+              <Text style={styles.clinicImageTitle}>TMC Copino Birthing Home</Text>
+              <Text style={styles.clinicImageText}>Use this portal for visits, records, documents, messages, and health education connected to your clinic profile.</Text>
+            </Card>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')} activeOpacity={0.82} accessibilityRole="button" accessibilityLabel="Open profile and documents">
+            <Card patient style={styles.clinicImageCard}>
+              <Image source={receptionInformation} style={styles.clinicImage} resizeMode="cover" />
+              <Text style={styles.clinicImageTitle}>Before your visit</Text>
+              <Text style={styles.clinicImageText}>Review appointment details, document status, and requirements before going to the information desk.</Text>
+            </Card>
+          </TouchableOpacity>
         </View>
 
         {dashboard.nextAppointment ? (
@@ -229,20 +272,22 @@ export default function PatientHomeScreen({ navigation }) {
           </Card>
         ) : null}
 
-        <SectionHeader title="3D Pregnancy View" style={{ marginTop: spacing.lg }} />
-        <PregnancyWireframeScene
-          dashboard={dashboard}
-          latestVitals={dashboard.latestVitals}
-          tips={education}
-        />
-
-        <SectionHeader title="Realtime Vitals" style={{ marginTop: spacing.lg }} />
+        <SectionHeader title="Latest saved vitals" style={{ marginTop: spacing.lg }} />
         <RealtimeVitalsPanel
           latestVitals={dashboard.latestVitals}
           activePregnancy={dashboard.activePregnancy}
         />
 
-        <SectionHeader title="3D Video Illustrations" style={{ marginTop: spacing.lg }} />
+        <SectionHeader title="Health Tips & Education" style={{ marginTop: spacing.lg }} />
+        <Button title="Clinic videos & community events" variant="secondary" icon="video-outline"
+          onPress={() => Linking.openURL('https://www.facebook.com/people/TMC-Copino-Birthing-Home/61575314979762/')}
+          style={{ marginBottom: spacing.sm }} />
+        <Button title="Summer Tuli 2026 replay on Facebook" variant="secondary" icon="play-circle-outline"
+          onPress={() => Linking.openURL('https://www.facebook.com/reel/2538336333249251/')}
+          style={{ marginBottom: spacing.sm }} />
+        <Text style={{ color: colors.gray[500], fontSize: 12, marginBottom: spacing.sm }}>
+          Past clinic event, not a livestream. Opens the original public video.
+        </Text>
         {!featuredMedia.length ? (
           <EmptyState
             icon="MD"
@@ -256,7 +301,7 @@ export default function PatientHomeScreen({ navigation }) {
         )}
 
         <SectionHeader title="Pregnancy Tips" style={{ marginTop: spacing.lg }} />
-        <TipsPreview items={education} />
+        <TipsPreview items={education} onPress={() => navigation.navigate('PatientEducation')} />
 
         <SectionHeader title="Care Shortcuts" style={{ marginTop: spacing.lg }} />
         <Card style={{ padding: 0, overflow: 'hidden' }}>
@@ -265,6 +310,18 @@ export default function PatientHomeScreen({ navigation }) {
             title="Doctors Directory"
             subtitle="Browse providers and request consult support"
             onPress={() => navigation.navigate('Doctors')}
+          />
+          <ListItem
+            leftIcon="CH"
+            title="Messages"
+            subtitle="Contact the clinic care team securely"
+            onPress={() => navigation.navigate('PatientMessages')}
+          />
+          <ListItem
+            leftIcon="video-outline"
+            title="Telehealth"
+            subtitle="Request or join a confirmed virtual consultation"
+            onPress={() => navigation.navigate('PatientTelehealth')}
           />
           <ListItem
             leftIcon="RX"
@@ -279,6 +336,18 @@ export default function PatientHomeScreen({ navigation }) {
             onPress={() => navigation.navigate('PatientReports')}
           />
           <ListItem
+            leftIcon="MR"
+            title="Medical records"
+            subtitle="Review prenatal visits and clinical records"
+            onPress={() => navigation.navigate('PatientRecords')}
+          />
+          <ListItem
+            leftIcon="HT"
+            title="Health tips"
+            subtitle="Open clinic-approved education and guidance"
+            onPress={() => navigation.navigate('PatientEducation')}
+          />
+          <ListItem
             leftIcon="EM"
             title="Emergency"
             subtitle="Open urgent support and clinic call actions"
@@ -291,17 +360,19 @@ export default function PatientHomeScreen({ navigation }) {
           <EmptyState icon="NT" title="No notifications yet" subtitle="Clinic alerts will appear here." />
         ) : (
           notifications.map((item) => (
-            <Card key={item.id} patient style={{ marginVertical: 4 }}>
-              <View style={styles.notificationHead}>
-                <Badge
-                  label={item.type || 'info'}
-                  variant={item.type === 'critical' ? 'danger' : item.type === 'warning' ? 'warning' : 'info'}
-                />
-                {!item.is_read ? <Text style={styles.newLabel}>NEW</Text> : null}
-              </View>
-              <Text style={styles.tipTitle}>{item.title}</Text>
-              <Text style={styles.tipBody} numberOfLines={3}>{item.body}</Text>
-            </Card>
+            <TouchableOpacity key={item.id} onPress={() => navigation.navigate('PatientNotifications')} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={`Open notification: ${item.title}`}>
+              <Card patient style={{ marginVertical: 4 }}>
+                <View style={styles.notificationHead}>
+                  <Badge
+                    label={item.type || 'info'}
+                    variant={item.type === 'critical' ? 'danger' : item.type === 'warning' ? 'warning' : 'info'}
+                  />
+                  {!item.is_read ? <Text style={styles.newLabel}>NEW</Text> : null}
+                </View>
+                <Text style={styles.tipTitle}>{item.title}</Text>
+                <Text style={styles.tipBody} numberOfLines={3}>{item.body}</Text>
+              </Card>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>
@@ -324,15 +395,30 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   headerAction: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: radius.full,
+    width: 42,
+    height: 42,
+    borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
-  headerActionText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.white,
+  notificationCount: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+  },
+  notificationCountText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.brand.copper,
   },
   greeting: {
     fontSize: 20,
@@ -352,6 +438,33 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  clinicImageGrid: {
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  clinicImageCard: {
+    padding: 0,
+    overflow: 'hidden',
+  },
+  clinicImage: {
+    width: '100%',
+    height: 150,
+  },
+  clinicImageTitle: {
+    marginTop: spacing.md,
+    marginHorizontal: spacing.lg,
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.gray[900],
+  },
+  clinicImageText: {
+    marginTop: 6,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.gray[600],
   },
   summaryTitle: {
     fontSize: 16,
@@ -391,11 +504,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#151922',
-  },
-  mediaFallbackCode: {
-    fontSize: 30,
-    fontWeight: '700',
-    color: '#fbcfe8',
   },
   mediaBadgeRow: {
     position: 'absolute',

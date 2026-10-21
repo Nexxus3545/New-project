@@ -6,6 +6,7 @@ import api from '../../services/api'
 import { AlertBox, Badge, Button, Card, LoadingScreen, ScreenHeader, SelectPicker } from '../../components/ui'
 import { colors, spacing } from '../../components/theme'
 import { useAuthStore } from '../../hooks/useAuthStore'
+import ContactNumberCard from '../../components/ContactNumberCard'
 
 const documentTypeOptions = [
   { label: 'PhilHealth ID', value: 'PhilHealth ID' },
@@ -31,6 +32,8 @@ export default function PatientProfileScreen({ navigation }) {
     user,
     logout,
     biometricEnabled,
+    biometricAvailable,
+    biometricLabel,
     enableBiometricUnlock,
     disableBiometricUnlock,
   } = useAuthStore()
@@ -167,7 +170,7 @@ export default function PatientProfileScreen({ navigation }) {
 
         <Card patient>
           <ProfileRow label="Date of birth" value={patient.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString('en-PH') : null} />
-          <ProfileRow label="Phone" value={patient.phone} />
+          <ProfileRow label="Phone" value={user?.phone || patient.phone} />
           <ProfileRow label="City" value={patient.city} />
           <ProfileRow label="PhilHealth ID" value={patient.philhealth_id} />
           <ProfileRow label="Emergency contact" value={patient.emergency_contact_name} />
@@ -176,19 +179,27 @@ export default function PatientProfileScreen({ navigation }) {
           <ProfileRow label="Conditions" value={patient.existing_conditions || 'None recorded'} />
         </Card>
 
+        <ContactNumberCard />
+
         <Card patient>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.gray[900] }}>Device unlock</Text>
-            <Badge label={biometricEnabled ? 'enabled' : 'disabled'} variant={biometricEnabled ? 'success' : 'gray'} />
+            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.gray[900] }}>Fingerprint & face unlock</Text>
+            <Badge
+              label={biometricEnabled ? 'enabled' : biometricAvailable ? 'available' : 'not available'}
+              variant={biometricEnabled ? 'success' : biometricAvailable ? 'patient' : 'gray'}
+            />
           </View>
           {securityMessage ? <AlertBox type="info" message={securityMessage} /> : null}
           <Text style={{ fontSize: 13, color: colors.gray[500], lineHeight: 18, marginBottom: 12 }}>
-            Enable biometric unlock to sign back into the app on this device without retyping your password.
+            {biometricAvailable
+              ? `Use ${biometricLabel} to unlock this saved MWOS session without retyping your password.`
+              : 'Set up a fingerprint or face recognition in your device settings to use biometric unlock.'}
           </Text>
           <Button
-            title={biometricEnabled ? 'Disable biometric unlock' : 'Enable biometric unlock'}
+            title={biometricEnabled ? 'Disable biometric unlock' : `Enable ${biometricLabel}`}
             variant="secondary"
             onPress={handleToggleBiometric}
+            disabled={!biometricEnabled && !biometricAvailable}
           />
         </Card>
 

@@ -11,7 +11,6 @@ import {
   SectionHeader,
 } from '../../components/ui'
 import { colors, spacing } from '../../components/theme'
-import PregnancyWireframeScene from '../../components/patient/PregnancyWireframeScene'
 import RealtimeVitalsPanel from '../../components/patient/RealtimeVitalsPanel'
 
 const bpVariant = (category) => {
@@ -32,12 +31,7 @@ export default function PatientVitalsScreen() {
     enabled: !!meQuery.data?.id,
   })
 
-  const educationQuery = useQuery({
-    queryKey: ['patient-education-mobile-vitals'],
-    queryFn: () => api.get('/education').then((response) => response.data.data),
-  })
-
-  if (meQuery.isLoading || vitalsQuery.isLoading || educationQuery.isLoading) {
+  if (meQuery.isLoading || vitalsQuery.isLoading) {
     return <LoadingScreen message="Loading vitals..." />
   }
 
@@ -48,8 +42,8 @@ export default function PatientVitalsScreen() {
   return (
     <View style={styles.root}>
       <ScreenHeader
-        title="Vitals"
-        subtitle="Realtime motion, pregnancy visualization, and recorded trend review"
+        title="My Pregnancy"
+        subtitle="Pregnancy progress, latest saved vital signs, and recorded visit trends"
         patient
       />
 
@@ -57,9 +51,9 @@ export default function PatientVitalsScreen() {
         contentContainerStyle={styles.scroll}
         refreshControl={(
           <RefreshControl
-            refreshing={vitalsQuery.isRefetching || educationQuery.isRefetching}
+            refreshing={vitalsQuery.isRefetching || meQuery.isRefetching}
             onRefresh={async () => {
-              await Promise.all([vitalsQuery.refetch(), educationQuery.refetch()])
+              await Promise.all([meQuery.refetch(), vitalsQuery.refetch()])
             }}
             tintColor={colors.brand.rose}
           />
@@ -68,13 +62,6 @@ export default function PatientVitalsScreen() {
         <RealtimeVitalsPanel
           latestVitals={latestVitals}
           activePregnancy={activePregnancy}
-        />
-
-        <SectionHeader title="3D Pregnancy Status" style={{ marginTop: spacing.lg }} />
-        <PregnancyWireframeScene
-          dashboard={{ activePregnancy }}
-          latestVitals={latestVitals}
-          tips={(educationQuery.data || []).slice(0, 3)}
         />
 
         {latestVitals ? (
