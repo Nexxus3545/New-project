@@ -21,6 +21,17 @@
 - A real enrolled phone must test Google callback, cancellation, offline errors, fingerprint cancellation, enrollment changes, background lock, and logout before distributing.
 - The user's screenshot shows "Cannot connect to Metro": an installed debug/development APK trying to reach its development server. A standalone bundled APK removes that development-server dependency; real device testing is still required.
 
+### Internal Preview Verification (22 October 2026)
+
+- A standalone APK was built with the deployed HTTPS API, embedded Hermes bundle, Google/crypto native modules, and arm64-v8a/x86_64 libraries. Unsupported 32-bit ABIs are excluded from packaging.
+- The APK installed and opened in the Pixel_9a emulator without Metro or a fatal JavaScript/native startup error. The login screen offers Google and does not offer public SMS or Facebook login.
+- The API 37 / 16 KB emulator displayed a compatibility-mode warning for the older native libraries. This is a separate unresolved issue, not the Metro warning and not something to hide before public release.
+- The native Google button reached accounts.google.com in Android's browser without signing into a personal account. Later emulator exits were recorded by Android as LOW_MEMORY, not a JavaScript/native crash; a real-phone stability and sign-in test is still required.
+- All 43 automated tests passed: 24 backend, 10 web, and 9 mobile. This does not prove real-phone Google callback or fingerprint behavior.
+- Full Android lint did NOT complete: the build could not download org.robolectric:nativeruntime-dist-compat:1.0.2. Only this internal preview was packaged with the lint tasks explicitly excluded. Normal builds keep lint enabled.
+- To reproduce with an already-populated Gradle cache: `npm run apk:preview -- -Offline -SkipAndroidLint`. Do not use those preview exceptions as Play Store release approval.
+- The local preview is in `mobile/dist-export/MWOS-Android-Preview.apk`; it uses the generated Android test signing identity. It has not been uploaded to Google Play or published as a public download.
+
 ## Not Ready For Google Play Yet (22 October 2026)
 
 1. This project is still Expo SDK 51 / React Native 0.74. It must be upgraded and tested against the current Android API and 16 KB native-library requirements, rather than only increasing targetSdk.
