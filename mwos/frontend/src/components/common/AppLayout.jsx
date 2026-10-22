@@ -39,6 +39,7 @@ const patientNav = [
   { to: '/my/notifications', icon: 'NT', label: 'Notifications' },
   { to: '/my/health-tips', icon: 'HT', label: 'Health Tips' },
   { to: '/my/profile', icon: 'PF', label: 'Profile' },
+  { to: '/my/settings', icon: 'SE', label: 'Settings' },
 ]
 
 const staffNavSections = [
@@ -91,6 +92,8 @@ export default function AppLayout({ patient = false }) {
           ['/my/notifications', ['Notifications', 'Review unread reminders and clinic updates.']],
           ['/my/health-tips', ['Health Tips', 'Browse clinic-approved pregnancy, postnatal, newborn, and family-care education.']],
           ['/my/emergency', ['Emergency', 'Quick access to urgent clinic and barangay support.']],
+          ['/my/profile', ['Profile', 'Your personal details, clinic IDs, documents, and care information.']],
+          ['/my/settings', ['Settings', 'Sign-in, contact and recovery, appearance, and account security.']],
         ]
       : [
           ['/dashboard', ['Staff Dashboard', 'Today’s appointments, patient alerts, monitoring queues, and recent activity.']],
@@ -107,6 +110,8 @@ export default function AppLayout({ patient = false }) {
           ['/inventory', ['Inventory', 'Manage medicine/product images, usage guidance, stock, reorder, and expiry status.']],
           ['/health-education', ['Health Education', 'Publish pregnancy, postnatal, newborn, nutrition, and family-planning videos or images.']],
           ['/reports-analytics', ['Reports / Analytics', 'Review clinic metrics, maternal indicators, and export-ready summaries.']],
+          ['/account', ['Profile', 'Your personal details and clinic credential information.']],
+          ['/settings', ['Settings', 'Sign-in, contact and recovery, appearance, and account security.']],
         ]
 
     const found = titleMap.find(([prefix]) => location.pathname.startsWith(prefix))
@@ -215,10 +220,10 @@ export default function AppLayout({ patient = false }) {
             </div>
 
           <button
-            onClick={() => navigate(patient ? '/my/profile' : '/account')}
+            onClick={() => navigate(patient ? '/my/settings' : '/settings')}
             className="btn-secondary w-full justify-center mb-2"
           >
-            Manage account
+            Account settings
           </button>
 
           <button

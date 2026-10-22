@@ -78,3 +78,50 @@ test('video player has real playback controls and loads external embeds only aft
   assert.match(external, /Load Facebook video/)
   assert.doesNotMatch(external, /<iframe/)
 })
+
+const renderAccount = async (section, role = 'patient') => {
+  const { useAuthStore } = await server.ssrLoadModule('/src/store/authStore.js')
+  const user = { id: 'test-user', role, firstName: 'Test', lastName: 'Patient', email: 'patient@example.invalid' }
+  useAuthStore.setState({ user })
+  const { default: Page } = await server.ssrLoadModule('/src/pages/AccountCenterPage.jsx')
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(['auth-me'], user)
+  return renderToStaticMarkup(React.createElement(StaticRouter, { location: section === 'settings' ? '/my/settings' : '/my/profile' },
+    React.createElement(QueryClientProvider, { client }, React.createElement(Page, { section }))))
+}
+
+test('patient profile contains care details without settings or password controls', async () => {
+  const html = await renderAccount('profile')
+  assert.match(html, /Your profile/)
+  assert.match(html, /Personal, Biometrics &amp; Credentials/)
+  assert.match(html, /Secure Document Uploads/)
+  assert.doesNotMatch(html, /Theme mode|Current password|Save login email|contact-recovery-phone/)
+  assert.match(html, /href="\/my\/settings"/)
+})
+
+test('patient settings contains sign-in, recovery, appearance, and security but no care form', async () => {
+  const html = await renderAccount('settings')
+  assert.match(html, /Sign-in email/)
+  assert.match(html, /Theme mode/)
+  assert.match(html, /Current password/)
+  assert.match(html, /contact-recovery-phone/)
+  assert.doesNotMatch(html, /Date of birth|Secure Document Uploads|Save patient record|Send OTP/)
+})
+
+test('staff step-up security appears only in Settings', async () => {
+  assert.doesNotMatch(await renderAccount('profile', 'admin'), /Step-up access|Send OTP/)
+  assert.match(await renderAccount('settings', 'admin'), /Step-up access/)
+})
+
+test('transport receipt provides a saved reference without claiming dispatch', async () => {
+  const { default: Receipt } = await server.ssrLoadModule('/src/components/patient/TransportRequestReceipt.jsx')
+  const html = renderToStaticMarkup(React.createElement(StaticRouter, {}, React.createElement(Receipt, {
+    request: { id: 'test-reference', status: 'open', created_at: '2026-10-22T10:00:00Z' }, onNewRequest: () => {},
+  })))
+  assert.match(html, /Your transport request was sent/)
+  assert.match(html, /test-reference/)
+  assert.match(html, /not an ambulance dispatch/)
+  assert.match(html, /href="\/my\/messages"/)
+  assert.match(html, /role="status"/)
+  assert.doesNotMatch(html, />Send urgent transport request</)
+})

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../utils/api'
 import { useAuthStore } from '../../store/authStore'
+import { updateAccountProfile } from '../../utils/accountProfile'
 
 export default function ContactNumberCard() {
   const queryClient = useQueryClient()
@@ -18,14 +19,12 @@ export default function ContactNumberCard() {
       if (entered && !/^(09\d{9}|\+?639\d{9}|9\d{9})$/.test(entered.replace(/[\s()-]/g, ''))) {
         throw new Error('Enter a Philippine mobile number, such as 0917 123 4567.')
       }
-      return api.patch('/auth/profile', {
-        email: account.email, firstName: account.firstName, lastName: account.lastName,
-        avatarUrl: account.avatarUrl, phone: entered,
-      })
+      return updateAccountProfile(api, { phone: entered })
     },
-    onSuccess: ({ data }) => {
-      updateCurrentUser(data.data)
-      queryClient.setQueryData(['auth-me'], data.data)
+    onSuccess: (nextUser) => {
+      updateCurrentUser(nextUser)
+      queryClient.setQueryData(['auth-me'], nextUser)
+      setPhone(null)
       queryClient.invalidateQueries({ queryKey: ['patients-me-settings'] })
       setNotice('Contact number saved. It is not SMS-verified and cannot be used for account recovery yet.')
     },

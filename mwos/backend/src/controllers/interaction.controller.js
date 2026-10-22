@@ -1,4 +1,5 @@
 const { getClient, query } = require('../config/database');
+const { randomUUID } = require('node:crypto');
 const { resolveStepUpContext } = require('../middleware/stepUp');
 const { buildTeleconsultMeetingDetails } = require('../utils/teleconsult');
 const {
@@ -326,6 +327,12 @@ const createThread = async (req, res, next) => {
     const customTitle = (req.body.title || '').trim();
     const title = customTitle || (role === 'patient' ? 'Patient support request' : 'Care team discussion');
     const initialMessage = (req.body.initialMessage || req.body.body || '').trim();
+    const clientRequestId = req.body.clientRequestId;
+    if (clientRequestId !== undefined && (typeof clientRequestId !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clientRequestId))) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Invalid request reference' });
+    }
 
     if (threadType === 'tele_consult') {
       await client.query('ROLLBACK');
@@ -387,12 +394,23 @@ const createThread = async (req, res, next) => {
     const validParticipantIds = dedupeIds(validParticipants.rows.map((row) => row.id));
 
     const threadResult = await client.query(
-      `INSERT INTO conversation_threads (thread_type, title, patient_id, created_by, status, priority, last_message_at)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      `INSERT INTO conversation_threads (id, thread_type, title, patient_id, created_by, status, priority, last_message_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+       ON CONFLICT (id) DO NOTHING
        RETURNING *`,
-      [threadType, resolvedTitle, patientId, req.user.id, status, priority]
+      [clientRequestId || randomUUID(), threadType, resolvedTitle, patientId, req.user.id, status, priority]
     );
     const thread = threadResult.rows[0];
+    // The UUID primary key serializes retries, including a retry after a lost response.
+    if (!thread) {
+      const existing = await fetchThreadDetail(client, clientRequestId, req.user.id);
+      if (!existing || existing.created_by !== req.user.id || existing.messages[0]?.body !== initialMessage) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ success: false, message: 'This request reference is already in use. Check your existing messages before sending another request.' });
+      }
+      await client.query('COMMIT');
+      return res.status(200).json({ success: true, data: existing, replayed: true });
+    }
 
     for (const participantId of validParticipantIds) {
       await client.query(

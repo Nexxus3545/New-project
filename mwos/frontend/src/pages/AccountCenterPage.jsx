@@ -1,12 +1,13 @@
 import React, { startTransition, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import api from '../utils/api'
 import { uploadResumableFile } from '../utils/chunkedUpload'
 import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
 import { accentPresets, appearanceOptions, normalizeAppearance } from '../utils/appearance'
 import ContactNumberCard from '../components/common/ContactNumberCard'
+import { updateAccountProfile } from '../utils/accountProfile'
 
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -59,7 +60,8 @@ const ProfileMetric = ({ label, value }) => (
   </div>
 )
 
-export default function AccountCenterPage() {
+export default function AccountCenterPage({ section = 'profile' }) {
+  const isSettings = section === 'settings'
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
@@ -148,13 +150,13 @@ export default function AccountCenterPage() {
   const { data: patientProfile } = useQuery({
     queryKey: ['patients-me-settings'],
     queryFn: () => api.get('/patients/me').then((response) => response.data.data),
-    enabled: account?.role === 'patient',
+    enabled: !isSettings && account?.role === 'patient',
   })
 
   const { data: documents = [] } = useQuery({
     queryKey: ['patient-documents'],
     queryFn: () => api.get('/documents/my').then((response) => response.data.data),
-    enabled: account?.role === 'patient',
+    enabled: !isSettings && account?.role === 'patient',
   })
 
   useEffect(() => {
@@ -213,11 +215,12 @@ export default function AccountCenterPage() {
   }, [patientProfile])
 
   const profileMutation = useMutation({
-    mutationFn: (payload) => api.patch('/auth/profile', payload).then((response) => response.data.data),
+    mutationFn: (payload) => updateAccountProfile(api, payload),
     onSuccess: (nextUser) => {
       updateCurrentUser(nextUser)
+      queryClient.setQueryData(['auth-me'], nextUser)
       queryClient.invalidateQueries({ queryKey: ['auth-me'] })
-      setProfileNotice('Profile details updated successfully.')
+      setProfileNotice(isSettings ? 'Login email updated successfully.' : 'Profile details updated successfully.')
       setLocalError('')
     },
     onError: (error) => {
@@ -391,7 +394,9 @@ export default function AccountCenterPage() {
     event.preventDefault()
     setProfileNotice('')
     try {
-      await profileMutation.mutateAsync(profileForm)
+      await profileMutation.mutateAsync(isSettings
+        ? { email: profileForm.email }
+        : { firstName: profileForm.firstName, lastName: profileForm.lastName, avatarUrl: profileForm.avatarUrl })
     } catch {}
   }
 
@@ -477,10 +482,12 @@ export default function AccountCenterPage() {
                 )}
               </div>
               <div>
-                <p className="text-sm uppercase tracking-[0.3em] text-white/70">Account Center</p>
-                <h1 className="mt-2 text-3xl font-semibold">{profileForm.firstName || 'Your'} {profileForm.lastName || 'Profile'}</h1>
+                <p className="text-sm uppercase tracking-[0.3em] text-white/70">{isSettings ? 'Account preferences' : 'Personal information'}</p>
+                <h1 className="mt-2 text-3xl font-semibold">{isSettings ? 'Settings' : 'Your profile'}</h1>
                 <p className="mt-2 max-w-2xl text-sm text-white/80">
-                  Manage personal details, secure your login, and keep clinic credentials like Birthing ID, PhilHealth, and biometrics current.
+                  {isSettings
+                    ? 'Manage sign-in, contact and recovery details, appearance, and account security.'
+                    : 'Keep your personal details, clinic IDs, documents, and care information up to date.'}
                 </p>
               </div>
             </div>
@@ -498,7 +505,12 @@ export default function AccountCenterPage() {
         </div>
       </section>
 
-      {account?.staffProfile ? (
+      <nav aria-label="Account navigation" className="flex flex-wrap gap-2">
+        <NavLink to={account?.role === 'patient' ? '/my/profile' : '/account'} className={({ isActive }) => isActive ? 'btn-primary' : 'btn-secondary'}>Profile</NavLink>
+        <NavLink to={account?.role === 'patient' ? '/my/settings' : '/settings'} className={({ isActive }) => isActive ? 'btn-primary' : 'btn-secondary'}>Settings</NavLink>
+      </nav>
+
+      {!isSettings && account?.staffProfile ? (
         <section className="card space-y-4">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -525,21 +537,19 @@ export default function AccountCenterPage() {
 
       {localError ? <div className="alert-critical text-sm">{localError}</div> : null}
 
-      <ContactNumberCard />
-
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className={`grid gap-6 ${isSettings ? 'xl:grid-cols-2' : ''}`}>
         <div className="space-y-6">
           <form className="card space-y-5" onSubmit={handleProfileSubmit}>
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h2 className="section-title mb-1">Identity & Login</h2>
-                <p className="text-sm text-gray-500 dark:text-slate-400">Update your name, login email, phone, and profile image.</p>
+                <h2 className="section-title mb-1">{isSettings ? 'Sign-in email' : 'Profile details'}</h2>
+                <p className="text-sm text-gray-500 dark:text-slate-400">{isSettings ? 'Manage the email address used for your MWOS sign-in.' : 'Update your name and profile photo. Sign-in and recovery controls are in Settings.'}</p>
               </div>
               {profileNotice ? <span className="badge badge-success">{profileNotice}</span> : null}
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
-              <div className="space-y-3">
+            <div className={isSettings ? 'space-y-4' : 'grid gap-5 lg:grid-cols-[220px_1fr]'}>
+              {!isSettings ? <div className="space-y-3">
                 <div className="account-avatar h-36 w-36 text-3xl">
                   {profileForm.avatarUrl ? (
                     <img src={profileForm.avatarUrl} alt="Current avatar" className="h-full w-full rounded-[32px] object-cover" />
@@ -560,36 +570,34 @@ export default function AccountCenterPage() {
                     Remove photo
                   </button>
                 ) : null}
-              </div>
+              </div> : null}
 
               <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="label">First name</label>
-                  <input className="input" value={profileForm.firstName} onChange={(event) => setProfileForm((current) => ({ ...current, firstName: event.target.value }))} />
+                {!isSettings ? <><div>
+                  <label className="label" htmlFor="profile-first-name">First name</label>
+                  <input id="profile-first-name" className="input" value={profileForm.firstName} onChange={(event) => setProfileForm((current) => ({ ...current, firstName: event.target.value }))} />
                 </div>
                 <div>
-                  <label className="label">Last name</label>
-                  <input className="input" value={profileForm.lastName} onChange={(event) => setProfileForm((current) => ({ ...current, lastName: event.target.value }))} />
-                </div>
-                <div>
-                  <label className="label">Login email</label>
-                  <input className="input" type="email" value={profileForm.email} onChange={(event) => setProfileForm((current) => ({ ...current, email: event.target.value }))} />
-                </div>
-                <div>
-                  <label className="label">Mobile number</label>
-                  <input className="input" value={profileForm.phone} onChange={(event) => setProfileForm((current) => ({ ...current, phone: event.target.value }))} />
-                </div>
+                  <label className="label" htmlFor="profile-last-name">Last name</label>
+                  <input id="profile-last-name" className="input" value={profileForm.lastName} onChange={(event) => setProfileForm((current) => ({ ...current, lastName: event.target.value }))} />
+                </div></> : <div className="md:col-span-2">
+                  <label className="label" htmlFor="settings-login-email">Login email</label>
+                  <input id="settings-login-email" className="input" type="email" required autoComplete="email" value={profileForm.email} onChange={(event) => setProfileForm((current) => ({ ...current, email: event.target.value }))} />
+                  <p className="mt-2 text-xs text-slate-500">For Google sign-in, continue using the Google account already linked to MWOS.</p>
+                </div>}
               </div>
             </div>
 
             <div className="flex justify-end">
               <button type="submit" className="btn-primary" disabled={profileMutation.isPending}>
-                {profileMutation.isPending ? 'Saving profile...' : 'Save identity'}
+                {profileMutation.isPending ? 'Saving...' : isSettings ? 'Save login email' : 'Save profile'}
               </button>
             </div>
           </form>
 
-          {account?.role === 'patient' ? (
+          {isSettings ? <ContactNumberCard /> : null}
+
+          {!isSettings && account?.role === 'patient' ? (
             <form className="card space-y-6" onSubmit={handlePatientSubmit}>
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -846,7 +854,7 @@ export default function AccountCenterPage() {
           ) : null}
         </div>
 
-        <div className="space-y-6">
+        {isSettings ? <div className="space-y-6">
           <form className="card space-y-5" onSubmit={handleAppearanceSubmit}>
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -1068,7 +1076,7 @@ export default function AccountCenterPage() {
               </button>
             </div>
           </form>
-        </div>
+        </div> : null}
       </div>
     </div>
   )
