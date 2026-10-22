@@ -1,7 +1,9 @@
 param(
   [string]$BuildRoot = (Join-Path $env:TEMP 'mwos-mobile-apk-build'),
   [ValidateSet('debug', 'standalone')][string]$Variant = 'standalone',
-  [switch]$KeepBuildRoot
+  [switch]$KeepBuildRoot,
+  [switch]$Offline,
+  [switch]$SkipAndroidLint
 )
 
 $ErrorActionPreference = 'Stop'
@@ -165,6 +167,11 @@ function Patch-ReactBundleRoot([string]$AndroidProjectRoot) {
   # Bundle in the real source root; Metro cannot reliably follow the temporary node_modules junction.
   $content = [regex]::Replace($content, '(?m)^def projectRoot = .*', { $rootLine })
   $content = $content.Replace('react {', "react {`r`n    root = file(projectRoot)")
+  if (-not $content.Contains('    defaultConfig {')) {
+    throw 'The generated Android application configuration was not recognized.'
+  }
+  # Prebuilt dependencies also contain 32-bit libraries; exclude ABIs we did not compile.
+  $content = $content.Replace('    defaultConfig {', "    defaultConfig {`r`n        ndk { abiFilters 'arm64-v8a', 'x86_64' }")
   [System.IO.File]::WriteAllText($gradleFile, $content, (New-Object System.Text.UTF8Encoding $false))
 }
 
@@ -371,8 +378,14 @@ try {
     Push-Location $androidProjectRoot
     try {
       Invoke-Step "Building the $Variant APK..." {
-        $task = if ($Variant -eq 'standalone') { 'assembleRelease' } else { 'assembleDebug' }
-        & .\gradlew.bat --no-daemon -I $gradleInitScript $task
+        $task = if ($Variant -eq 'standalone') { ':app:assembleRelease' } else { ':app:assembleDebug' }
+        $gradleArgs = @('--no-daemon', '--max-workers=2', '-I', $gradleInitScript, $task)
+        if ($Offline) { $gradleArgs += '--offline' }
+        if ($SkipAndroidLint) {
+          Write-Warning 'Android lint is skipped for this internal preview. This is NOT a public release.'
+          $gradleArgs += @('-x', 'lintVitalAnalyzeRelease', '-x', 'lintVitalReportRelease', '-x', 'lintVitalRelease')
+        }
+        & .\gradlew.bat @gradleArgs
       }
     } finally {
       Pop-Location
