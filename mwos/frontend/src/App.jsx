@@ -126,8 +126,8 @@ export default function App() {
           <Route path="/telehealth" element={<TelehealthPage />} />
           <Route path="/messages" element={<MessagesPage />} />
           <Route path="/emergency-map" element={<EmergencyMapPage />} />
-          <Route path="/account" element={<AccountCenterPage />} />
-          <Route path="/settings" element={<AccountCenterPage />} />
+          <Route path="/account" element={<AccountCenterPage key="staff-profile" />} />
+          <Route path="/settings" element={<AccountCenterPage key="staff-settings" section="settings" />} />
           <Route path="/compliance" element={
             <ProtectedRoute roles={adminRoles}>
               <CompliancePage />
@@ -172,7 +172,8 @@ export default function App() {
           <Route path="/my/telehealth" element={<TelehealthPage />} />
           <Route path="/my/messages" element={<MessagesPage />} />
           <Route path="/my/emergency" element={<PatientEmergencyPage />} />
-          <Route path="/my/profile" element={<AccountCenterPage />} />
+          <Route path="/my/profile" element={<AccountCenterPage key="patient-profile" />} />
+          <Route path="/my/settings" element={<AccountCenterPage key="patient-settings" section="settings" />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

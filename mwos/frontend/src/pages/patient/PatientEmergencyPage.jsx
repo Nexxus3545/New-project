@@ -2,8 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../utils/api'
+import { useAuthStore } from '../../store/authStore'
+import { createTransportSubmission } from '../../utils/transportRequests'
+import TransportRequestReceipt from '../../components/patient/TransportRequestReceipt'
 
 const clinicQuery = 'TMC Copino Birthing Home and Medical Clinic Gajo Tiwi Albay'
+const emptyRequestForm = {
+  requestType: 'ambulance', pickupLocation: '', landmark: '', symptoms: '',
+  destination: 'TMC Copino Clinic', callbackNumber: '', companionNotes: '',
+}
 
 const buildService = (type, title, description, query, cta) => ({
   type,
@@ -17,14 +24,25 @@ const buildService = (type, title, description, query, cta) => ({
 
 export default function PatientEmergencyPage() {
   const queryClient = useQueryClient()
-  const [requestForm, setRequestForm] = useState({
-    requestType: 'ambulance',
-    pickupLocation: '',
-    landmark: '',
-    symptoms: '',
-    destination: 'TMC Copino Clinic',
-    callbackNumber: '',
-    companionNotes: '',
+  const userId = useAuthStore((state) => state.user?.id)
+  const [requestForm, setRequestForm] = useState({ ...emptyRequestForm })
+  const receiptRef = useRef(null)
+  const submitLockRef = useRef(false)
+  const submission = useMemo(() => createTransportSubmission({
+    userId, post: (url, payload) => api.post(url, payload),
+  }), [userId])
+  const previousRequestId = submission.getRequestId()
+  const previousRequestQuery = useQuery({
+    queryKey: ['emergency-transport-request', userId, previousRequestId],
+    queryFn: () => api.get(`/interactions/threads/${previousRequestId}`).then((response) => {
+      const request = response.data.data
+      if (request?.created_by !== userId || !request.messages?.[0]?.body?.startsWith('Emergency transport request\n')) {
+        throw new Error('This reference could not be confirmed as your transport request. Check Messages for details.')
+      }
+      return request
+    }),
+    enabled: Boolean(userId && previousRequestId),
+    retry: false,
   })
   const [liveLocation, setLiveLocation] = useState(null)
   const [locationState, setLocationState] = useState('idle')
@@ -168,13 +186,36 @@ export default function PatientEmergencyPage() {
         `Live GPS: ${sharedLocation ? `${sharedLocation.latitude}, ${sharedLocation.longitude} (accuracy ${Math.round(sharedLocation.accuracyMeters || 0)} m)` : 'Not shared'}`,
       ].join('\n')
 
-      return api.post('/interactions/threads', {
+      return submission.submit({
         title: 'Emergency transport request',
         initialMessage: body,
         priority: 'urgent',
       })
     },
+    retry: false,
+    onSuccess: (request) => {
+      queryClient.setQueryData(['emergency-transport-request', userId, request.id], request)
+      queryClient.invalidateQueries({ queryKey: ['message-threads'] })
+    },
+    onSettled: () => { submitLockRef.current = false },
   })
+  const requestReceipt = emergencyMutation.data || previousRequestQuery.data
+  const checkingPreviousRequest = Boolean(previousRequestId && previousRequestQuery.isPending)
+  const previousRequestUnconfirmed = previousRequestQuery.isError && previousRequestQuery.error.response?.status !== 404
+  const requestDetailsLocked = emergencyMutation.isPending || checkingPreviousRequest || previousRequestUnconfirmed || submission.hasSubmitted()
+
+  useEffect(() => {
+    if (!emergencyMutation.data) return
+    receiptRef.current?.focus({ preventScroll: true })
+    receiptRef.current?.scrollIntoView({ behavior: 'auto', block: 'center' })
+  }, [emergencyMutation.data])
+
+  const startDifferentRequest = () => {
+    if (!window.confirm('This creates a separate new request. For an update to your current request, use Messages instead. Start a different request?')) return
+    if (!submission.reset()) return
+    emergencyMutation.reset()
+    setRequestForm({ ...emptyRequestForm })
+  }
 
   return (
     <div className="space-y-6">
@@ -184,13 +225,6 @@ export default function PatientEmergencyPage() {
           <p className="page-sub">Request clinic or barangay support, open Google Maps routes, and escalate to emergency transport from one place.</p>
         </div>
       </div>
-
-      {emergencyMutation.isSuccess ? (
-        <div className="alert-success"><span>Emergency transport request sent to the clinic care team. Keep your phone nearby for call-back coordination.</span></div>
-      ) : null}
-      {emergencyMutation.isError ? (
-        <div className="alert-critical"><span>{emergencyMutation.error.response?.data?.message || 'Unable to send urgent request.'}</span></div>
-      ) : null}
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="card border-red-100 bg-red-50">
@@ -283,8 +317,11 @@ export default function PatientEmergencyPage() {
 
           <form
             className="card space-y-5"
+            aria-busy={emergencyMutation.isPending || checkingPreviousRequest}
             onSubmit={(event) => {
               event.preventDefault()
+              if (submitLockRef.current || requestReceipt || checkingPreviousRequest || previousRequestUnconfirmed) return
+              submitLockRef.current = true
               emergencyMutation.mutate()
             }}
           >
@@ -293,7 +330,20 @@ export default function PatientEmergencyPage() {
               <p className="text-sm text-slate-500">Send an urgent request to the clinic so they can coordinate ambulance, barangay assistance, or referral guidance.</p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            {requestReceipt ? <div ref={receiptRef} tabIndex={-1} className="rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-emerald-600">
+              <TransportRequestReceipt request={requestReceipt} onNewRequest={startDifferentRequest} />
+            </div> : <>
+            {checkingPreviousRequest ? <p role="status" className="rounded-2xl bg-slate-100 p-4 text-sm">Checking your previous request before sending another...</p> : null}
+            {emergencyMutation.isError || previousRequestUnconfirmed ? <div role="alert" className="alert-critical text-sm">
+              <p>We could not confirm the request. It may already be in the clinic inbox. Check Messages before trying again.</p>
+              <p className="mt-1">Retrying sends the original details with the same reference, not a separate request.</p>
+              <p className="mt-1">{emergencyMutation.error?.response?.data?.message || emergencyMutation.error?.message || previousRequestQuery.error?.response?.data?.message}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link to="/my/messages" state={previousRequestId ? { threadId: previousRequestId } : undefined} className="btn-secondary">Check Messages</Link>
+                <button type="button" className="btn-secondary" onClick={() => previousRequestQuery.refetch()}>Check request status</button>
+              </div>
+            </div> : null}
+            <fieldset disabled={requestDetailsLocked} className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="label">Request type</label>
                 <select className="input" value={requestForm.requestType} onChange={(event) => setRequestForm((current) => ({ ...current, requestType: event.target.value }))}>
@@ -333,14 +383,16 @@ export default function PatientEmergencyPage() {
                 <label className="label">Companion notes</label>
                 <input className="input" value={requestForm.companionNotes} onChange={(event) => setRequestForm((current) => ({ ...current, companionNotes: event.target.value }))} placeholder="Who is with the patient?" />
               </div>
-            </div>
+            </fieldset>
 
             <div className="flex justify-end gap-2">
-              <button type="button" className="btn-secondary" onClick={() => setRequestForm((current) => ({ ...current, pickupLocation: sharedLocation ? `Current GPS location (${sharedLocation.latitude.toFixed(5)}, ${sharedLocation.longitude.toFixed(5)})` : originLabel || current.pickupLocation }))}>{sharedLocation ? 'Use live location' : 'Use saved address'}</button>
-              <button type="submit" className="btn-primary" disabled={emergencyMutation.isPending}>
+              <button type="button" className="btn-secondary" disabled={requestDetailsLocked} onClick={() => setRequestForm((current) => ({ ...current, pickupLocation: sharedLocation ? `Current GPS location (${sharedLocation.latitude.toFixed(5)}, ${sharedLocation.longitude.toFixed(5)})` : originLabel || current.pickupLocation }))}>{sharedLocation ? 'Use live location' : 'Use saved address'}</button>
+              <button type="submit" className="btn-primary" disabled={emergencyMutation.isPending || checkingPreviousRequest || previousRequestUnconfirmed}>
                 {emergencyMutation.isPending ? 'Sending request...' : 'Send urgent transport request'}
               </button>
             </div>
+            {emergencyMutation.isPending ? <p role="status" className="text-sm font-medium text-slate-600">Sending your request. Please wait; do not press Send again.</p> : null}
+            </>}
           </form>
         </div>
       </div>
