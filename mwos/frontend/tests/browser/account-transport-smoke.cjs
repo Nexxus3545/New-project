@@ -110,6 +110,7 @@ async function main() {
     await app.page.goto(origin + '/my/settings');
     await app.page.getByRole('heading', { name: 'Sign-in email', exact: true }).waitFor();
     assert.ok(await app.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Settings must fit the mobile viewport');
+    assert.ok(await app.page.locator('main').evaluate((element) => element.scrollWidth <= element.clientWidth), 'Settings content must not overflow inside the app shell');
     await app.page.screenshot({ path: path.join(output, 'settings-mobile.png') });
     await app.page.setViewportSize({ width: 1440, height: 1000 });
     await app.page.goto(origin + '/my/emergency');
@@ -125,6 +126,9 @@ async function main() {
     await app.page.setViewportSize({ width: 390, height: 844 });
     await app.page.getByRole('status').filter({ hasText: 'Submission confirmed' }).scrollIntoViewIfNeeded();
     assert.ok(await app.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'The transport receipt must fit a phone viewport');
+    assert.ok(await app.page.locator('main').evaluate((element) => element.scrollWidth <= element.clientWidth), 'Emergency content must not overflow inside the app shell');
+    const receiptBounds = await app.page.getByRole('status').filter({ hasText: 'Submission confirmed' }).boundingBox();
+    assert.ok(receiptBounds.x >= 0 && receiptBounds.x + receiptBounds.width <= 391, 'The entire receipt must remain visible horizontally');
     await app.page.getByRole('status').filter({ hasText: 'Submission confirmed' }).screenshot({ path: path.join(output, 'transport-confirmation-mobile.png') });
     await app.page.setViewportSize({ width: 1440, height: 1000 });
     await app.page.reload();

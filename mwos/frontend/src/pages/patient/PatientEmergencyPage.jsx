@@ -261,8 +261,8 @@ export default function PatientEmergencyPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <div className="space-y-6">
+      <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
+        <div className="min-w-0 space-y-6">
           <div className="card">
             <h3 className="section-title mb-4">Emergency map services</h3>
             <div className="grid gap-3">
@@ -295,10 +295,10 @@ export default function PatientEmergencyPage() {
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <div className="card overflow-hidden p-0">
             <div className="border-b border-slate-200 px-5 py-4">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h3 className="section-title mb-1">{activeService.title}</h3>
                   <p className="text-sm text-slate-500">{activeService.description}</p>
@@ -385,7 +385,7 @@ export default function PatientEmergencyPage() {
               </div>
             </fieldset>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <button type="button" className="btn-secondary" disabled={requestDetailsLocked} onClick={() => setRequestForm((current) => ({ ...current, pickupLocation: sharedLocation ? `Current GPS location (${sharedLocation.latitude.toFixed(5)}, ${sharedLocation.longitude.toFixed(5)})` : originLabel || current.pickupLocation }))}>{sharedLocation ? 'Use live location' : 'Use saved address'}</button>
               <button type="submit" className="btn-primary" disabled={emergencyMutation.isPending || checkingPreviousRequest || previousRequestUnconfirmed}>
                 {emergencyMutation.isPending ? 'Sending request...' : 'Send urgent transport request'}
