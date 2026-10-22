@@ -103,6 +103,23 @@ test('mobile uses the deployed API unless explicitly overridden for development'
   assert.equal(isPublicAuthRequest('/auth/me'), false);
 });
 
+test('Metro ignores generated native caches while preserving source files and default exclusions', () => {
+  const module = { exports: {} };
+  const defaultRule = /existing-exclusion/;
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../metro.config.js'), 'utf8'), {
+    module, __dirname, require: () => ({
+      getDefaultConfig: () => ({ resolver: { blockList: defaultRule }, transformer: {}, watcher: {} }),
+    }),
+  });
+  const blocked = (file) => module.exports.resolver.blockList.some((rule) => rule.test(file));
+  assert.ok(blocked('C:\\app\\node_modules\\expo-modules-core\\android\\.cxx\\release\\native.json'));
+  assert.ok(blocked('/app/node_modules/expo/android/build/intermediates/metadata.json'));
+  assert.ok(blocked('/app/node_modules/react-native/ReactAndroid/build/generated/native.json'));
+  assert.ok(blocked('existing-exclusion'));
+  assert.equal(blocked('/app/src/services/api.js'), false);
+  assert.equal(blocked('/app/node_modules/expo/src/Expo.ts'), false);
+});
+
 test('Google sign-in binds browser callback to a fresh S256 proof before saving a session', async () => {
   const r = runtime();
   const store = r.load('src/hooks/useAuthStore.js').useAuthStore;
