@@ -3,43 +3,44 @@ import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-do
 import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
 import BrandMark from './BrandMark'
+import AppIcon from './AppIcon'
 
 const staffNav = [
-  { to: '/dashboard', icon: 'DB', label: 'Dashboard' },
-  { to: '/patients', icon: 'PT', label: 'Patients' },
-  { to: '/appointments', icon: 'AP', label: 'Appointments' },
-  { to: '/prenatal-monitoring', icon: 'PN', label: 'Prenatal Monitoring' },
-  { to: '/postnatal-monitoring', icon: 'PO', label: 'Postnatal Monitoring' },
-  { to: '/pediatric-monitoring', icon: 'NB', label: 'Pediatric Monitoring' },
-  { to: '/labor-delivery', icon: 'LD', label: 'Labor & Delivery' },
-  { to: '/medical-records', icon: 'MR', label: 'Medical Records' },
-  { to: '/telehealth', icon: 'TH', label: 'Telehealth' },
-  { to: '/messages', icon: 'MS', label: 'Messages' },
-  { to: '/emergency-map', icon: 'EM', label: 'Emergency Map' },
-  { to: '/inventory', icon: 'IN', label: 'Inventory' },
-  { to: '/health-education', icon: 'ED', label: 'Health Education' },
-  { to: '/reports-analytics', icon: 'RA', label: 'Reports / Analytics' },
-  { to: '/settings', icon: 'SE', label: 'Settings' },
+  { to: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
+  { to: '/patients', icon: 'patients', label: 'Patients' },
+  { to: '/appointments', icon: 'calendar', label: 'Appointments' },
+  { to: '/prenatal-monitoring', icon: 'prenatal', label: 'Prenatal Monitoring' },
+  { to: '/postnatal-monitoring', icon: 'postnatal', label: 'Postnatal Monitoring' },
+  { to: '/pediatric-monitoring', icon: 'baby', label: 'Pediatric Monitoring' },
+  { to: '/labor-delivery', icon: 'delivery', label: 'Labor & Delivery' },
+  { to: '/medical-records', icon: 'records', label: 'Medical Records' },
+  { to: '/telehealth', icon: 'video', label: 'Telehealth' },
+  { to: '/messages', icon: 'messages', label: 'Messages' },
+  { to: '/emergency-map', icon: 'emergency', label: 'Emergency Map' },
+  { to: '/inventory', icon: 'inventory', label: 'Inventory' },
+  { to: '/health-education', icon: 'education', label: 'Health Education' },
+  { to: '/reports-analytics', icon: 'reports', label: 'Reports / Analytics' },
+  { to: '/settings', icon: 'settings', label: 'Settings' },
 ]
 
 const adminNav = [
-  { to: '/users', icon: 'UM', label: 'User Management' },
-  { to: '/staff-qualifications', icon: 'SQ', label: 'Staff Credentials' },
-  { to: '/compliance', icon: 'CM', label: 'Compliance' },
+  { to: '/users', icon: 'users', label: 'User Management' },
+  { to: '/staff-qualifications', icon: 'credentials', label: 'Staff Credentials' },
+  { to: '/compliance', icon: 'compliance', label: 'Compliance' },
 ]
 
 const patientNav = [
-  { to: '/my/dashboard', icon: 'DB', label: 'Dashboard' },
-  { to: '/my/pregnancy', icon: 'PG', label: 'My Pregnancy' },
-  { to: '/my/appointments', icon: 'AP', label: 'Appointments' },
-  { to: '/my/health-records', icon: 'HR', label: 'Health Records' },
-  { to: '/my/baby', icon: 'NB', label: 'Baby / Newborn' },
-  { to: '/my/telehealth', icon: 'TH', label: 'Telehealth' },
-  { to: '/my/messages', icon: 'MS', label: 'Messages' },
-  { to: '/my/notifications', icon: 'NT', label: 'Notifications' },
-  { to: '/my/health-tips', icon: 'HT', label: 'Health Tips' },
-  { to: '/my/profile', icon: 'PF', label: 'Profile' },
-  { to: '/my/settings', icon: 'SE', label: 'Settings' },
+  { to: '/my/dashboard', icon: 'dashboard', label: 'Dashboard' },
+  { to: '/my/pregnancy', icon: 'prenatal', label: 'My Pregnancy' },
+  { to: '/my/appointments', icon: 'calendar', label: 'Appointments' },
+  { to: '/my/health-records', icon: 'records', label: 'Health Records' },
+  { to: '/my/baby', icon: 'baby', label: 'Baby / Newborn' },
+  { to: '/my/telehealth', icon: 'video', label: 'Telehealth' },
+  { to: '/my/messages', icon: 'messages', label: 'Messages' },
+  { to: '/my/notifications', icon: 'notifications', label: 'Notifications' },
+  { to: '/my/health-tips', icon: 'health', label: 'Health Tips' },
+  { to: '/my/profile', icon: 'profile', label: 'Profile' },
+  { to: '/my/settings', icon: 'settings', label: 'Settings' },
 ]
 
 const staffNavSections = [
@@ -127,14 +128,14 @@ export default function AppLayout({ patient = false }) {
 
   const quickActions = patient
     ? [
-        { to: '/my/appointments', label: 'Appointments' },
-        { to: '/my/messages', label: 'Message clinic' },
-        { to: '/my/emergency', label: 'Emergency' },
+        { to: '/my/appointments', icon: 'calendar', label: 'Appointments' },
+        { to: '/my/messages', icon: 'messages', label: 'Message clinic' },
+        { to: '/my/emergency', icon: 'emergency', label: 'Emergency' },
       ]
     : [
-        { to: '/patients', label: 'New patient' },
-        { to: '/appointments', label: 'Appointments' },
-        { to: '/messages', label: 'Messages' },
+        { to: '/patients', icon: 'users', label: 'New patient' },
+        { to: '/appointments', icon: 'calendar', label: 'Appointments' },
+        { to: '/messages', icon: 'messages', label: 'Messages' },
       ]
 
   const todayLabel = new Date().toLocaleDateString('en-PH', {
@@ -151,6 +152,7 @@ export default function AppLayout({ patient = false }) {
       )}
 
       <aside
+        id="app-sidebar"
         className={`
         fixed lg:static inset-y-0 left-0 z-30 w-72 flex flex-col bg-white dark:bg-slate-900
         border-r border-gray-200 dark:border-slate-800 transform transition-transform duration-200
@@ -170,7 +172,7 @@ export default function AppLayout({ patient = false }) {
           </div>
         </div>
 
-        <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
+        <nav aria-label={patient ? 'Patient modules' : 'Clinic modules'} className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
           {navSections.map((section) => (
             <div key={section.title} className="space-y-2">
               <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.26em] text-gray-400 dark:text-slate-500">
@@ -186,8 +188,8 @@ export default function AppLayout({ patient = false }) {
                       `sidebar-link ${isActive ? (patient ? 'sidebar-link-patient active' : 'active') : ''}`
                     }
                   >
-                    <span className="text-[11px] font-semibold inline-flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 dark:bg-slate-800">
-                      {link.icon}
+                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-slate-800">
+                      <AppIcon name={link.icon} />
                     </span>
                     <span>{link.label}</span>
                   </NavLink>
@@ -223,6 +225,7 @@ export default function AppLayout({ patient = false }) {
             onClick={() => navigate(patient ? '/my/settings' : '/settings')}
             className="btn-secondary w-full justify-center mb-2"
           >
+            <AppIcon name="settings" />
             Account settings
           </button>
 
@@ -231,6 +234,7 @@ export default function AppLayout({ patient = false }) {
             disabled={loggingOut}
             className="btn-ghost w-full justify-center text-red-600 hover:bg-red-50 hover:text-red-700"
           >
+            <AppIcon name="signOut" />
             {loggingOut ? 'Signing out...' : 'Sign out'}
           </button>
         </div>
@@ -238,7 +242,8 @@ export default function AppLayout({ patient = false }) {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800">
-          <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800">
+          <button type="button" aria-controls="app-sidebar" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)} className="inline-flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800">
+            <AppIcon name="menu" />
             Menu
           </button>
           <BrandMark compact sublabel="Birthing home clinic workspace" />
@@ -261,6 +266,7 @@ export default function AppLayout({ patient = false }) {
                   <span className="hero-chip">{todayLabel}</span>
                   {quickActions.map((action) => (
                     <Link key={action.to} to={action.to} className="btn-secondary btn-sm">
+                      <AppIcon name={action.icon} className="h-4 w-4" />
                       {action.label}
                     </Link>
                   ))}

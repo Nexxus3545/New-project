@@ -17,9 +17,9 @@ async function main() {
   });
   const origin = 'http://127.0.0.1:4177';
 
-  async function fixture({ loseFirstResponse = false } = {}) {
+  async function fixture({ loseFirstResponse = false, role = 'patient' } = {}) {
     let user = {
-      id: '11111111-1111-4111-8111-111111111111', role: 'patient', firstName: 'Test', lastName: 'Patient',
+      id: '11111111-1111-4111-8111-111111111111', role, firstName: 'Test', lastName: 'Patient',
       email: 'patient@example.invalid', phone: '09171234567', avatarUrl: '',
     };
     const threads = new Map();
@@ -87,6 +87,10 @@ async function main() {
     const app = await fixture();
     await app.page.goto(origin + '/my/settings');
     await app.page.getByRole('heading', { name: 'Sign-in email', exact: true }).waitFor();
+    const patientNav = app.page.getByRole('navigation', { name: 'Patient modules' });
+    assert.equal(await patientNav.locator('a').count(), 11);
+    assert.equal(await patientNav.locator('a svg[aria-hidden="true"]').count(), 11);
+    assert.equal(await patientNav.getByRole('link', { name: 'Settings', exact: true }).getAttribute('aria-current'), 'page');
     assert.equal(app.requests.some((item) => item.includes('/patients/me') || item.includes('/documents/my')), false);
     assert.equal(await app.page.getByText('Theme mode', { exact: true }).count(), 1);
     assert.equal(await app.page.getByText('Secure Document Uploads', { exact: true }).count(), 0);
@@ -112,6 +116,15 @@ async function main() {
     assert.ok(await app.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Settings must fit the mobile viewport');
     assert.ok(await app.page.locator('main').evaluate((element) => element.scrollWidth <= element.clientWidth), 'Settings content must not overflow inside the app shell');
     await app.page.screenshot({ path: path.join(output, 'settings-mobile.png') });
+    const menu = app.page.getByRole('button', { name: 'Menu', exact: true });
+    assert.equal(await menu.getAttribute('aria-expanded'), 'false');
+    await menu.click();
+    assert.equal(await menu.getAttribute('aria-expanded'), 'true');
+    await patientNav.getByRole('link', { name: 'Settings', exact: true }).scrollIntoViewIfNeeded();
+    await app.page.locator('aside').screenshot({ path: path.join(output, 'navigation-icons-mobile.png') });
+    await patientNav.getByRole('link', { name: 'Profile', exact: true }).click();
+    await app.page.getByRole('heading', { name: 'Profile details', exact: true }).waitFor();
+    assert.equal(await menu.getAttribute('aria-expanded'), 'false');
     await app.page.setViewportSize({ width: 1440, height: 1000 });
     await app.page.goto(origin + '/my/emergency');
     const send = app.page.getByRole('button', { name: 'Send urgent transport request', exact: true });
@@ -160,7 +173,24 @@ async function main() {
     assert.equal(recovery.threads.size, 1, 'Retry must not create a separate request');
     assert.equal(recovery.errors.length, 0, recovery.errors.join('\n'));
     await recovery.context.close();
-    console.log('Browser checks passed: separate settings/profile, safe saves, mobile fit, double-click protection, receipt restore, Messages navigation, and lost-response retry.');
+    for (const [role, count] of [['nurse', 15], ['admin', 18]]) {
+      const staff = await fixture({ role });
+      await staff.page.goto(origin + '/settings');
+      await staff.page.getByRole('heading', { name: 'Sign-in email', exact: true }).waitFor();
+      const navigation = staff.page.getByRole('navigation', { name: 'Clinic modules' });
+      assert.equal(await navigation.locator('a').count(), count);
+      assert.equal(await navigation.locator('a svg[aria-hidden="true"]').count(), count);
+      assert.ok(await navigation.locator('a svg').evaluateAll((icons) => icons.every((icon) => {
+        const style = getComputedStyle(icon);
+        return icon.getBoundingClientRect().width === 20 && style.stroke === getComputedStyle(icon.closest('a')).color;
+      })), 'Module icons must stay legible and inherit active-menu colors');
+      assert.equal(await navigation.getByRole('link', { name: 'Settings', exact: true }).getAttribute('aria-current'), 'page');
+      assert.equal(await navigation.getByRole('link', { name: 'User Management', exact: true }).count(), role === 'admin' ? 1 : 0);
+      await navigation.getByRole('link', { name: role === 'admin' ? 'Compliance' : 'Settings', exact: true }).scrollIntoViewIfNeeded();
+      await staff.page.locator('aside').screenshot({ path: path.join(output, 'navigation-icons-' + role + '.png') });
+      await staff.context.close();
+    }
+    console.log('Browser checks passed: icons for every patient/staff/admin module, phone navigation, settings/profile, safe saves, transport receipts, and retry protection.');
     console.log('Screenshots: ' + output);
   } finally {
     await browser.close();

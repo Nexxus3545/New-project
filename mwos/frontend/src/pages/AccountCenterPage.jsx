@@ -7,6 +7,7 @@ import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
 import { accentPresets, appearanceOptions, normalizeAppearance } from '../utils/appearance'
 import ContactNumberCard from '../components/common/ContactNumberCard'
+import AppIcon from '../components/common/AppIcon'
 import { updateAccountProfile } from '../utils/accountProfile'
 
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
@@ -506,8 +507,8 @@ export default function AccountCenterPage({ section = 'profile' }) {
       </section>
 
       <nav aria-label="Account navigation" className="flex flex-wrap gap-2">
-        <NavLink to={account?.role === 'patient' ? '/my/profile' : '/account'} className={({ isActive }) => isActive ? 'btn-primary' : 'btn-secondary'}>Profile</NavLink>
-        <NavLink to={account?.role === 'patient' ? '/my/settings' : '/settings'} className={({ isActive }) => isActive ? 'btn-primary' : 'btn-secondary'}>Settings</NavLink>
+        <NavLink to={account?.role === 'patient' ? '/my/profile' : '/account'} className={({ isActive }) => isActive ? 'btn-primary' : 'btn-secondary'}><AppIcon name="profile" />Profile</NavLink>
+        <NavLink to={account?.role === 'patient' ? '/my/settings' : '/settings'} className={({ isActive }) => isActive ? 'btn-primary' : 'btn-secondary'}><AppIcon name="settings" />Settings</NavLink>
       </nav>
 
       {!isSettings && account?.staffProfile ? (

@@ -125,3 +125,53 @@ test('transport receipt provides a saved reference without claiming dispatch', a
   assert.match(html, /role="status"/)
   assert.doesNotMatch(html, />Send urgent transport request</)
 })
+
+test('every patient, staff, and admin navigation module uses an icon without removing its label', async () => {
+  const { useAuthStore } = await server.ssrLoadModule('/src/store/authStore.js')
+  const { default: Layout } = await server.ssrLoadModule('/src/components/common/AppLayout.jsx')
+  const snapshot = useAuthStore.getInitialState()
+  const originalUser = snapshot.user
+  // SSR needs each fixture's current role rather than Zustand's module-load snapshot.
+  try {
+    for (const [role, count] of [['patient', 11], ['nurse', 15], ['admin', 18]]) {
+      snapshot.user = { id: 'test-user', role, firstName: 'Test', lastName: 'User' }
+      const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: role === 'patient' ? '/my/settings' : '/settings' },
+        React.createElement(Layout, { patient: role === 'patient' })))
+      const nav = html.match(/<nav aria-label="(?:Patient|Clinic) modules"[\s\S]*?<\/nav>/)[0]
+      const links = [...nav.matchAll(/<a\s[^>]*>[\s\S]*?<\/a>/g)].map((match) => match[0])
+      assert.equal(links.length, count)
+      for (const link of links) {
+        assert.equal((link.match(/<svg /g) || []).length, 1)
+        assert.match(link, /aria-hidden="true"/)
+        assert.match(link, /focusable="false"/)
+        assert.match(link, /stroke="currentColor"/)
+        assert.match(link, /<span>[^<]+<\/span>/)
+        assert.doesNotMatch(link, />[A-Z]{2}<\//)
+      }
+      assert.match(nav, /aria-current="page"[^>]*>[\s\S]*?data-app-icon="settings"/)
+      assert.match(html, /data-app-icon="menu"/)
+      assert.match(html, /data-app-icon="signOut"/)
+      if (role !== 'admin') assert.doesNotMatch(nav, /User Management|Staff Credentials|Compliance/)
+    }
+  } finally {
+    snapshot.user = originalUser
+  }
+})
+
+test('icons contain visible geometry and remain decorative at compact sizes', async () => {
+  const { default: Icon } = await server.ssrLoadModule('/src/components/common/AppIcon.jsx')
+  const names = ['dashboard', 'patients', 'calendar', 'prenatal', 'postnatal', 'baby', 'delivery', 'records', 'video',
+    'messages', 'emergency', 'inventory', 'education', 'reports', 'settings', 'users', 'credentials', 'compliance',
+    'notifications', 'health', 'profile', 'menu', 'signOut']
+  const artwork = new Set()
+  for (const name of names) {
+    const html = renderToStaticMarkup(React.createElement(Icon, { name, className: 'h-4 w-4' }))
+    assert.match(html, /viewBox="0 0 24 24"/)
+    assert.match(html, /class="shrink-0 h-4 w-4"/)
+    assert.doesNotMatch(html, /<text|<image|<title|http/)
+    const geometry = html.match(/<svg[^>]*>([\s\S]+)<\/svg>/)[1]
+    assert.match(geometry, /<(?:path|rect|circle)/)
+    assert.equal(artwork.has(geometry), false, name + ' needs distinct artwork')
+    artwork.add(geometry)
+  }
+})
