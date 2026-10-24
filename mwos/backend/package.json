@@ -8,6 +8,7 @@
     "dev": "node src/index.js",
     "dev:watch": "nodemon src/index.js",
     "migrate": "node src/utils/migrate.js",
+    "migrate:patient-care": "node src/utils/migratePatientCare.js --apply",
     "migrate:reset": "node src/utils/migrate.js --reset",
     "seed": "node src/utils/seed.js"
   },

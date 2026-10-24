@@ -22,6 +22,7 @@ let payloadFailure;
 let identityLinked;
 let selectedUser;
 let expectedCodeHash;
+let patientCare;
 
 const execute = async (sql, params = []) => {
   const normalized = sql.replace(/\s+/g, ' ').trim();
@@ -32,9 +33,9 @@ const execute = async (sql, params = []) => {
   if (normalized.startsWith('INSERT INTO oauth_login_codes')) expectedCodeHash = params[1];
   if (normalized.startsWith('UPDATE oauth_login_codes')) consumed = true;
   if (normalized === 'ROLLBACK') consumed = false;
-  if (normalized.startsWith('SELECT id FROM patients')) {
+  if (normalized.startsWith('SELECT id') && normalized.includes('FROM patients WHERE user_id')) {
     if (payloadFailure) throw new Error('Patient lookup failed');
-    return { rows: patientId ? [{ id: patientId }] : [] };
+    return { rows: patientId ? [{ id: patientId, ...patientCare }] : [] };
   }
   if (normalized.startsWith('SELECT 1 FROM patients')) return { rows: [] };
   if (normalized.startsWith('SELECT') && normalized.includes('FROM staff_registry')) {
@@ -53,7 +54,10 @@ const execute = async (sql, params = []) => {
     return { rows: [selectedUser] };
   }
   if (normalized.startsWith('INSERT INTO staff_registry')) return { rows: [{ id: 'staff-record' }] };
-  if (normalized.startsWith('INSERT INTO patients')) patientId = 'patient-record';
+  if (normalized.startsWith('INSERT INTO patients')) {
+    patientId = 'patient-record';
+    patientCare = { gender: params[10], care_type: params[11] };
+  }
   if (normalized.startsWith('INSERT INTO audit_logs') && auditFailure) throw new Error('Audit unavailable');
   if (normalized.startsWith('UPDATE users') && normalized.includes('RETURNING')) return { rows: [selectedUser] };
   return { rows: [] };
@@ -94,6 +98,7 @@ beforeEach(() => {
   identityLinked = false;
   selectedUser = { ...user };
   expectedCodeHash = null;
+  patientCare = {};
 });
 
 after(async () => {
@@ -168,6 +173,21 @@ test('required Google patient details generate identifiers on the transaction co
   assert.ifError(result.failure);
   assert.equal(result.payload.data.patientId, 'patient-record');
   assert.equal(statements.filter((sql) => sql.startsWith('SELECT 1 FROM patients')).length, 2);
+});
+
+test('email and Google patient registration persist male/general selections without a pregnancy', async () => {
+  const body = { email: user.email, password: 'test-password', role: 'patient', firstName: 'Test', lastName: 'Patient', dateOfBirth: '2000-01-01', gender: 'male', careType: 'general' };
+  for (const handler of [auth.register, oauth.completePatientProfile]) {
+    patientId = null;
+    statements = [];
+    const result = await invoke(handler, { body });
+    assert.ifError(result.failure);
+    const payload = handler === auth.register ? result.payload.data.user : result.payload.data;
+    assert.equal(payload.patientGender, 'male');
+    assert.equal(payload.careType, 'general');
+    assert.equal(payload.hasActivePregnancy, false);
+    assert.ok(!statements.some((sql) => sql.startsWith('INSERT INTO pregnancies')));
+  }
 });
 
 test('new Google patients finish the callback, exchange, and required profile with one connection', async () => {

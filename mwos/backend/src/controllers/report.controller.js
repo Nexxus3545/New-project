@@ -107,7 +107,7 @@ const getDashboard = async (req, res, next) => {
 const getPatientDashboard = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const patient = await query('SELECT id FROM patients WHERE user_id = $1', [userId]);
+    const patient = await query('SELECT id, gender, care_type FROM patients WHERE user_id = $1', [userId]);
 
     if (patient.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Patient profile not found' });
@@ -160,6 +160,7 @@ const getPatientDashboard = async (req, res, next) => {
       success: true,
       data: {
         nextAppointment: nextAppt.rows[0] || null,
+        patientProfile: { gender: patient.rows[0].gender || null, careType: patient.rows[0].care_type || null },
         activePregnancy: activePregnancy.rows[0] || null,
         latestVitals: latestVitals.rows[0] || null,
         unpaidAmount: parseFloat(unpaidBills.rows[0]?.total || 0),
