@@ -555,27 +555,27 @@ export default function AccountCenterPage({ section = 'profile' }) {
 
       <div className={`grid gap-6 ${isSettings ? 'xl:grid-cols-2' : ''}`}>
         <div className="space-y-6">
-          <form className="card space-y-5" onSubmit={handleProfileSubmit}>
-            <div className="flex items-center justify-between gap-4">
-              <div>
+          <form aria-label={isSettings ? 'Sign-in email' : 'Profile details'} className="card space-y-5" onSubmit={handleProfileSubmit}>
+            <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
+              <div className="w-full min-w-0 sm:flex-1">
                 <h2 className="section-title mb-1">{isSettings ? 'Sign-in email' : 'Profile details'}</h2>
                 <p className="text-sm text-gray-500 dark:text-slate-400">{isSettings ? 'Manage the email address used for your MWOS sign-in.' : 'Update your name and profile photo. Sign-in and recovery controls are in Settings.'}</p>
               </div>
-              {profileNotice ? <span className="badge badge-success">{profileNotice}</span> : null}
+              {profileNotice ? <span className="badge badge-success max-w-full whitespace-normal">{profileNotice}</span> : null}
             </div>
 
-            <div className={isSettings ? 'space-y-4' : 'grid gap-5 lg:grid-cols-[220px_1fr]'}>
-              {!isSettings ? <div className="space-y-3">
-                <div className="account-avatar h-36 w-36 text-3xl">
+            <div className={isSettings ? 'space-y-4' : 'grid items-stretch gap-5 md:grid-cols-[144px_minmax(0,1fr)] md:gap-6'}>
+              {!isSettings ? <div className="flex w-36 flex-col gap-3 justify-self-center md:justify-self-start">
+                <div aria-label="Profile photo" className="flex h-36 w-full items-center justify-center overflow-hidden rounded-[28px] border border-rose-100 bg-rose-50 text-3xl font-semibold text-[var(--accent-strong)] shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-rose-200">
                   {profileForm.avatarUrl ? (
-                    <img src={profileForm.avatarUrl} alt="Current avatar" className="h-full w-full rounded-[32px] object-cover" />
+                    <img src={profileForm.avatarUrl} alt="Current avatar" className="h-full w-full object-cover" />
                   ) : (
                     initialsFromName(profileForm.firstName, profileForm.lastName)
                   )}
                 </div>
-                <label className="btn-secondary w-full cursor-pointer justify-center">
+                <label htmlFor="profile-photo-upload" className="btn-secondary w-full cursor-pointer justify-center focus-within:ring-2 focus-within:ring-[var(--accent)] focus-within:ring-offset-2">
                   Upload photo
-                  <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                  <input id="profile-photo-upload" type="file" accept="image/*" className="sr-only" onChange={handleAvatarChange} />
                 </label>
                 {profileForm.avatarUrl ? (
                   <button
@@ -588,26 +588,27 @@ export default function AccountCenterPage({ section = 'profile' }) {
                 ) : null}
               </div> : null}
 
-              <div className="grid gap-4 md:grid-cols-2">
-                {!isSettings ? <><div>
-                  <label className="label" htmlFor="profile-first-name">First name</label>
-                  <input id="profile-first-name" className="input" value={profileForm.firstName} onChange={(event) => setProfileForm((current) => ({ ...current, firstName: event.target.value }))} />
+              <div className="flex min-w-0 flex-col justify-between gap-5">
+                <div className="grid content-start gap-4 md:grid-cols-2">
+                  {!isSettings ? <><div>
+                    <label className="label" htmlFor="profile-first-name">First name</label>
+                    <input id="profile-first-name" className="input" value={profileForm.firstName} onChange={(event) => setProfileForm((current) => ({ ...current, firstName: event.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="profile-last-name">Last name</label>
+                    <input id="profile-last-name" className="input" value={profileForm.lastName} onChange={(event) => setProfileForm((current) => ({ ...current, lastName: event.target.value }))} />
+                  </div></> : <div className="md:col-span-2">
+                    <label className="label" htmlFor="settings-login-email">Login email</label>
+                    <input id="settings-login-email" className="input" type="email" required autoComplete="email" value={profileForm.email} onChange={(event) => setProfileForm((current) => ({ ...current, email: event.target.value }))} />
+                    <p className="mt-2 text-xs text-slate-500">For Google sign-in, continue using the Google account already linked to MWOS.</p>
+                  </div>}
                 </div>
-                <div>
-                  <label className="label" htmlFor="profile-last-name">Last name</label>
-                  <input id="profile-last-name" className="input" value={profileForm.lastName} onChange={(event) => setProfileForm((current) => ({ ...current, lastName: event.target.value }))} />
-                </div></> : <div className="md:col-span-2">
-                  <label className="label" htmlFor="settings-login-email">Login email</label>
-                  <input id="settings-login-email" className="input" type="email" required autoComplete="email" value={profileForm.email} onChange={(event) => setProfileForm((current) => ({ ...current, email: event.target.value }))} />
-                  <p className="mt-2 text-xs text-slate-500">For Google sign-in, continue using the Google account already linked to MWOS.</p>
-                </div>}
+                <div className="flex justify-end">
+                  <button type="submit" className="btn-primary" disabled={profileMutation.isPending}>
+                    {profileMutation.isPending ? 'Saving...' : isSettings ? 'Save login email' : 'Save profile'}
+                  </button>
+                </div>
               </div>
-            </div>
-
-            <div className="flex justify-end">
-              <button type="submit" className="btn-primary" disabled={profileMutation.isPending}>
-                {profileMutation.isPending ? 'Saving...' : isSettings ? 'Save login email' : 'Save profile'}
-              </button>
             </div>
           </form>
 
