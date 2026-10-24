@@ -7,6 +7,7 @@ const { requireStepUp } = require('../middleware/stepUp');
 
 // Controllers
 const authCtrl = require('../controllers/auth.controller');
+const accountCtrl = require('../controllers/account.controller');
 const patientCtrl = require('../controllers/patient.controller');
 const vitalsCtrl = require('../controllers/vitals.controller');
 const apptCtrl = require('../controllers/appointment.controller');
@@ -68,6 +69,8 @@ router.post('/reviews', reviewCtrl.create);
 
 // Audit/activity logging for state-changing authenticated actions
 router.use(authenticate, activityLogger);
+
+router.get('/account/activity', accountCtrl.getActivity);
 
 router.post('/uploads/sessions', uploadSessionCtrl.createSession);
 router.get('/uploads/sessions/:id', uploadSessionCtrl.getSession);

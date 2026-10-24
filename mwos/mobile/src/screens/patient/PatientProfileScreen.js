@@ -6,7 +6,6 @@ import api from '../../services/api'
 import { AlertBox, Badge, Button, Card, LoadingScreen, ScreenHeader, SelectPicker } from '../../components/ui'
 import { colors, spacing } from '../../components/theme'
 import { useAuthStore } from '../../hooks/useAuthStore'
-import ContactNumberCard from '../../components/ContactNumberCard'
 import PatientCareFields from '../../components/PatientCareFields'
 import { hasMaternalCare } from '../../utils/patientCare'
 
@@ -30,16 +29,7 @@ function ProfileRow({ label, value, danger }) {
 
 export default function PatientProfileScreen({ navigation }) {
   const queryClient = useQueryClient()
-  const {
-    user,
-    logout,
-    biometricEnabled,
-    biometricAvailable,
-    biometricLabel,
-    enableBiometricUnlock,
-    disableBiometricUnlock,
-  } = useAuthStore()
-  const [securityMessage, setSecurityMessage] = React.useState('')
+  const { user, logout } = useAuthStore()
   const [documentMessage, setDocumentMessage] = React.useState('')
   const [documentType, setDocumentType] = React.useState('PhilHealth ID')
   const [selectedFile, setSelectedFile] = React.useState(null)
@@ -106,17 +96,6 @@ export default function PatientProfileScreen({ navigation }) {
   const patient = meQuery.data || {}
   const activePregnancy = (patient.pregnancies || []).find((item) => item?.status === 'active')
 
-  const handleToggleBiometric = async () => {
-    if (biometricEnabled) {
-      await disableBiometricUnlock()
-      setSecurityMessage('Biometric unlock disabled on this device.')
-      return
-    }
-
-    const result = await enableBiometricUnlock()
-    setSecurityMessage(result.success ? 'Biometric unlock enabled for this device.' : result.error)
-  }
-
   const handlePickDocument = async () => {
     try {
       setDocumentMessage('')
@@ -160,6 +139,7 @@ export default function PatientProfileScreen({ navigation }) {
       />
 
       <ScrollView contentContainerStyle={styles.scroll}>
+        <Button title="Settings" icon="cog-outline" variant="secondary" onPress={() => navigation.navigate('Settings')} />
         <Card patient>
           <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Patient care preferences</Text>
           <PatientCareFields value={care} onChange={(key, value) => { setCare((current) => ({ ...current, [key]: value })); careMutation.reset() }} />
@@ -195,30 +175,6 @@ export default function PatientProfileScreen({ navigation }) {
           <ProfileRow label="Emergency phone" value={patient.emergency_contact_phone} />
           <ProfileRow label="Allergies" value={patient.allergies || 'None known'} danger={Boolean(patient.allergies)} />
           <ProfileRow label="Conditions" value={patient.existing_conditions || 'None recorded'} />
-        </Card>
-
-        <ContactNumberCard />
-
-        <Card patient>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.gray[900] }}>Fingerprint & face unlock</Text>
-            <Badge
-              label={biometricEnabled ? 'enabled' : biometricAvailable ? 'available' : 'not available'}
-              variant={biometricEnabled ? 'success' : biometricAvailable ? 'patient' : 'gray'}
-            />
-          </View>
-          {securityMessage ? <AlertBox type="info" message={securityMessage} /> : null}
-          <Text style={{ fontSize: 13, color: colors.gray[500], lineHeight: 18, marginBottom: 12 }}>
-            {biometricAvailable
-              ? `Use ${biometricLabel} to unlock this saved MWOS session without retyping your password.`
-              : 'Set up a fingerprint or face recognition in your device settings to use biometric unlock.'}
-          </Text>
-          <Button
-            title={biometricEnabled ? 'Disable biometric unlock' : `Enable ${biometricLabel}`}
-            variant="secondary"
-            onPress={handleToggleBiometric}
-            disabled={!biometricEnabled && !biometricAvailable}
-          />
         </Card>
 
         <Card patient>

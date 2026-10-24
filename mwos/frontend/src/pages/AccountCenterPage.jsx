@@ -12,6 +12,8 @@ import AppIcon from '../components/common/AppIcon'
 import { updateAccountProfile } from '../utils/accountProfile'
 import PatientCareFields from '../components/patient/PatientCareFields'
 import { hasMaternalCare } from '../utils/patientCare'
+import { settingsSections, useSettingsStore } from '../store/settingsStore'
+import SettingsPanel from '../components/common/SettingsPanel'
 
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -68,7 +70,10 @@ const ProfileMetric = ({ label, value }) => (
 export default function AccountCenterPage({ section = 'profile' }) {
   const isSettings = section === 'settings'
   const [searchParams] = useSearchParams()
-  const isAppearance = isSettings && searchParams.get('tab') === 'appearance'
+  const activeSection = settingsSections.some((item) => item.id === searchParams.get('tab')) ? searchParams.get('tab') : 'account'
+  const isAppearance = isSettings && activeSection === 'appearance'
+  const isAccount = !isSettings || activeSection === 'account'
+  const settingsLanguage = useSettingsStore((state) => state.preferences.language)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
@@ -531,13 +536,10 @@ export default function AccountCenterPage({ section = 'profile' }) {
       </nav>
 
       {isSettings ? (
-        <nav aria-label="Settings sections" className="card flex flex-wrap gap-2 p-3">
-          <Link to={account?.role === 'patient' ? '/my/settings' : '/settings'} aria-current={!isAppearance ? 'page' : undefined} className={!isAppearance ? 'btn-primary' : 'btn-secondary'}>
-            <AppIcon name="compliance" />Account &amp; security
-          </Link>
-          <Link to={`${account?.role === 'patient' ? '/my/settings' : '/settings'}?tab=appearance`} aria-current={isAppearance ? 'page' : undefined} className={isAppearance ? 'btn-primary' : 'btn-secondary'}>
-            <AppIcon name="appearance" />Appearance
-          </Link>
+        <nav aria-label="Settings sections" className="card grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-3">
+          {settingsSections.map((item) => <Link key={item.id} to={`${account?.role === 'patient' ? '/my/settings' : '/settings'}${item.id === 'account' ? '' : `?tab=${item.id}`}`} aria-current={activeSection === item.id ? 'page' : undefined} className={`flex min-h-14 min-w-0 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${activeSection === item.id ? 'bg-[var(--accent)] text-white' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'}`}>
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${activeSection === item.id ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-800'}`}><AppIcon name={item.icon} /></span><span className="min-w-0 flex-1">{item[settingsLanguage]}</span><span aria-hidden="true">&rsaquo;</span>
+          </Link>)}
         </nav>
       ) : null}
 
@@ -568,8 +570,9 @@ export default function AccountCenterPage({ section = 'profile' }) {
 
       {localError ? <div className="alert-critical text-sm">{localError}</div> : null}
 
-      <div className={`grid gap-6 ${isSettings && !isAppearance ? 'xl:grid-cols-2' : ''}`}>
-        {!isAppearance ? <div className="space-y-6">
+      <div className={`grid gap-6 ${isSettings && isAccount ? 'xl:grid-cols-2' : ''}`}>
+        {isSettings && !isAccount && !isAppearance ? <SettingsPanel key={activeSection} section={activeSection} account={account} /> : null}
+        {isAccount ? <div className="space-y-6">
           <form aria-label={isSettings ? 'Sign-in email' : 'Profile details'} className="card space-y-5" onSubmit={handleProfileSubmit}>
             <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
               <div className="w-full min-w-0 sm:flex-1">
@@ -890,7 +893,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
           ) : null}
         </div> : null}
 
-        {isSettings ? <div className="space-y-6">
+        {isSettings && (isAccount || isAppearance) ? <div className="space-y-6">
           {isAppearance ? <form aria-label="Appearance" className="card space-y-6" onSubmit={handleAppearanceSubmit}>
             <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
               <div className="w-full min-w-0 sm:flex-1">

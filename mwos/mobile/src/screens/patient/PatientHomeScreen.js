@@ -12,6 +12,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import api from '../../services/api'
 import { useAuthStore } from '../../hooks/useAuthStore'
+import { useMobileSettings } from '../../hooks/useMobileSettings'
 import {
   Badge,
   Button,
@@ -115,6 +116,7 @@ function TipsPreview({ items, onPress }) {
 export default function PatientHomeScreen({ navigation }) {
   const insets = useSafeAreaInsets()
   const user = useAuthStore((state) => state.user)
+  const contentPreferences = useMobileSettings((state) => state.preferences)
 
   const dashboardQuery = useQuery({
     queryKey: ['patient-dashboard-mobile-home'],
@@ -279,6 +281,7 @@ export default function PatientHomeScreen({ navigation }) {
           includeMaternal={hasMaternalCare({ ...dashboard.patientProfile, activePregnancy: dashboard.activePregnancy })}
         />
 
+        {contentPreferences.showClinicMedia ? <>
         <SectionHeader title="Health Tips & Education" style={{ marginTop: spacing.lg }} />
         <Button title="Clinic videos & community events" variant="secondary" icon="video-outline"
           onPress={() => Linking.openURL('https://www.facebook.com/people/TMC-Copino-Birthing-Home/61575314979762/')}
@@ -301,8 +304,12 @@ export default function PatientHomeScreen({ navigation }) {
           ))
         )}
 
-        <SectionHeader title="Pregnancy Tips" style={{ marginTop: spacing.lg }} />
+        </> : null}
+
+        {contentPreferences.showTips ? <>
+        <SectionHeader title="Health Tips" style={{ marginTop: spacing.lg }} />
         <TipsPreview items={education} onPress={() => navigation.navigate('PatientEducation')} />
+        </> : null}
 
         <SectionHeader title="Care Shortcuts" style={{ marginTop: spacing.lg }} />
         <Card style={{ padding: 0, overflow: 'hidden' }}>

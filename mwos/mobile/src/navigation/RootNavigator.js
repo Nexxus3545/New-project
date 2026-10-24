@@ -8,6 +8,8 @@ import { usePatientExperienceStore } from '../hooks/usePatientExperienceStore'
 import { colors } from '../components/theme'
 import { LoadingScreen } from '../components/ui'
 import { MobileIcon } from '../components/Icon'
+import SettingsScreen from '../screens/SettingsScreen'
+import { useMobileSettings } from '../hooks/useMobileSettings'
 
 import OnboardingScreen from '../screens/OnboardingScreen'
 import LoginScreen from '../screens/LoginScreen'
@@ -245,6 +247,7 @@ export default function RootNavigator() {
   useEffect(() => {
     initialize()
     hydrateOnboarding()
+    useMobileSettings.getState().hydrate()
   }, [initialize, hydrateOnboarding])
 
   useEffect(() => {
@@ -316,6 +319,7 @@ export default function RootNavigator() {
             />
           </>
         )}
+        {user && (!isPatient || user.patientId) ? <RootStack.Screen name="Settings" component={SettingsScreen} /> : null}
       </RootStack.Navigator>
     </NavigationContainer>
   )
