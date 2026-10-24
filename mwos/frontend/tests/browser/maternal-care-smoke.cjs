@@ -18,7 +18,7 @@ async function main() {
   const writes = [];
 
   async function fixture({ empty = false, auxiliaryFailure = false, reportsFailure = false } = {}) {
-    const user = { id: 'test-user', role: 'patient', firstName: 'Maria', lastName: 'Test', email: 'test@example.invalid' };
+    const user = { id: 'test-user', role: 'patient', firstName: 'Maria', lastName: 'Test', email: 'test@example.invalid', careType: 'maternal' };
     const reading = { id: 'test-visit', visit_date: '2026-10-22', bp_systolic: 118, bp_diastolic: 76, weight_kg: '62.5', fetal_heart_rate: null, fetal_movement: null };
     const dashboard = empty ? {} : {
       nextAppointment: { scheduled_date: '2026-10-25', scheduled_time: '13:30:00', appointment_type: 'prenatal', status: 'scheduled' },
@@ -43,7 +43,7 @@ async function main() {
       const reply = (data, status = 200) => route.fulfill({ status, headers: cors, contentType: 'application/json', body: JSON.stringify({ success: status < 400, data, ...(status >= 400 ? { message: 'Test-only unavailable data' } : {}) }) });
       if (endpoint === '/auth/me') return reply(user);
       if (endpoint === '/reports/patient-dashboard') return reply(dashboard, reportsFailure ? 500 : 200);
-      if (endpoint === '/patients/me') return reply({ id: 'test-patient', first_name: 'Maria', last_name: 'Test' });
+      if (endpoint === '/patients/me') return reply({ id: 'test-patient', first_name: 'Maria', last_name: 'Test', care_type: 'maternal' });
       if (endpoint === '/vitals/patient/test-patient') return reply(empty ? [] : [reading, { id: 'older-visit', visit_date: '2026-10-20', bp_systolic: null, bp_diastolic: null }]);
       if (endpoint === '/interactions/tasks') return reply(empty ? [] : [{ id: 'follow-up', title: 'Bring your previous laboratory results', status: 'open', due_date: '2026-10-24' }, { id: 'closed', title: 'Cancelled task must stay hidden', status: 'cancelled' }], auxiliaryFailure ? 500 : 200);
       if (endpoint === '/requirements/my') return reply(empty ? [] : [{ id: 'test-requirement', requirementName: 'Previous laboratory results', serviceName: 'Prenatal visit', isRequired: true, submission: null }], auxiliaryFailure ? 500 : 200);
@@ -64,7 +64,7 @@ async function main() {
   try {
     const app = await fixture();
     await app.page.goto(origin + '/my/dashboard');
-    const overview = app.page.getByRole('region', { name: 'Maternal care overview' });
+    const overview = app.page.getByRole('region', { name: 'Clinic care overview' });
     await overview.getByText('Bring your previous laboratory results', { exact: true }).waitFor();
     assert.equal(await overview.getByText('Cancelled task must stay hidden').count(), 0);
     assert.match(await overview.innerText(), /1:30 PM/);

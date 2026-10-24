@@ -29,7 +29,7 @@ test('missing, invalid, and partial measurements never become invented normal re
   assert.equal(recordedNumber('62.5'), 62.5)
   assert.deepEqual(getRecordedVitals(null).map((item) => item.value), Array(4).fill('Not recorded'))
   assert.equal(getRecordedVitals({ bp_systolic: 118 })[0].value, 'Not recorded')
-  assert.deepEqual(getRecordedVitals({ bp_systolic: '118', bp_diastolic: '76', fetal_heart_rate: 145, weight_kg: '62.5', fetal_movement: 'reduced' }).map((item) => item.value), ['118/76', 145, 62.5, 'reduced'])
+  assert.deepEqual(getRecordedVitals({ bp_systolic: '118', bp_diastolic: '76', fetal_heart_rate: 145, weight_kg: '62.5', fetal_movement: 'reduced' }, { includeMaternal: true }).map((item) => item.value), ['118/76', 145, 62.5, 'reduced'])
   assert.equal(careLabel(null), 'Not recorded')
 })
 
@@ -67,7 +67,7 @@ test('recorded card has exact saved values, provenance, and no synthetic wavefor
   assert.equal((empty.match(/>Not recorded</g) || []).length, 4)
   assert.match(empty, /not live measurements/)
   assert.doesNotMatch(empty, /Active|watch|telemetry|wave|<line |<linearGradient|<animate/i)
-  const saved = await renderComponent('RecordedVitalsCard', { latestVitals: { visit_date: '2026-10-22', bp_systolic: 121, bp_diastolic: 79, fetal_movement: 'reduced' } })
+  const saved = await renderComponent('RecordedVitalsCard', { includeMaternal: true, latestVitals: { visit_date: '2026-10-22', bp_systolic: 121, bp_diastolic: 79, fetal_movement: 'reduced' } })
   assert.match(saved, /121\/79/)
   assert.match(saved, /Oct 22, 2026/)
   assert.match(saved, /reduced/)
@@ -77,7 +77,8 @@ test('recorded card has exact saved values, provenance, and no synthetic wavefor
 test('care planner is useful without an active pregnancy and never invents a risk classification', async () => {
   const html = await renderComponent('MaternalCareOverview', { dashboard: {} })
   assert.match(html, /No visit scheduled/)
-  assert.match(html, /No active pregnancy is recorded/)
+  assert.match(html, /General clinic care/)
+  assert.doesNotMatch(html, /Pregnancy care record|Estimated due date/)
   assert.match(html, /No open follow-up tasks/)
   assert.doesNotMatch(html, /low risk|Routine live|Normal|Requirements complete/i)
   for (const route of ['appointments', 'records', 'messages', 'settings', 'emergency']) assert.match(html, new RegExp(`href="/my/${route}"`))

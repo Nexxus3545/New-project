@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContai
 import api from '../../utils/api'
 import RecordedVitalsCard from '../../components/patient/RecordedVitalsCard'
 import { getRecordedTrend } from '../../utils/recordedCare'
+import { hasMaternalCare } from '../../utils/patientCare'
 
 export default function PatientReportsPage() {
   const { data: patient, isLoading: patientLoading, isError: patientError } = useQuery({
@@ -40,6 +41,7 @@ export default function PatientReportsPage() {
   const hasReadings = chartData.some((item) => item.systolic !== null || item.diastolic !== null)
 
   const latestVitals = (vitals || [])[0]
+  const maternal = hasMaternalCare(patient || {})
   const featuredTips = education.slice(0, 3)
 
   return (
@@ -60,6 +62,7 @@ export default function PatientReportsPage() {
 
       <RecordedVitalsCard
         latestVitals={latestVitals}
+        includeMaternal={maternal}
         title="Latest saved visit readings"
       />
 
@@ -90,16 +93,16 @@ export default function PatientReportsPage() {
             <h3 className="section-title">Care summary</h3>
             <div className="mt-4 space-y-3 text-sm text-gray-600">
               <p>Next appointment: <span className="font-medium text-gray-900">{dashboard?.nextAppointment ? new Date(dashboard.nextAppointment.scheduled_date).toLocaleDateString('en-PH') : 'None scheduled'}</span></p>
-              <p>Due date: <span className="font-medium text-gray-900">{dashboard?.activePregnancy?.edd ? new Date(dashboard.activePregnancy.edd).toLocaleDateString('en-PH') : 'Not available'}</span></p>
+              {maternal ? <p>Due date: <span className="font-medium text-gray-900">{dashboard?.activePregnancy?.edd ? new Date(dashboard.activePregnancy.edd).toLocaleDateString('en-PH') : 'Not available'}</span></p> : null}
               <p>Pending documents: <span className="font-medium text-gray-900">{dashboard?.documentSummary?.pending || 0}</span></p>
-              <p>Latest fetal heart rate: <span className="font-medium text-gray-900">{latestVitals?.fetal_heart_rate ? `${latestVitals.fetal_heart_rate} bpm` : 'Not recorded'}</span></p>
+              {maternal ? <p>Latest fetal heart rate: <span className="font-medium text-gray-900">{latestVitals?.fetal_heart_rate ? `${latestVitals.fetal_heart_rate} bpm` : 'Not recorded'}</span></p> : null}
             </div>
           </div>
 
           <div className="card">
-            <h3 className="section-title">Pregnancy tip highlights</h3>
+            <h3 className="section-title">Health guidance highlights</h3>
             {featuredTips.length === 0 ? (
-              <p className="mt-4 text-sm text-gray-500">No pregnancy tip highlights are available yet.</p>
+              <p className="mt-4 text-sm text-gray-500">No health guidance highlights are available yet.</p>
             ) : (
               <div className="mt-4 space-y-3">
                 {featuredTips.map((tip) => (

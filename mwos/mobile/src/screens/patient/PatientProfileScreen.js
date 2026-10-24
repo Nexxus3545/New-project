@@ -7,6 +7,8 @@ import { AlertBox, Badge, Button, Card, LoadingScreen, ScreenHeader, SelectPicke
 import { colors, spacing } from '../../components/theme'
 import { useAuthStore } from '../../hooks/useAuthStore'
 import ContactNumberCard from '../../components/ContactNumberCard'
+import PatientCareFields from '../../components/PatientCareFields'
+import { hasMaternalCare } from '../../utils/patientCare'
 
 const documentTypeOptions = [
   { label: 'PhilHealth ID', value: 'PhilHealth ID' },
@@ -42,6 +44,7 @@ export default function PatientProfileScreen({ navigation }) {
   const [documentType, setDocumentType] = React.useState('PhilHealth ID')
   const [selectedFile, setSelectedFile] = React.useState(null)
   const [uploadProgress, setUploadProgress] = React.useState(0)
+  const [care, setCare] = React.useState({ gender: '', careType: 'general' })
   const meQuery = useQuery({
     queryKey: ['patient-me-mobile-profile'],
     queryFn: () => api.get('/patients/me').then((response) => response.data.data),
@@ -49,6 +52,14 @@ export default function PatientProfileScreen({ navigation }) {
   const documentsQuery = useQuery({
     queryKey: ['patient-documents-mobile-profile'],
     queryFn: () => api.get('/documents/my').then((response) => response.data.data),
+  })
+
+  React.useEffect(() => {
+    if (meQuery.data) setCare({ gender: meQuery.data.gender || '', careType: meQuery.data.care_type || (hasMaternalCare(meQuery.data) ? 'maternal' : 'general') })
+  }, [meQuery.data])
+  const careMutation = useMutation({
+    mutationFn: () => api.patch('/patients/me', care),
+    onSuccess: () => queryClient.invalidateQueries({ predicate: (query) => String(query.queryKey[0]).startsWith('patient') }),
   })
 
   const uploadMutation = useMutation({
@@ -149,6 +160,13 @@ export default function PatientProfileScreen({ navigation }) {
       />
 
       <ScrollView contentContainerStyle={styles.scroll}>
+        <Card patient>
+          <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Patient care preferences</Text>
+          <PatientCareFields value={care} onChange={(key, value) => { setCare((current) => ({ ...current, [key]: value })); careMutation.reset() }} />
+          {careMutation.isError ? <AlertBox type="critical" message={careMutation.error?.response?.data?.message || 'Your care preferences could not be saved.'} /> : null}
+          {careMutation.isSuccess ? <AlertBox type="success" message="Care preferences saved. Existing clinical records are unchanged." /> : null}
+          <Button title="Save care preferences" loading={careMutation.isPending} disabled={careMutation.isPending || !meQuery.data?.id} onPress={() => careMutation.mutate()} />
+        </Card>
         <Card patient>
           <View style={styles.heroRow}>
             <View style={styles.avatar}>

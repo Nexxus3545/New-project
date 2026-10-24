@@ -4,6 +4,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
 import BrandMark from './BrandMark'
 import AppIcon from './AppIcon'
+import { hasMaternalCare } from '../../utils/patientCare'
 
 const staffNav = [
   { to: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
@@ -66,6 +67,7 @@ export default function AppLayout({ patient = false }) {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const maternal = hasMaternalCare(user || {})
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -74,7 +76,10 @@ export default function AppLayout({ patient = false }) {
   }
 
   const navSections = patient
-    ? patientNavSections
+    ? patientNavSections.map((section) => ({ ...section, items: section.items
+        .filter((item) => maternal || item.to !== '/my/baby')
+        .map((item) => !maternal && item.to === '/my/pregnancy'
+          ? { to: '/my/vitals', icon: 'health', label: 'Clinic Readings' } : item) }))
     : [
         ...staffNavSections,
         ...(user?.role === 'admin' ? [{ title: 'Admin', items: adminNav }] : []),
@@ -83,11 +88,12 @@ export default function AppLayout({ patient = false }) {
   const currentPage = (() => {
     const titleMap = patient
       ? [
-          ['/my/dashboard', ['Patient Dashboard', 'Your pregnancy status, next visit, alerts, records, and baby care in one place.']],
-          ['/my/pregnancy', ['My Pregnancy', 'View your pregnancy progress, maternal vitals, and provider guidance.']],
-          ['/my/appointments', ['Appointments', 'Book and track prenatal, follow-up, and clinic visits.']],
+          ['/my/dashboard', ['Patient Dashboard', 'Your next clinic visit, follow-ups, messages, and saved records in one place.']],
+          ['/my/vitals', ['Clinic Readings', 'Review measurements recorded during clinic visits.']],
+          ['/my/pregnancy', [maternal ? 'My Pregnancy' : 'Clinic Readings', 'Review your saved clinic readings and provider guidance.']],
+          ['/my/appointments', ['Appointments', 'Request a general checkup, follow-up, or pregnancy-related visit.']],
           ['/my/health-records', ['Health Records', 'Review your documents, laboratory results, prescriptions, and medical notes.']],
-          ['/my/baby', ['Baby / Newborn', 'Keep newborn screening, immunization, and pediatric information connected to your profile.']],
+          ['/my/baby', [maternal ? 'Baby / Newborn' : 'Clinic Reports', 'Review saved care summaries and clinic records.']],
           ['/my/telehealth', ['Telehealth', 'Request a consultation and follow clinic responses.']],
           ['/my/messages', ['Messages', 'Secure clinic communication with timestamps and care history.']],
           ['/my/notifications', ['Notifications', 'Review unread reminders and clinic updates.']],
@@ -98,7 +104,7 @@ export default function AppLayout({ patient = false }) {
         ]
       : [
           ['/dashboard', ['Staff Dashboard', 'Today’s appointments, patient alerts, monitoring queues, and recent activity.']],
-          ['/patients', ['Patients', 'Register, search, and review maternal and newborn records.']],
+          ['/patients', ['Patients', 'Register and review general clinic, maternal, and newborn records.']],
           ['/appointments', ['Appointments', 'Book services through provider, date, time, confirmation, and status tracking.']],
           ['/prenatal-monitoring', ['Prenatal Monitoring', 'Record maternal vitals, pregnancy progress, labs, ultrasound notes, and risk flags.']],
           ['/postnatal-monitoring', ['Postnatal Monitoring', 'Track delivery recovery, follow-up, breastfeeding, wound status, and maternal wellbeing.']],

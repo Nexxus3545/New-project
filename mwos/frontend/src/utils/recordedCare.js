@@ -23,14 +23,18 @@ export function careLabel(value, fallback = 'Not recorded') {
   return typeof value === 'string' && value.trim() ? value.replace(/_/g, ' ').trim() : fallback
 }
 
-export function getRecordedVitals(vitals) {
+export function getRecordedVitals(vitals, { includeMaternal = false } = {}) {
   const systolic = recordedNumber(vitals?.bp_systolic)
   const diastolic = recordedNumber(vitals?.bp_diastolic)
   return [
     { key: 'bp', label: 'Blood pressure', value: systolic !== null && diastolic !== null ? `${systolic}/${diastolic}` : 'Not recorded', unit: 'mmHg', icon: 'health' },
-    { key: 'fhr', label: 'Fetal heart rate', value: recordedNumber(vitals?.fetal_heart_rate) ?? 'Not recorded', unit: 'bpm', icon: 'prenatal' },
+    ...(includeMaternal
+      ? [{ key: 'fhr', label: 'Fetal heart rate', value: recordedNumber(vitals?.fetal_heart_rate) ?? 'Not recorded', unit: 'bpm', icon: 'prenatal' }]
+      : [{ key: 'pulse', label: 'Pulse rate', value: recordedNumber(vitals?.pulse_rate) ?? 'Not recorded', unit: 'bpm', icon: 'health' }]),
     { key: 'weight', label: 'Weight', value: recordedNumber(vitals?.weight_kg) ?? 'Not recorded', unit: 'kg', icon: 'records' },
-    { key: 'movement', label: 'Fetal movement', value: careLabel(vitals?.fetal_movement), unit: 'Recorded observation', icon: 'baby' },
+    ...(includeMaternal
+      ? [{ key: 'movement', label: 'Fetal movement', value: careLabel(vitals?.fetal_movement), unit: 'Recorded observation', icon: 'baby' }]
+      : [{ key: 'temperature', label: 'Temperature', value: recordedNumber(vitals?.temperature) ?? 'Not recorded', unit: 'Celsius', icon: 'health' }]),
   ]
 }
 

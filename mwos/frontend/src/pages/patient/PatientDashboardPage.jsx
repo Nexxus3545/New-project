@@ -5,6 +5,7 @@ import api from '../../utils/api'
 import { useAuthStore } from '../../store/authStore'
 import RecordedVitalsCard from '../../components/patient/RecordedVitalsCard'
 import MaternalCareOverview from '../../components/patient/MaternalCareOverview'
+import { hasMaternalCare } from '../../utils/patientCare'
 import AppIcon from '../../components/common/AppIcon'
 import ClinicMediaPlayer from '../../components/patient/ClinicMediaPlayer'
 import { CLINIC_FACEBOOK_PAGE, CLINIC_TULI_REPLAY } from '../../utils/mediaSource'
@@ -76,6 +77,7 @@ export default function PatientDashboardPage() {
 
       <RecordedVitalsCard
         latestVitals={dashboard.latestVitals}
+        includeMaternal={hasMaternalCare({ ...dashboard.patientProfile, activePregnancy: dashboard.activePregnancy })}
       />
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
@@ -185,14 +187,14 @@ export default function PatientDashboardPage() {
           <div className="card">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="section-title mb-1">Pregnancy Tips</h3>
+                <h3 className="section-title mb-1">Health Guidance</h3>
                 <p className="text-sm text-gray-500">Short trimester guidance and practical reminders from the clinic education library.</p>
               </div>
               <Link to="/my/education" className="btn-secondary btn-sm">Open tips</Link>
             </div>
 
             {featuredTips.length === 0 ? (
-              <p className="text-sm text-gray-400">No pregnancy tips have been published yet.</p>
+              <p className="text-sm text-gray-400">No health guidance has been published yet.</p>
             ) : (
               <div className="grid gap-3 md:grid-cols-3">
                 {featuredTips.map((tip) => (

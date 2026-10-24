@@ -19,7 +19,7 @@ async function main() {
 
   async function fixture({ loseFirstResponse = false, role = 'patient' } = {}) {
     let user = {
-      id: '11111111-1111-4111-8111-111111111111', role, firstName: 'Test', lastName: 'Patient',
+      id: '11111111-1111-4111-8111-111111111111', role, firstName: 'Test', lastName: 'Patient', careType: 'maternal',
       email: 'patient@example.invalid', phone: '09171234567', avatarUrl: '',
     };
     const threads = new Map();

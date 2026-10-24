@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore'
 import api from '../utils/api'
 import useSignInProviders from '../hooks/useSignInProviders'
 import { GoogleProviderIcon } from '../components/common/AuthProviderIcons'
+import PatientCareFields from '../components/patient/PatientCareFields'
 
 const roles = ['patient', 'nurse', 'midwife', 'doctor', 'admin']
 const steps = [
@@ -26,6 +27,8 @@ export default function RegisterPage() {
     phone: '',
     city: '',
     dateOfBirth: '',
+    gender: '',
+    careType: 'general',
     role: 'patient',
     password: '',
   })
@@ -42,7 +45,7 @@ export default function RegisterPage() {
     e.preventDefault()
 
     if (step < steps.length - 1) {
-      if (step === 0 && (!form.firstName || !form.lastName || (isPatientRole && !form.dateOfBirth))) {
+      if (step === 0 && (!form.firstName || !form.lastName || (isPatientRole && (!form.dateOfBirth || !form.gender)))) {
         return
       }
       if (step === 1 && !form.email) {
@@ -135,6 +138,7 @@ export default function RegisterPage() {
                   <label className="label">Date of birth {isPatientRole ? '*' : ''}</label>
                   <input name="dateOfBirth" type="date" value={form.dateOfBirth} onChange={onChange} className="input" required={isPatientRole} />
                 </div>
+                {isPatientRole ? <PatientCareFields value={form} required onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))} /> : null}
               </div>
             ) : null}
 
@@ -193,6 +197,7 @@ export default function RegisterPage() {
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Identity</p>
                     <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{form.firstName || 'First name'} {form.lastName || 'Last name'}</p>
                     <p className="mt-1 text-xs text-slate-500">{form.dateOfBirth || 'Date of birth not set yet'}</p>
+                    {isPatientRole ? <p className="mt-2 text-sm text-slate-600">{form.careType === 'maternal' ? 'Pregnancy / postnatal care' : 'General clinic care / checkups'} | {form.gender.replaceAll('_', ' ') || 'Select gender in Patient Info'}</p> : null}
                   </div>
                   <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/70">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Access</p>

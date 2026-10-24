@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import PatientCareFields from '../components/patient/PatientCareFields'
 
 const callbackErrors = {
   google_unavailable: 'Google sign-in is not available yet. Please use your MWOS email and password.',
@@ -24,7 +25,7 @@ export default function OAuthCallback() {
   const storeError = useAuthStore((state) => state.error)
   const handled = useRef(false)
   const [needsProfile, setNeedsProfile] = useState(false)
-  const [form, setForm] = useState({ dateOfBirth: '', phone: '', city: '' })
+  const [form, setForm] = useState({ dateOfBirth: '', phone: '', city: '', gender: '', careType: 'general' })
   const [notice, setNotice] = useState('')
 
   const code = searchParams.get('code')
@@ -83,6 +84,7 @@ export default function OAuthCallback() {
         </div>
 
         <form onSubmit={handleSubmit} className="auth-login-form">
+          <PatientCareFields value={form} required onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))} />
           <div>
             <label className="label">Date of birth</label>
             <input

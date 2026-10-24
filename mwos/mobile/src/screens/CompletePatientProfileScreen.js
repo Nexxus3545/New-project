@@ -4,9 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { Button, Input, AlertBox, Card } from '../components/ui';
 import { colors, spacing } from '../components/theme';
+import PatientCareFields from '../components/PatientCareFields';
 
 export default function CompletePatientProfileScreen() {
   const [dateOfBirth, setDateOfBirth] = useState('');
+  const [care, setCare] = useState({ gender: '', careType: 'general' });
   const { completeGoogleProfile, logout, isLoading, error } = useAuthStore();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.brand.pearl }}>
@@ -15,11 +17,12 @@ export default function CompletePatientProfileScreen() {
           <Text style={{ fontSize: 24, fontWeight: '700', marginBottom: 12 }}>Complete your patient profile</Text>
           <Text style={{ marginBottom: 16 }}>Your Google account is connected. Enter your date of birth before opening your care portal.</Text>
           {error ? <AlertBox type="critical" message={error} /> : null}
+          <PatientCareFields value={care} onChange={(key, value) => setCare((current) => ({ ...current, [key]: value }))} />
           <Input label="Date of birth (YYYY-MM-DD)" value={dateOfBirth} onChangeText={setDateOfBirth}
             placeholder="2000-01-31" keyboardType="numbers-and-punctuation" />
           <Button title="Open my care portal" loading={isLoading}
-            disabled={isLoading || !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)}
-            onPress={() => completeGoogleProfile({ dateOfBirth })} />
+            disabled={isLoading || !care.gender || !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)}
+            onPress={() => completeGoogleProfile({ dateOfBirth, ...care })} />
           <Button title="Sign out" variant="secondary" onPress={logout} style={{ marginTop: 12 }} />
         </Card>
       </ScrollView>

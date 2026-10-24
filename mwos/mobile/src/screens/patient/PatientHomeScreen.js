@@ -24,7 +24,8 @@ import {
 } from '../../components/ui'
 import { IconTile, MobileIcon } from '../../components/Icon'
 import { colors, radius, shadow, spacing } from '../../components/theme'
-import RealtimeVitalsPanel from '../../components/patient/RealtimeVitalsPanel'
+import SavedClinicReadings from '../../components/patient/SavedClinicReadings'
+import { hasMaternalCare } from '../../utils/patientCare'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 const clinicExterior = require('../../../assets/clinic/clinic-exterior.jpg')
@@ -200,8 +201,8 @@ export default function PatientHomeScreen({ navigation }) {
           />
           <StatCard
             icon="DD"
-            label="Due Date"
-            value={dashboard.activePregnancy?.edd ? formatShortDate(dashboard.activePregnancy.edd) : 'N/A'}
+            label={hasMaternalCare({ ...dashboard.patientProfile, activePregnancy: dashboard.activePregnancy }) ? 'Due Date' : 'Care type'}
+            value={hasMaternalCare({ ...dashboard.patientProfile, activePregnancy: dashboard.activePregnancy }) ? (dashboard.activePregnancy?.edd ? formatShortDate(dashboard.activePregnancy.edd) : 'Not recorded') : 'General clinic care'}
             patient
             onPress={() => navigation.navigate('PatientVitals')}
           />
@@ -273,9 +274,9 @@ export default function PatientHomeScreen({ navigation }) {
         ) : null}
 
         <SectionHeader title="Latest saved vitals" style={{ marginTop: spacing.lg }} />
-        <RealtimeVitalsPanel
+        <SavedClinicReadings
           latestVitals={dashboard.latestVitals}
-          activePregnancy={dashboard.activePregnancy}
+          includeMaternal={hasMaternalCare({ ...dashboard.patientProfile, activePregnancy: dashboard.activePregnancy })}
         />
 
         <SectionHeader title="Health Tips & Education" style={{ marginTop: spacing.lg }} />

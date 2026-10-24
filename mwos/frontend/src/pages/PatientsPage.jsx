@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import api from '../utils/api'
 import CoverCard from '../components/common/CoverCard'
+import PatientCareFields from '../components/patient/PatientCareFields'
+import { hasMaternalCare, genderOptions } from '../utils/patientCare'
 
 const EMPTY_FORM = {
   firstName: '',
@@ -10,6 +12,8 @@ const EMPTY_FORM = {
   lastName: '',
   suffix: '',
   dateOfBirth: '',
+  gender: '',
+  careType: 'general',
   civilStatus: '',
   religion: '',
   nationality: 'Filipino',
@@ -241,7 +245,8 @@ export default function PatientsPage() {
                     <div>
                       <p className="font-medium text-gray-900">{patient.first_name} {patient.last_name}</p>
                       <p className="text-xs text-gray-400">{new Date(patient.date_of_birth).toLocaleDateString('en-PH')}</p>
-                      <p className="text-xs text-gray-400">{patient.patient_code || 'Patient code pending'} · {patient.birthing_id || 'Birthing ID pending'}</p>
+                      <p className="text-xs text-gray-400">{patient.patient_code || 'Patient code pending'} | {genderOptions.find((option) => option.value === patient.gender)?.label || 'Gender not provided'}</p>
+                      <p className="text-xs text-gray-500">{hasMaternalCare(patient) ? 'Pregnancy / postnatal care' : 'General clinic care'}</p>
                     </div>
                   </td>
                   <td>
@@ -377,6 +382,7 @@ export default function PatientsPage() {
                               <label className="label">Date of Birth *</label>
                               <input name="dateOfBirth" type="date" value={form.dateOfBirth} onChange={handleChange} className="input" required />
                             </div>
+                            <PatientCareFields value={form} onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))} />
                             <div>
                               <label className="label">Civil Status</label>
                               <input name="civilStatus" value={form.civilStatus} onChange={handleChange} className="input" />

@@ -6,7 +6,10 @@ import CoverCard from '../components/common/CoverCard'
 const APPOINTMENT_TYPES = {
   prenatal: 'Prenatal',
   postnatal: 'Postnatal',
-  consultation: 'Consultation',
+  consultation: 'General checkup',
+  follow_up: 'General follow-up',
+  lab_review: 'Laboratory result review',
+  postpartum: 'Postpartum',
   delivery: 'Delivery',
 }
 
@@ -23,7 +26,7 @@ const TODAY_KEY = new Date().toLocaleDateString('en-CA')
 
 const DEFAULT_FORM = {
   patientId: '',
-  appointmentType: 'prenatal',
+  appointmentType: 'consultation',
   scheduledDate: TODAY_KEY,
   scheduledTime: '09:00',
   notes: '',
