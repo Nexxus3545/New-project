@@ -11,12 +11,13 @@ import {
   SectionHeader,
 } from '../../components/ui'
 import { colors, spacing } from '../../components/theme'
-import RealtimeVitalsPanel from '../../components/patient/RealtimeVitalsPanel'
+import SavedClinicReadings from '../../components/patient/SavedClinicReadings'
+import { hasMaternalCare, savedMetrics } from '../../utils/patientCare'
 
 const bpVariant = (category) => {
   if (['stage2_hypertension', 'hypertensive_crisis'].includes(category)) return 'danger'
   if (category === 'elevated' || String(category || '').includes('stage1')) return 'warning'
-  return 'success'
+  return category === 'normal' ? 'success' : 'gray'
 }
 
 export default function PatientVitalsScreen() {
@@ -42,8 +43,8 @@ export default function PatientVitalsScreen() {
   return (
     <View style={styles.root}>
       <ScreenHeader
-        title="My Pregnancy"
-        subtitle="Pregnancy progress, latest saved vital signs, and recorded visit trends"
+        title="My clinic readings"
+        subtitle="Saved clinic measurements, not live sensor readings"
         patient
       />
 
@@ -59,12 +60,12 @@ export default function PatientVitalsScreen() {
           />
         )}
       >
-        <RealtimeVitalsPanel
+        <SavedClinicReadings
           latestVitals={latestVitals}
-          activePregnancy={activePregnancy}
+          includeMaternal={hasMaternalCare(meQuery.data || {})}
         />
 
-        {latestVitals ? (
+        {latestVitals && activePregnancy ? (
           <Card patient style={{ marginTop: spacing.lg }}>
             <Text style={styles.summaryTitle}>Latest reading summary</Text>
             <Text style={styles.summaryBody}>
@@ -94,27 +95,12 @@ export default function PatientVitalsScreen() {
                   })}
                 </Text>
                 <Badge
-                  label={String(item.bp_category || 'normal').replace(/_/g, ' ')}
+                  label={`Recorded BP: ${String(item.bp_category || 'Not classified').replace(/_/g, ' ')}`}
                   variant={bpVariant(item.bp_category)}
                 />
               </View>
               <View style={styles.metricGrid}>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>Blood pressure</Text>
-                  <Text style={styles.metricValue}>{item.bp_systolic}/{item.bp_diastolic} mmHg</Text>
-                </View>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>Weight</Text>
-                  <Text style={styles.metricValue}>{item.weight_kg ? `${item.weight_kg} kg` : 'Not recorded'}</Text>
-                </View>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>Fetal HR</Text>
-                  <Text style={styles.metricValue}>{item.fetal_heart_rate ? `${item.fetal_heart_rate} bpm` : 'Not recorded'}</Text>
-                </View>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>Movement</Text>
-                  <Text style={styles.metricValue}>{item.fetal_movement || 'Not recorded'}</Text>
-                </View>
+                {savedMetrics(item, hasMaternalCare(meQuery.data || {}) || Boolean(item.pregnancy_id)).map((metric) => <View key={metric.label} style={styles.metricItem}><Text style={styles.metricLabel}>{metric.label}</Text><Text style={styles.metricValue}>{String(metric.value)}</Text></View>)}
               </View>
             </Card>
           ))

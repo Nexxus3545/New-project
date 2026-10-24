@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar'
 import { AlertBox, Button, Input } from '../components/ui'
 import { colors, radius, shadow, spacing } from '../components/theme'
 import { useAuthStore } from '../hooks/useAuthStore'
+import PatientCareFields from '../components/PatientCareFields'
 
 const initialForm = {
   firstName: '',
@@ -20,6 +21,8 @@ const initialForm = {
   phone: '',
   city: '',
   dateOfBirth: '',
+  gender: '',
+  careType: 'general',
   password: '',
   confirmPassword: '',
 }
@@ -37,6 +40,7 @@ export default function RegisterScreen({ navigation }) {
     form.lastName.trim() &&
     form.email.trim() &&
     form.dateOfBirth.trim() &&
+    form.gender &&
     form.password &&
     form.confirmPassword
   ), [form])
@@ -75,6 +79,8 @@ export default function RegisterScreen({ navigation }) {
       phone: form.phone.trim(),
       city: form.city.trim(),
       dateOfBirth: form.dateOfBirth.trim(),
+      gender: form.gender,
+      careType: form.careType,
       password: form.password,
     })
 
@@ -115,6 +121,7 @@ export default function RegisterScreen({ navigation }) {
           </Text>
 
           {joinedError ? <AlertBox type="critical" message={joinedError} /> : null}
+          <PatientCareFields value={form} onChange={setField} />
 
           <Input
             label="First name"

@@ -9,6 +9,8 @@ import { accentPresets, appearanceOptions, normalizeAppearance } from '../utils/
 import ContactNumberCard from '../components/common/ContactNumberCard'
 import AppIcon from '../components/common/AppIcon'
 import { updateAccountProfile } from '../utils/accountProfile'
+import PatientCareFields from '../components/patient/PatientCareFields'
+import { hasMaternalCare } from '../utils/patientCare'
 
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -90,6 +92,8 @@ export default function AccountCenterPage({ section = 'profile' }) {
     middleName: '',
     suffix: '',
     dateOfBirth: '',
+    gender: '',
+    careType: 'general',
     civilStatus: '',
     religion: '',
     nationality: '',
@@ -185,6 +189,8 @@ export default function AccountCenterPage({ section = 'profile' }) {
       middleName: patientProfile.middle_name || '',
       suffix: patientProfile.suffix || '',
       dateOfBirth: patientProfile.date_of_birth?.slice(0, 10) || '',
+      gender: patientProfile.gender || '',
+      careType: patientProfile.care_type || (hasMaternalCare(patientProfile) ? 'maternal' : 'general'),
       civilStatus: patientProfile.civil_status || '',
       religion: patientProfile.religion || '',
       nationality: patientProfile.nationality || '',
@@ -231,9 +237,13 @@ export default function AccountCenterPage({ section = 'profile' }) {
 
   const patientMutation = useMutation({
     mutationFn: (payload) => api.patch('/patients/me', payload).then((response) => response.data.data),
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      const nextUser = { ...user, patientGender: saved.gender, careType: saved.care_type, hasActivePregnancy: (patientProfile?.pregnancies || []).some((pregnancy) => pregnancy?.status === 'active') }
+      updateCurrentUser(nextUser)
+      queryClient.setQueryData(['auth-me'], nextUser)
+      queryClient.invalidateQueries({ predicate: (query) => String(query.queryKey[0]).startsWith('patient') })
       queryClient.invalidateQueries({ queryKey: ['patients-me-settings'] })
-      setPatientNotice('Identity, biometrics, and credentials saved.')
+      setPatientNotice('Patient details and care type saved. Existing clinical records are unchanged.')
       setLocalError('')
     },
     onError: (error) => {
@@ -404,6 +414,10 @@ export default function AccountCenterPage({ section = 'profile' }) {
   const handlePatientSubmit = async (event) => {
     event.preventDefault()
     setPatientNotice('')
+    if (!patientProfile) {
+      setLocalError('Wait for your existing patient record to load before saving changes.')
+      return
+    }
     try {
       await patientMutation.mutateAsync(patientForm)
     } catch {}
@@ -610,8 +624,10 @@ export default function AccountCenterPage({ section = 'profile' }) {
 
               <div className="grid gap-3 md:grid-cols-3">
                 <ProfileMetric label="Patient Code" value={patientForm.patientCode} />
-                <ProfileMetric label="Birthing ID" value={patientForm.birthingId} />
-                <ProfileMetric label="Latest Delivery ID" value={latestDelivery?.delivery_code} />
+                {hasMaternalCare({ ...patientProfile, careType: patientForm.careType, care_type: patientForm.careType }) ? <>
+                  <ProfileMetric label="Birthing ID" value={patientForm.birthingId} />
+                  <ProfileMetric label="Latest Delivery ID" value={latestDelivery?.delivery_code} />
+                </> : <ProfileMetric label="Care type" value="General clinic care" />}
               </div>
 
               <div className="rounded-3xl border border-white/50 bg-white/60 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
@@ -620,6 +636,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
                   <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Basic identity details used across the patient portal, staff chart, and printed records.</p>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
+                  <PatientCareFields value={patientForm} onChange={updatePatientField} />
                   <div>
                     <label className="label">Middle name</label>
                     <input className="input" value={patientForm.middleName} onChange={(event) => updatePatientField('middleName', event.target.value)} />
@@ -697,10 +714,10 @@ export default function AccountCenterPage({ section = 'profile' }) {
                     <label className="label">Valid ID number</label>
                     <input className="input" value={patientForm.validIdNumber} onChange={(event) => updatePatientField('validIdNumber', event.target.value)} />
                   </div>
-                  <div>
+                  {hasMaternalCare({ ...patientProfile, careType: patientForm.careType, care_type: patientForm.careType }) ? <div>
                     <label className="label">Pregnancy booklet number</label>
                     <input className="input" value={patientForm.pregnancyBookletNumber} onChange={(event) => updatePatientField('pregnancyBookletNumber', event.target.value)} />
-                  </div>
+                  </div> : null}
                   <div>
                     <label className="label">Blood type</label>
                     <input className="input" value={patientForm.bloodType} onChange={(event) => updatePatientField('bloodType', event.target.value)} placeholder="A+, O-, AB+" />
@@ -753,7 +770,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Secure Document Uploads</h3>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Upload PhilHealth ID, Birthing ID, and medical documents for staff verification.</p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Upload valid identification and relevant medical documents requested by your clinic.</p>
                   </div>
                   {documentNotice ? <span className="badge badge-success">{documentNotice}</span> : null}
                 </div>

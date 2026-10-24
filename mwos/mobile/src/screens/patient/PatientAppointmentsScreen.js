@@ -14,13 +14,14 @@ import {
   SelectPicker,
 } from '../../components/ui'
 import { colors, spacing } from '../../components/theme'
+import { isMaternalAppointment } from '../../utils/patientCare'
 
 const appointmentTypeOptions = [
-  { label: 'Prenatal', value: 'prenatal' },
+  { label: 'General checkup', value: 'consultation' },
   { label: 'Follow-up', value: 'follow_up' },
   { label: 'Lab review', value: 'lab_review' },
-  { label: 'Postpartum', value: 'postpartum' },
 ]
+const pregnancyAppointmentOptions = [{ label: 'Prenatal checkup', value: 'prenatal' }, { label: 'Postnatal follow-up', value: 'postnatal' }]
 
 const timeOptions = [
   { label: '08:00 AM', value: '08:00:00' },
@@ -43,7 +44,8 @@ export default function PatientAppointmentsScreen({ route }) {
   const [scheduledDate, setScheduledDate] = useState('')
   const [scheduledTime, setScheduledTime] = useState('')
   const [assignedTo, setAssignedTo] = useState('')
-  const [appointmentType, setAppointmentType] = useState('prenatal')
+  const [careType, setCareType] = useState('general')
+  const [appointmentType, setAppointmentType] = useState('consultation')
   const [notes, setNotes] = useState('')
 
   const meQuery = useQuery({
@@ -80,7 +82,7 @@ export default function PatientAppointmentsScreen({ route }) {
   const createMutation = useMutation({
     mutationFn: () => api.post('/appointments', {
       patientId: meQuery.data.id,
-      pregnancyId: (meQuery.data.pregnancies || []).find((item) => item?.status === 'active')?.id,
+      pregnancyId: isMaternalAppointment(appointmentType) ? (meQuery.data.pregnancies || []).find((item) => item?.status === 'active')?.id || null : null,
       assignedTo: assignedTo || null,
       appointmentType,
       scheduledDate,
@@ -90,7 +92,8 @@ export default function PatientAppointmentsScreen({ route }) {
     onSuccess: () => {
       setScheduledDate('')
       setScheduledTime('')
-      setAppointmentType('prenatal')
+      setAppointmentType('consultation')
+      setCareType('general')
       setNotes('')
       queryClient.invalidateQueries({ queryKey: ['patient-appointments-mobile-list'] })
     },
@@ -159,9 +162,11 @@ export default function PatientAppointmentsScreen({ route }) {
           <SelectPicker
             label="Visit type"
             value={appointmentType}
-            options={appointmentTypeOptions}
+            options={careType === 'maternal' ? pregnancyAppointmentOptions : appointmentTypeOptions}
             onChange={setAppointmentType}
           />
+          <SelectPicker label="Visit category" value={careType} options={[{ label: 'General clinic care', value: 'general' }, { label: 'Pregnancy / postnatal care', value: 'maternal' }]}
+            onChange={(value) => { setCareType(value); setAppointmentType(value === 'maternal' ? 'prenatal' : 'consultation') }} />
           <Input
             label="Notes"
             value={notes}
@@ -175,7 +180,7 @@ export default function PatientAppointmentsScreen({ route }) {
             variant="patient"
             onPress={() => createMutation.mutate()}
             loading={createMutation.isPending}
-            disabled={!scheduledDate || !scheduledTime}
+            disabled={createMutation.isPending || !meQuery.data?.id || !scheduledDate || !scheduledTime}
           />
         </Card>
 

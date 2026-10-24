@@ -1,16 +1,18 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import AppIcon from '../common/AppIcon'
+import { hasMaternalCare, appointmentLabel } from '../../utils/patientCare'
 import { careLabel, formatCareDate, formatCareTime, getOpenCareTasks, getRequirementSummary } from '../../utils/recordedCare'
 
 export default function MaternalCareOverview({ dashboard, patientName, tasks = [], requirements = [], tasksLoading, tasksError, requirementsLoading, requirementsError }) {
   const pregnancy = dashboard.activePregnancy
+  const maternal = hasMaternalCare({ ...dashboard.patientProfile, activePregnancy: pregnancy })
   const appointment = dashboard.nextAppointment
   const followUps = getOpenCareTasks(tasks)
   const documents = getRequirementSummary(requirements)
 
   return (
-    <section aria-label="Maternal care overview" className="overflow-hidden rounded-[32px] border border-rose-100 bg-gradient-to-br from-[#fff8f4] via-white to-[#f0f9f6] p-5 dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 md:p-7">
+    <section aria-label="Clinic care overview" className="overflow-hidden rounded-[32px] border border-rose-100 bg-gradient-to-br from-[#fff8f4] via-white to-[#f0f9f6] p-5 dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 md:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="section-kicker">TMC Copino care planner</p>
@@ -24,15 +26,15 @@ export default function MaternalCareOverview({ dashboard, patientName, tasks = [
         <article className="rounded-3xl border border-rose-100 bg-white/90 p-5 dark:border-slate-700 dark:bg-slate-900">
           <p className="flex items-center gap-2 text-sm font-semibold text-[var(--accent-strong)] dark:text-rose-300"><AppIcon name="calendar" />Next clinic visit</p>
           <h3 className="mt-4 text-2xl font-semibold text-slate-900 dark:text-white">{appointment ? formatCareDate(appointment.scheduled_date, 'Date to be confirmed') : 'No visit scheduled'}</h3>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{appointment ? `${formatCareTime(appointment.scheduled_time)} | ${careLabel(appointment.appointment_type, 'Clinic visit')}` : 'Request a schedule or ask the clinic about your next follow-up.'}</p>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{appointment ? `${formatCareTime(appointment.scheduled_time)} | ${appointmentLabel(appointment.appointment_type)}` : 'Request a schedule or ask the clinic about your next follow-up.'}</p>
           {appointment ? <p className="mt-2 text-xs capitalize text-slate-500 dark:text-slate-400">Appointment status: {careLabel(appointment.status, 'To be confirmed')}</p> : null}
           <Link to="/my/appointments" className="btn-primary btn-sm mt-5">{appointment ? 'Review appointment' : 'Request an appointment'}</Link>
         </article>
 
         <article className="rounded-3xl border border-teal-100 bg-white/90 p-5 dark:border-slate-700 dark:bg-slate-900">
-          <p className="flex items-center gap-2 text-sm font-semibold text-teal-800 dark:text-teal-200"><AppIcon name="prenatal" />Pregnancy care record</p>
-          <h3 className="mt-4 text-2xl font-semibold text-slate-900 dark:text-white">{pregnancy ? 'Estimated due date' : 'Care for every stage'}</h3>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{pregnancy ? formatCareDate(pregnancy.edd) : 'No active pregnancy is recorded. Your general, postnatal, and other clinic services remain available.'}</p>
+          <p className="flex items-center gap-2 text-sm font-semibold text-teal-800 dark:text-teal-200"><AppIcon name={maternal ? 'prenatal' : 'health'} />{maternal ? 'Pregnancy care record' : 'General clinic care'}</p>
+          <h3 className="mt-4 text-2xl font-semibold text-slate-900 dark:text-white">{pregnancy ? 'Estimated due date' : maternal ? 'Care for every stage' : 'Checkups made simpler'}</h3>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{pregnancy ? formatCareDate(pregnancy.edd) : maternal ? 'No active pregnancy is recorded. Ask the clinic about prenatal or postnatal care.' : 'Book a general checkup, review laboratory results, and follow up with your care team. No pregnancy setup is required.'}</p>
           {pregnancy ? <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Clinic-recorded risk: {careLabel(pregnancy.risk_level)}. Not a current health assessment.</p> : null}
           <Link to="/my/records" className="btn-secondary btn-sm mt-5">Review care records</Link>
         </article>

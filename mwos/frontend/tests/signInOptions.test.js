@@ -134,7 +134,7 @@ test('every patient, staff, and admin navigation module uses an icon without rem
   // SSR needs each fixture's current role rather than Zustand's module-load snapshot.
   try {
     for (const [role, count] of [['patient', 11], ['nurse', 15], ['admin', 18]]) {
-      snapshot.user = { id: 'test-user', role, firstName: 'Test', lastName: 'User' }
+      snapshot.user = { id: 'test-user', role, firstName: 'Test', lastName: 'User', careType: 'maternal' }
       const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: role === 'patient' ? '/my/settings' : '/settings' },
         React.createElement(Layout, { patient: role === 'patient' })))
       const nav = html.match(/<nav aria-label="(?:Patient|Clinic) modules"[\s\S]*?<\/nav>/)[0]
@@ -156,6 +156,19 @@ test('every patient, staff, and admin navigation module uses an icon without rem
   } finally {
     snapshot.user = originalUser
   }
+})
+
+test('general-care navigation does not label a patient as pregnant', async () => {
+  const { useAuthStore } = await server.ssrLoadModule('/src/store/authStore.js')
+  const { default: Layout } = await server.ssrLoadModule('/src/components/common/AppLayout.jsx')
+  const snapshot = useAuthStore.getInitialState()
+  const originalUser = snapshot.user
+  try {
+    snapshot.user = { role: 'patient', patientGender: 'male', careType: 'general' }
+    const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: '/my/dashboard' }, React.createElement(Layout, { patient: true })))
+    assert.match(html, /Clinic Readings/)
+    assert.doesNotMatch(html, /My Pregnancy|Baby \/ Newborn|Your pregnancy status/)
+  } finally { snapshot.user = originalUser }
 })
 
 test('icons contain visible geometry and remain decorative at compact sizes', async () => {
