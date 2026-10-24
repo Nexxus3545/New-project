@@ -92,7 +92,8 @@ async function main() {
     assert.equal(await patientNav.locator('a svg[aria-hidden="true"]').count(), 11);
     assert.equal(await patientNav.getByRole('link', { name: 'Settings', exact: true }).getAttribute('aria-current'), 'page');
     assert.equal(app.requests.some((item) => item.includes('/patients/me') || item.includes('/documents/my')), false);
-    assert.equal(await app.page.getByText('Theme mode', { exact: true }).count(), 1);
+    assert.equal(await app.page.getByText('Theme mode', { exact: true }).count(), 0);
+    assert.equal(await app.page.getByRole('navigation', { name: 'Settings sections' }).getByRole('link', { name: 'Appearance', exact: true }).count(), 1);
     assert.equal(await app.page.getByText('Secure Document Uploads', { exact: true }).count(), 0);
     await app.page.getByLabel('Mobile number', { exact: true }).fill('09179876543');
     await app.page.getByRole('button', { name: 'Save contact number', exact: true }).click();

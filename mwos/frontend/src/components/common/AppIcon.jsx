@@ -22,6 +22,7 @@ const artwork = {
   notifications: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></>,
   health: <><path d="m12 21-8.1-7.8a5.4 5.4 0 0 1 7.6-7.6L12 6l.5-.4a5.4 5.4 0 0 1 7.6 7.6Z" /><path d="M12 9v6m-3-3h6" /></>,
   profile: <><circle cx="12" cy="7" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></>,
+  appearance: <><path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1.4-3.4 1.5 1.5 0 0 1 1.1-2.6H18a3 3 0 0 0 3-3 9 9 0 0 0-9-9Z" /><circle cx="7.5" cy="10" r=".7" /><circle cx="10" cy="6.5" r=".7" /><circle cx="14.5" cy="6.5" r=".7" /><circle cx="17" cy="10" r=".7" /></>,
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
   signOut: <><path d="M9 4H4v16h5m6-12 4 4-4 4m-7-4h11" /></>,
 }
