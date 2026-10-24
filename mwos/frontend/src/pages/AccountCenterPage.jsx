@@ -1,6 +1,6 @@
 import React, { startTransition, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../utils/api'
 import { uploadResumableFile } from '../utils/chunkedUpload'
 import { useAuthStore } from '../store/authStore'
@@ -37,7 +37,7 @@ const deriveBmi = (heightCm, weightKg) => {
 }
 
 const AppearanceGroup = ({ label, description, field, value, options, onChange }) => (
-  <div className="space-y-3">
+  <div role="group" aria-label={label} className="space-y-3">
     <div>
       <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{label}</p>
       <p className="text-xs text-gray-500 dark:text-slate-400">{description}</p>
@@ -47,6 +47,7 @@ const AppearanceGroup = ({ label, description, field, value, options, onChange }
         <button
           key={option.value}
           type="button"
+          aria-pressed={value === option.value}
           onClick={() => onChange(field, option.value)}
           className={`appearance-choice ${value === option.value ? 'active' : ''}`}
         >
@@ -66,6 +67,8 @@ const ProfileMetric = ({ label, value }) => (
 
 export default function AccountCenterPage({ section = 'profile' }) {
   const isSettings = section === 'settings'
+  const [searchParams] = useSearchParams()
+  const isAppearance = isSettings && searchParams.get('tab') === 'appearance'
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
@@ -256,6 +259,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
     mutationFn: (payload) => api.patch('/auth/preferences', { uiPreferences: payload }).then((response) => response.data.data),
     onSuccess: (nextUser) => {
       updateCurrentUser(nextUser)
+      queryClient.setQueryData(['auth-me'], nextUser)
       setThemePreferences(nextUser.uiPreferences)
       setAppearanceNotice('Appearance preferences synced across your account.')
       setLocalError('')
@@ -526,6 +530,17 @@ export default function AccountCenterPage({ section = 'profile' }) {
         <NavLink to={account?.role === 'patient' ? '/my/settings' : '/settings'} className={({ isActive }) => isActive ? 'btn-primary' : 'btn-secondary'}><AppIcon name="settings" />Settings</NavLink>
       </nav>
 
+      {isSettings ? (
+        <nav aria-label="Settings sections" className="card flex flex-wrap gap-2 p-3">
+          <Link to={account?.role === 'patient' ? '/my/settings' : '/settings'} aria-current={!isAppearance ? 'page' : undefined} className={!isAppearance ? 'btn-primary' : 'btn-secondary'}>
+            <AppIcon name="compliance" />Account &amp; security
+          </Link>
+          <Link to={`${account?.role === 'patient' ? '/my/settings' : '/settings'}?tab=appearance`} aria-current={isAppearance ? 'page' : undefined} className={isAppearance ? 'btn-primary' : 'btn-secondary'}>
+            <AppIcon name="appearance" />Appearance
+          </Link>
+        </nav>
+      ) : null}
+
       {!isSettings && account?.staffProfile ? (
         <section className="card space-y-4">
           <div className="flex items-center justify-between gap-4">
@@ -553,8 +568,8 @@ export default function AccountCenterPage({ section = 'profile' }) {
 
       {localError ? <div className="alert-critical text-sm">{localError}</div> : null}
 
-      <div className={`grid gap-6 ${isSettings ? 'xl:grid-cols-2' : ''}`}>
-        <div className="space-y-6">
+      <div className={`grid gap-6 ${isSettings && !isAppearance ? 'xl:grid-cols-2' : ''}`}>
+        {!isAppearance ? <div className="space-y-6">
           <form aria-label={isSettings ? 'Sign-in email' : 'Profile details'} className="card space-y-5" onSubmit={handleProfileSubmit}>
             <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
               <div className="w-full min-w-0 sm:flex-1">
@@ -873,23 +888,24 @@ export default function AccountCenterPage({ section = 'profile' }) {
               </div>
             </form>
           ) : null}
-        </div>
+        </div> : null}
 
         {isSettings ? <div className="space-y-6">
-          <form className="card space-y-5" onSubmit={handleAppearanceSubmit}>
-            <div className="flex items-center justify-between gap-4">
-              <div>
+          {isAppearance ? <form aria-label="Appearance" className="card space-y-6" onSubmit={handleAppearanceSubmit}>
+            <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
+              <div className="w-full min-w-0 sm:flex-1">
                 <h2 className="section-title mb-1">Appearance</h2>
-                <p className="text-sm text-gray-500 dark:text-slate-400">Choose how the interface feels on every sign-in.</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Personalize your display here. Sign-in, recovery, and security stay in Account &amp; security.</p>
               </div>
-              {appearanceNotice ? <span className="badge badge-success">{appearanceNotice}</span> : null}
+              {appearanceNotice ? <span role="status" className="badge badge-success max-w-full whitespace-normal">{appearanceNotice}</span> : null}
             </div>
 
+            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]">
             <div
               className="rounded-3xl border border-white/60 p-4 shadow-sm"
               style={{ background: `linear-gradient(145deg, ${previewPalette.accentGhost}, ${previewPalette.accentSoft})` }}
             >
-              <div className="mb-3 flex items-center justify-between">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em]" style={{ color: previewPalette.accentText }}>Live preview</p>
                   <p className="mt-2 text-lg font-semibold text-slate-900">Modern, calm, and reliable.</p>
@@ -916,6 +932,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
               </div>
             </div>
 
+            <div className="space-y-6">
             <AppearanceGroup
               label="Theme mode"
               description="Use system theme or pin the interface to light or dark."
@@ -976,13 +993,15 @@ export default function AccountCenterPage({ section = 'profile' }) {
                 setThemePreferences(next)
               }}
             />
+            </div>
+            </div>
 
             <div className="flex justify-end">
               <button type="submit" className="btn-primary" disabled={appearanceMutation.isPending}>
                 {appearanceMutation.isPending ? 'Saving appearance...' : 'Save appearance'}
               </button>
             </div>
-          </form>
+          </form> : <>
 
           {isStaff ? (
             <div className="card space-y-5">
@@ -1097,6 +1116,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
               </button>
             </div>
           </form>
+          </>}
         </div> : null}
       </div>
     </div>

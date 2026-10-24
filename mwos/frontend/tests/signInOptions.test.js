@@ -79,14 +79,17 @@ test('video player has real playback controls and loads external embeds only aft
   assert.doesNotMatch(external, /<iframe/)
 })
 
-const renderAccount = async (section, role = 'patient') => {
+const renderAccount = async (section, role = 'patient', search = '') => {
   const { useAuthStore } = await server.ssrLoadModule('/src/store/authStore.js')
   const user = { id: 'test-user', role, firstName: 'Test', lastName: 'Patient', email: 'patient@example.invalid' }
   useAuthStore.setState({ user })
   const { default: Page } = await server.ssrLoadModule('/src/pages/AccountCenterPage.jsx')
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   client.setQueryData(['auth-me'], user)
-  return renderToStaticMarkup(React.createElement(StaticRouter, { location: section === 'settings' ? '/my/settings' : '/my/profile' },
+  const location = section === 'settings'
+    ? `${role === 'patient' ? '/my/settings' : '/settings'}${search}`
+    : role === 'patient' ? '/my/profile' : '/account'
+  return renderToStaticMarkup(React.createElement(StaticRouter, { location },
     React.createElement(QueryClientProvider, { client }, React.createElement(Page, { section }))))
 }
 
@@ -99,13 +102,39 @@ test('patient profile contains care details without settings or password control
   assert.match(html, /href="\/my\/settings"/)
 })
 
-test('patient settings contains sign-in, recovery, appearance, and security but no care form', async () => {
+test('patient settings keeps account and security separate from appearance', async () => {
   const html = await renderAccount('settings')
   assert.match(html, /Sign-in email/)
-  assert.match(html, /Theme mode/)
+  assert.match(html, /aria-label="Settings sections"/)
+  assert.match(html, /href="\/my\/settings\?tab=appearance"/)
+  assert.doesNotMatch(html, /Theme mode|Save appearance/)
   assert.match(html, /Current password/)
   assert.match(html, /contact-recovery-phone/)
   assert.doesNotMatch(html, /Date of birth|Secure Document Uploads|Save patient record|Send OTP/)
+})
+
+test('appearance has its own settings view for patients and staff without account controls', async () => {
+  for (const role of ['patient', 'admin', 'nurse']) {
+    const html = await renderAccount('settings', role, '?tab=appearance')
+    assert.match(html, /<h1[^>]*>Settings<\/h1>/)
+    assert.match(html, /aria-label="Appearance"/)
+    for (const label of ['Theme mode', 'Accent palette', 'Density', 'Surface style', 'Motion']) {
+      assert.match(html, new RegExp(`aria-label="${label}"`))
+    }
+    assert.match(html, /aria-pressed="true"/)
+    assert.match(html, /data-app-icon="appearance"/)
+    assert.match(html, /Save appearance/)
+    assert.doesNotMatch(html, /Login email|Current password|contact-recovery-phone|Step-up access|Save patient record/)
+    const navigation = html.match(/<nav aria-label="Settings sections"[\s\S]*?<\/nav>/)[0]
+    const activeLink = navigation.match(/<a aria-current="page"[^>]*>/)[0]
+    assert.ok(activeLink.includes(`href="${role === 'patient' ? '/my/settings' : '/settings'}?tab=appearance"`))
+  }
+})
+
+test('unknown settings sections fall back to account and security', async () => {
+  const html = await renderAccount('settings', 'patient', '?tab=unknown')
+  assert.match(html, /Current password/)
+  assert.doesNotMatch(html, /Theme mode|Save appearance/)
 })
 
 test('staff step-up security appears only in Settings', async () => {
