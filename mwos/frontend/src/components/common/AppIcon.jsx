@@ -23,6 +23,11 @@ const artwork = {
   health: <><path d="m12 21-8.1-7.8a5.4 5.4 0 0 1 7.6-7.6L12 6l.5-.4a5.4 5.4 0 0 1 7.6 7.6Z" /><path d="M12 9v6m-3-3h6" /></>,
   profile: <><circle cx="12" cy="7" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></>,
   appearance: <><path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1.4-3.4 1.5 1.5 0 0 1 1.1-2.6H18a3 3 0 0 0 3-3 9 9 0 0 0-9-9Z" /><circle cx="7.5" cy="10" r=".7" /><circle cx="10" cy="6.5" r=".7" /><circle cx="14.5" cy="6.5" r=".7" /><circle cx="17" cy="10" r=".7" /></>,
+  language: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M5 7h14M5 17h14M12 3c-5 5-5 13 0 18 5-5 5-13 0-18Z" /></>,
+  lock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2" /></>,
+  privacyCheck: <><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z" /><path d="m8 12 3 3 5-6" /></>,
+  activity: <><path d="M9 6h12M9 12h12M9 18h12M3 6h.01M3 12h.01M3 18h.01" /></>,
+  preferences: <><path d="M3 6h5m4 0h9M3 12h11m4 0h3M3 18h3m4 0h11" /><circle cx="10" cy="6" r="2" /><circle cx="16" cy="12" r="2" /><circle cx="8" cy="18" r="2" /></>,
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
   signOut: <><path d="M9 4H4v16h5m6-12 4 4-4 4m-7-4h11" /></>,
 }

@@ -9,9 +9,11 @@ import { hasMaternalCare } from '../../utils/patientCare'
 import AppIcon from '../../components/common/AppIcon'
 import ClinicMediaPlayer from '../../components/patient/ClinicMediaPlayer'
 import { CLINIC_FACEBOOK_PAGE, CLINIC_TULI_REPLAY } from '../../utils/mediaSource'
+import { useSettingsStore } from '../../store/settingsStore'
 
 export default function PatientDashboardPage() {
   const user = useAuthStore((state) => state.user)
+  const contentPreferences = useSettingsStore((state) => state.preferences)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['patient-dashboard'],
@@ -142,7 +144,7 @@ export default function PatientDashboardPage() {
             )}
           </div>
 
-          <div className="card">
+          {contentPreferences.showClinicMedia ? <div className="card">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="section-title mb-1">Health Tips & Education</h3>
@@ -182,9 +184,9 @@ export default function PatientDashboardPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </div> : null}
 
-          <div className="card">
+          {contentPreferences.showTips ? <div className="card">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="section-title mb-1">Health Guidance</h3>
@@ -209,7 +211,7 @@ export default function PatientDashboardPage() {
                 ))}
               </div>
             )}
-          </div>
+          </div> : null}
         </div>
 
         <div className="space-y-6">

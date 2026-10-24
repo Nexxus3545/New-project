@@ -376,7 +376,7 @@ export function InventoryScreen() {
 }
 
 // ── Staff Profile Screen ──────────────────────────────────────
-export function StaffProfileScreen() {
+export function StaffProfileScreen({ navigation }) {
   const {
     user,
     logout,
@@ -442,6 +442,7 @@ export function StaffProfileScreen() {
   };
   return (
     <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
+      <Button title="Settings" icon="cog-outline" variant="secondary" onPress={() => navigation.navigate('Settings')} style={{ marginBottom: 14 }} />
       <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
         <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: colors.teal[100], alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
           <Text style={{ fontSize: 28, fontWeight: '700', color: colors.teal[700] }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</Text>
