@@ -59,3 +59,15 @@ history. No migration or new production record writes are needed.
   changes. Vercel does not update an installed APK. Real-phone permission,
   biometric, and Google callback testing remains necessary. See
   `mobile/RELEASE_READINESS.md` for preview and public-release limitations.
+
+## Native Build Isolation
+
+The native entry is the checkout-local `mobile/index.js`, which imports its
+own `App.js` explicitly. Metro includes the source directory and the physical
+dependency target when a managed worktree uses a node_modules junction. This
+prevents Expo's dependency-installed default entry from finding an older App
+in the original checkout. Experimental Metro worker threads are disabled.
+
+The source-path checks are automated, but are not a substitute for a successful
+native build. A failed or interrupted build must never be presented as a new
+APK; the previous preview artifact may still exist at the same output path.

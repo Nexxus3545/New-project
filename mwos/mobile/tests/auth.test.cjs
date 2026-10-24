@@ -116,9 +116,9 @@ test('Metro ignores generated native caches while preserving source files and de
   const module = { exports: {} };
   const defaultRule = /existing-exclusion/;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../metro.config.js'), 'utf8'), {
-    module, __dirname, require: () => ({
+    module, __dirname, require: (name) => name === 'expo/metro-config' ? ({
       getDefaultConfig: () => ({ resolver: { blockList: defaultRule }, transformer: {}, watcher: {} }),
-    }),
+    }) : require(name),
   });
   const blocked = (file) => module.exports.resolver.blockList.some((rule) => rule.test(file));
   assert.ok(blocked('C:\\app\\node_modules\\expo-modules-core\\android\\.cxx\\release\\native.json'));
@@ -127,6 +127,24 @@ test('Metro ignores generated native caches while preserving source files and de
   assert.ok(blocked('existing-exclusion'));
   assert.equal(blocked('/app/src/services/api.js'), false);
   assert.equal(blocked('/app/node_modules/expo/src/Expo.ts'), false);
+});
+
+test('mobile entry imports this checkout and Metro explicitly includes shared dependency targets', () => {
+  const root = path.join(__dirname, '..');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).main, 'index.js');
+  const entry = fs.readFileSync(path.join(root, 'index.js'), 'utf8');
+  assert.match(entry, /import App from '\.\/App'/);
+  assert.match(entry, /registerRootComponent\(App\)/);
+  const module = { exports: {} };
+  const target = path.join(root, 'shared-dependencies');
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'metro.config.js'), 'utf8'), {
+    module, __dirname: root,
+    require: (name) => name === 'expo/metro-config' ? {
+      getDefaultConfig: () => ({ watchFolders: ['existing-watch'], resolver: { nodeModulesPaths: ['existing-path'] }, transformer: {}, watcher: {} }),
+    } : name === 'node:fs' ? { existsSync: () => true, realpathSync: () => target } : require(name),
+  });
+  assert.deepEqual(Array.from(module.exports.watchFolders), [root, 'existing-watch', target]);
+  assert.deepEqual(Array.from(module.exports.resolver.nodeModulesPaths), ['existing-path', target]);
 });
 
 test('Google sign-in binds browser callback to a fresh S256 proof before saving a session', async () => {

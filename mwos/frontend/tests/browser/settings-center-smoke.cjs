@@ -30,7 +30,17 @@ async function main() {
       const url = new URL(request.url());
       const headers = { 'access-control-allow-origin': origin, 'access-control-allow-headers': 'authorization, content-type, x-step-up-token', 'access-control-allow-methods': 'GET, OPTIONS' };
       if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
-      if (!url.pathname.includes('/api/')) return url.origin === origin || url.protocol === 'data:' ? route.continue() : route.abort();
+      if (!url.pathname.includes('/api/')) {
+        if (url.origin !== origin && url.protocol !== 'data:') return route.abort();
+        if (deployed && url.origin === origin) {
+          // Retry only read-only public deployment resources, never account APIs.
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            try { return await route.fulfill({ response: await route.fetch({ timeout: 30000, maxRetries: 1 }) }); }
+            catch { if (attempt === 2) return route.abort('connectionfailed'); }
+          }
+        }
+        return route.continue();
+      }
       assert.equal(request.method(), 'GET', 'Settings navigation and device preferences must not write to account data');
       const endpoint = url.pathname.slice(url.pathname.indexOf('/api/') + 4);
       requests.push(endpoint);
@@ -49,11 +59,13 @@ async function main() {
     });
     const page = await context.newPage();
     page.on('pageerror', (error) => errors.push(error.message));
-    return { page, context, requests, activity: (status) => { activityStatus = status; }, base: role === 'patient' ? '/my/settings' : '/settings' };
+    const goto = (url) => page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
+    page.setDefaultNavigationTimeout(90000);
+    return { page, goto, context, requests, activity: (status) => { activityStatus = status; }, base: role === 'patient' ? '/my/settings' : '/settings' };
   }
   try {
     const app = await fixture();
-    await app.page.goto(origin + app.base + '?tab=language');
+    await app.goto(origin + app.base + '?tab=language');
     const menu = app.page.getByRole('navigation', { name: 'Settings sections' });
     for (const name of ['Account & security', 'Language', 'Privacy checkup', 'Privacy Center', 'Activity log', 'Content preferences', 'Appearance']) {
       assert.equal(await menu.getByRole('link', { name, exact: true }).count(), 1);
@@ -61,7 +73,7 @@ async function main() {
     }
     await app.page.getByRole('button', { name: 'Filipino', exact: true }).click();
     await menu.getByRole('link', { name: 'Wika', exact: true }).waitFor();
-    await app.page.reload();
+    await app.page.reload({ waitUntil: 'domcontentloaded' });
     await menu.getByRole('link', { name: 'Hitsura', exact: true }).waitFor();
     assert.equal(await app.page.getByRole('button', { name: 'Filipino', exact: true }).getAttribute('aria-pressed'), 'true');
     await app.page.getByRole('button', { name: 'English', exact: true }).click();
@@ -74,7 +86,7 @@ async function main() {
     await app.page.getByText('Google sign-in', { exact: true }).waitFor();
     assert.equal(await app.page.getByText('MUST-NOT-RENDER').count(), 0);
     app.activity('error');
-    await app.page.reload();
+    await app.page.reload({ waitUntil: 'domcontentloaded' });
     await app.page.getByText('Activity could not be loaded. No history has been cleared.', { exact: true }).waitFor({ timeout: 25000 });
     assert.equal(await app.page.getByText('No recorded activity is available yet.', { exact: true }).count(), 0);
     assert.equal(await app.page.getByText('Private backend error').count(), 0);
@@ -90,20 +102,20 @@ async function main() {
       assert.ok(await menu.evaluate((element) => element.scrollWidth <= element.clientWidth));
     }
     await app.page.screenshot({ path: path.join(screenshots, 'settings-mobile.png'), fullPage: true });
-    await app.page.goto(origin + '/my');
+    await app.goto(origin + '/my');
     await app.page.getByText('Important clinic reminder', { exact: true }).waitFor();
     assert.equal(await app.page.getByRole('heading', { name: 'Health Tips & Education', exact: true }).count(), 0);
     assert.equal(await app.page.getByRole('heading', { name: 'Health Guidance', exact: true }).count(), 0);
-    await app.page.goto(origin + app.base + '?tab=content');
+    await app.goto(origin + app.base + '?tab=content');
     assert.equal(await app.page.getByRole('checkbox', { name: 'Show health-tip previews', exact: true }).isChecked(), false);
     await app.page.getByRole('checkbox', { name: 'Show clinic videos and community events', exact: true }).check();
     await app.page.getByRole('checkbox', { name: 'Show health-tip previews', exact: true }).check();
-    await app.page.goto(origin + '/my');
+    await app.goto(origin + '/my');
     await app.page.getByRole('heading', { name: 'Health Tips & Education', exact: true }).waitFor();
     await app.page.getByRole('heading', { name: 'Health Guidance', exact: true }).waitFor();
     await app.context.close();
     const staff = await fixture('nurse');
-    await staff.page.goto(origin + staff.base + '?tab=activity');
+    await staff.goto(origin + staff.base + '?tab=activity');
     await staff.page.getByText('Google sign-in', { exact: true }).waitFor();
     await staff.page.getByRole('navigation', { name: 'Settings sections' }).getByRole('link', { name: 'Appearance', exact: true }).click();
     await staff.page.getByRole('form', { name: 'Appearance', exact: true }).waitFor();
