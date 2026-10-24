@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../../utils/api'
 import { useAuthStore } from '../../store/authStore'
-import RealtimeVitalsPanel from '../../components/patient/RealtimeVitalsPanel'
+import RecordedVitalsCard from '../../components/patient/RecordedVitalsCard'
+import MaternalCareOverview from '../../components/patient/MaternalCareOverview'
+import AppIcon from '../../components/common/AppIcon'
 import ClinicMediaPlayer from '../../components/patient/ClinicMediaPlayer'
 import { CLINIC_FACEBOOK_PAGE, CLINIC_TULI_REPLAY } from '../../utils/mediaSource'
 
@@ -40,6 +42,16 @@ export default function PatientDashboardPage() {
     queryFn: () => api.get('/education').then((response) => response.data.data),
   })
 
+  const tasksQuery = useQuery({
+    queryKey: ['patient-dashboard-tasks'],
+    queryFn: () => api.get('/interactions/tasks').then((response) => response.data.data),
+  })
+
+  const requirementsQuery = useQuery({
+    queryKey: ['patient-requirements'],
+    queryFn: () => api.get('/requirements/my').then((response) => response.data.data),
+  })
+
   if (isLoading) {
     return <div className="flex justify-center py-20"><div className="loading-spinner h-8 w-8" /></div>
   }
@@ -58,89 +70,41 @@ export default function PatientDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Welcome, {user?.firstName}!</h1>
-          <p className="page-sub">
-            Review your status, next appointment, pregnancy progress, clinic alerts, records, and baby care in one place.
-          </p>
-        </div>
-      </div>
+      <MaternalCareOverview dashboard={dashboard} patientName={user?.firstName}
+        tasks={tasksQuery.data || []} tasksLoading={tasksQuery.isLoading} tasksError={tasksQuery.isError}
+        requirements={requirementsQuery.data || []} requirementsLoading={requirementsQuery.isLoading} requirementsError={requirementsQuery.isError} />
 
-      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="overflow-hidden rounded-[32px] border border-rose-100 bg-white shadow-sm">
-          <div className="h-56 bg-slate-100">
-            <img src="/clinic/clinic-exterior.jpg" alt="TMC Copino clinic exterior" className="h-full w-full object-cover" />
-          </div>
-          <div className="p-5">
-            <p className="section-kicker">TMC Copino Birthing Home</p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-900">Your clinic care starts here.</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Use this portal for appointments, requirements, documents, messages, and health education connected to your record.</p>
-          </div>
-        </div>
-        <div className="overflow-hidden rounded-[32px] border border-rose-100 bg-white shadow-sm">
-          <div className="h-56 bg-slate-100">
-            <img src="/clinic/reception-information.jpg" alt="Clinic reception and information desk" className="h-full w-full object-cover" />
-          </div>
-          <div className="p-5">
-            <p className="section-kicker">Front-desk workflow</p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-900">Know what to bring before your visit.</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Check your document status, review requirements, and message the clinic if anything is missing before your schedule.</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="card border-rose-100 bg-rose-50">
-          <p className="mb-1 text-xs font-medium text-rose-600">Next Appointment</p>
-          <p className="text-sm font-bold text-gray-900">{dashboard.nextAppointment ? new Date(dashboard.nextAppointment.scheduled_date).toLocaleDateString('en-PH') : 'None scheduled'}</p>
-          {dashboard.nextAppointment ? <p className="mt-0.5 text-xs capitalize text-gray-500">{dashboard.nextAppointment.appointment_type} | {dashboard.nextAppointment.scheduled_time?.slice(0, 5)}</p> : null}
-        </div>
-        <div className="card border-[#eadff5] bg-[#fbf8ff]">
-          <p className="mb-1 text-xs font-medium text-[#8b5cad]">Active Pregnancy</p>
-          <p className="text-sm font-bold text-gray-900">{dashboard.activePregnancy ? `EDD: ${new Date(dashboard.activePregnancy.edd).toLocaleDateString('en-PH')}` : 'None active'}</p>
-          {dashboard.activePregnancy ? <p className="mt-0.5 text-xs capitalize text-gray-500">{dashboard.activePregnancy.risk_level} risk</p> : null}
-        </div>
-        <div className="card">
-          <p className="mb-1 text-xs font-medium text-gray-500">Latest BP</p>
-          <p className="font-mono text-sm font-bold text-gray-900">{dashboard.latestVitals?.bp_systolic ? `${dashboard.latestVitals.bp_systolic}/${dashboard.latestVitals.bp_diastolic}` : '--'}</p>
-          {dashboard.latestVitals ? <p className="mt-0.5 text-xs text-gray-500">{new Date(dashboard.latestVitals.visit_date).toLocaleDateString('en-PH')}</p> : null}
-        </div>
-        <div className={`card ${dashboard.unpaidAmount > 0 ? 'border-amber-100 bg-amber-50' : ''}`}>
-          <p className="mb-1 text-xs font-medium text-amber-600">Unread Alerts</p>
-          <p className="text-sm font-bold text-gray-900">{unreadNotifications}</p>
-          <p className="mt-0.5 text-xs text-gray-500">Notifications waiting for review</p>
-        </div>
-      </div>
-
-      <RealtimeVitalsPanel
+      <RecordedVitalsCard
         latestVitals={dashboard.latestVitals}
-        activePregnancy={dashboard.activePregnancy}
-        title="Latest maternal monitor"
       />
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
         <Link to="/my/doctors" className="card-hover">
+          <AppIcon name="patients" className="mb-3 h-6 w-6 text-[var(--accent-strong)]" />
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Doctors</p>
           <p className="mt-3 text-lg font-semibold text-gray-900">{featuredDoctors.length || '--'}</p>
           <p className="mt-2 text-sm text-gray-500">Browse the clinic care team.</p>
         </Link>
         <Link to="/my/pharmacy" className="card-hover">
+          <AppIcon name="inventory" className="mb-3 h-6 w-6 text-[var(--accent-strong)]" />
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Pharmacy</p>
           <p className="mt-3 text-lg font-semibold text-gray-900">Request</p>
           <p className="mt-2 text-sm text-gray-500">Browse medicines and send a pickup request.</p>
         </Link>
         <Link to="/my/notifications" className="card-hover">
+          <AppIcon name="notifications" className="mb-3 h-6 w-6 text-[var(--accent-strong)]" />
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Notifications</p>
           <p className="mt-3 text-lg font-semibold text-gray-900">{unreadNotifications}</p>
           <p className="mt-2 text-sm text-gray-500">Unread clinic updates and alerts.</p>
         </Link>
         <Link to="/my/reports" className="card-hover">
+          <AppIcon name="reports" className="mb-3 h-6 w-6 text-[var(--accent-strong)]" />
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Reports</p>
-          <p className="mt-3 text-lg font-semibold text-gray-900">Live</p>
-          <p className="mt-2 text-sm text-gray-500">Open moving vitals and report summaries.</p>
+          <p className="mt-3 text-lg font-semibold text-gray-900">Visit history</p>
+          <p className="mt-2 text-sm text-gray-500">Review saved measurements and care summaries.</p>
         </Link>
         <Link to="/my/emergency" className="card-hover">
+          <AppIcon name="emergency" className="mb-3 h-6 w-6 text-[var(--accent-strong)]" />
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Emergency</p>
           <p className="mt-3 text-lg font-semibold text-gray-900">Urgent</p>
           <p className="mt-2 text-sm text-gray-500">Open support and transport actions.</p>
