@@ -49,11 +49,11 @@ const getPatientRecommendations = async (req, userId) => {
     suggestions.push(buildRecommendation('document', 'Upload your PhilHealth ID', 'Adding your PhilHealth ID helps billing and verification move faster.', { priority: 'high', route: '/my/profile' }));
   }
 
-  if (!uploadedTypes.has('Birthing ID')) {
+  if ((patient.care_type === 'maternal' || patient.pregnancy_status === 'active') && !uploadedTypes.has('Birthing ID')) {
     suggestions.push(buildRecommendation('document', 'Upload your Birthing ID', 'Your birthing ID keeps admissions and care records aligned.', { priority: 'high', route: '/my/profile' }));
   }
 
-  if (patient.risk_level === 'high' || patient.pregnancy_risk === 'high') {
+  if (patient.pregnancy_status === 'active' && (patient.risk_level === 'high' || patient.pregnancy_risk === 'high')) {
     suggestions.push(buildRecommendation('health-tip', 'High-risk pregnancy guidance', 'You have a high-risk profile. Review warning signs, follow-up plans, and emergency contact steps.', { priority: 'high', category: 'safety' }));
   }
 

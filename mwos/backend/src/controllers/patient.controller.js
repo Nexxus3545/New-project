@@ -1,5 +1,6 @@
 const { query } = require('../config/database');
 const { generateUniqueCode, toNullableNumber, calculateBmi } = require('../utils/identifiers');
+const { normalizePatientCare } = require('../utils/patientCare');
 
 const PATIENT_FIELD_MAP = {
   patientCode: 'patient_code',
@@ -9,6 +10,8 @@ const PATIENT_FIELD_MAP = {
   lastName: 'last_name',
   suffix: 'suffix',
   dateOfBirth: 'date_of_birth',
+  gender: 'gender',
+  careType: 'care_type',
   civilStatus: 'civil_status',
   religion: 'religion',
   nationality: 'nationality',
@@ -81,7 +84,7 @@ const normalizePatientDraft = (payload = {}) => {
     draft[key] = normalizeText(payload[key]);
   }
 
-  return draft;
+  return { ...draft, ...normalizePatientCare(payload) };
 };
 
 const ensureUniqueIdentifiers = async ({ patientCode, birthingId, excludeId = null }) => {
@@ -286,10 +289,10 @@ const create = async (req, res, next) => {
         emergency_contact_relation, philhealth_id, philhealth_type, valid_id_type, valid_id_number,
         pregnancy_booklet_number, credential_notes, blood_type, biometric_height_cm,
         biometric_weight_kg, biometric_bmi, biometric_notes, allergies, existing_conditions,
-        current_medications, ob_gyne_history, risk_level, created_by
+        current_medications, ob_gyne_history, risk_level, created_by, gender, care_type
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-        $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40
+        $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42
       )
       RETURNING *`,
       [
@@ -333,6 +336,8 @@ const create = async (req, res, next) => {
         JSON.stringify(draft.obGyneHistory || {}),
         draft.riskLevel || 'low',
         req.user.id,
+        draft.gender || null,
+        draft.careType || 'general',
       ]
     );
 

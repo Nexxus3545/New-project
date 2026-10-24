@@ -1,4 +1,5 @@
 const { query } = require('../config/database');
+const { APPOINTMENT_TYPES, MATERNAL_APPOINTMENTS } = require('../utils/patientCare');
 
 const getAll = async (req, res, next) => {
   try {
@@ -18,6 +19,8 @@ const getAll = async (req, res, next) => {
       if (pResult.rows.length > 0) {
         conditions.push(`a.patient_id = $${idx++}`);
         params.push(pResult.rows[0].id);
+      } else {
+        return res.json({ success: true, data: [], pagination: { page: Number(page), limit: Number(limit), total: 0, pages: 0 } });
       }
     }
 
@@ -78,6 +81,26 @@ const create = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Patient ID, date, and time are required' });
     }
 
+    const type = appointmentType || 'consultation';
+    if (!APPOINTMENT_TYPES.includes(type)) {
+      return res.status(400).json({ success: false, message: 'Select a supported appointment type' });
+    }
+    if (req.user.role === 'patient') {
+      const ownPatient = await query('SELECT id FROM patients WHERE user_id = $1', [req.user.id]);
+      if (ownPatient.rows[0]?.id !== patientId) {
+        return res.status(403).json({ success: false, message: 'You can only book appointments for your own patient record' });
+      }
+    }
+    if (pregnancyId) {
+      if (!MATERNAL_APPOINTMENTS.includes(type)) {
+        return res.status(400).json({ success: false, message: 'General checkups must not be linked to a pregnancy' });
+      }
+      const pregnancy = await query('SELECT id FROM pregnancies WHERE id = $1 AND patient_id = $2', [pregnancyId, patientId]);
+      if (!pregnancy.rows.length) {
+        return res.status(400).json({ success: false, message: 'The pregnancy record does not belong to this patient' });
+      }
+    }
+
     // Check for conflicts
     const conflict = await query(
       `SELECT id FROM appointments
@@ -91,7 +114,7 @@ const create = async (req, res, next) => {
     const result = await query(
       `INSERT INTO appointments (patient_id, pregnancy_id, assigned_to, appointment_type, scheduled_date, scheduled_time, notes, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [patientId, pregnancyId || null, assignedTo || null, appointmentType || 'prenatal', scheduledDate, scheduledTime, notes || null, req.user.id]
+      [patientId, pregnancyId || null, assignedTo || null, type, scheduledDate, scheduledTime, notes || null, req.user.id]
     );
 
     res.status(201).json({ success: true, message: 'Appointment scheduled', data: result.rows[0] });
@@ -108,6 +131,16 @@ const update = async (req, res, next) => {
     const existing = await query('SELECT * FROM appointments WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Appointment not found' });
+    }
+
+    if (req.user.role === 'patient') {
+      const ownPatient = await query('SELECT id FROM patients WHERE user_id = $1', [req.user.id]);
+      if (ownPatient.rows[0]?.id !== existing.rows[0].patient_id) {
+        return res.status(403).json({ success: false, message: 'You can only update your own appointments' });
+      }
+      if (status && status !== 'cancelled') {
+        return res.status(403).json({ success: false, message: 'Only clinic staff can confirm or complete an appointment' });
+      }
     }
 
     const result = await query(

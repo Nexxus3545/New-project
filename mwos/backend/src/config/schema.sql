@@ -275,6 +275,8 @@ CREATE TABLE IF NOT EXISTS patients (
 );
 
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS patient_code VARCHAR(50);
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS gender VARCHAR(30) CHECK (gender IN ('female', 'male', 'other', 'prefer_not_to_say'));
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS care_type VARCHAR(20) CHECK (care_type IN ('general', 'maternal'));
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS birthing_id VARCHAR(50);
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS middle_name VARCHAR(100);
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS suffix VARCHAR(30);
@@ -325,7 +327,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   patient_id UUID REFERENCES patients(id) ON DELETE CASCADE NOT NULL,
   pregnancy_id UUID REFERENCES pregnancies(id) ON DELETE SET NULL,
   assigned_to UUID REFERENCES users(id),
-  appointment_type VARCHAR(50) DEFAULT 'prenatal',
+  appointment_type VARCHAR(50) DEFAULT 'consultation',
   scheduled_date DATE NOT NULL,
   scheduled_time TIME NOT NULL,
   status VARCHAR(20) DEFAULT 'scheduled' CHECK (status IN ('scheduled','confirmed','completed','cancelled','no_show')),

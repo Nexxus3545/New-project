@@ -332,12 +332,15 @@ const exchange = async (req, res, next) => {
   }
 };
 
+const { normalizePatientCare } = require('../utils/patientCare');
+
 const completePatientProfile = async (req, res, next) => {
   try {
     const { dateOfBirth, phone, city } = req.body || {};
     const normalizedBirthDate = typeof dateOfBirth === 'string' ? dateOfBirth.trim() : '';
     const normalizedPhone = typeof phone === 'string' ? phone.trim() || null : null;
     const normalizedCity = typeof city === 'string' ? city.trim() || null : null;
+    const patientCare = normalizePatientCare(req.body, { newPatient: true });
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedBirthDate) || Number.isNaN(Date.parse(`${normalizedBirthDate}T00:00:00Z`)) || normalizedBirthDate > new Date().toISOString().slice(0, 10)) {
       return res.status(400).json({ success: false, message: 'Enter a valid date of birth to complete your patient record.' });
@@ -360,9 +363,9 @@ const completePatientProfile = async (req, res, next) => {
         const birthingId = await generateUniqueCode({ table: 'patients', column: 'birthing_id', prefix: 'TMC-BIR', client });
         await client.query(
           `INSERT INTO patients (
-             user_id, patient_code, birthing_id, first_name, last_name, date_of_birth, city, phone, email, created_by
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [user.id, patientCode, birthingId, user.first_name, user.last_name, normalizedBirthDate, normalizedCity, normalizedPhone, user.email, user.id]
+             user_id, patient_code, birthing_id, first_name, last_name, date_of_birth, city, phone, email, created_by, gender, care_type
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [user.id, patientCode, birthingId, user.first_name, user.last_name, normalizedBirthDate, normalizedCity, normalizedPhone, user.email, user.id, patientCare.gender, patientCare.careType]
         );
       }
 

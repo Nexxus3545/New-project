@@ -6,6 +6,7 @@ const { generateUniqueCode } = require('../utils/identifiers');
 const { sendMail } = require('../utils/mailer');
 const { fetchStaffProfileByUserId, recordLicenseEvent, upsertStaffRegistry } = require('../utils/staff');
 const { generateSessionTokens } = require('../utils/tokens');
+const { normalizePatientCare } = require('../utils/patientCare');
 const { deliverOtp, generateOtpCode, hashOtpCode, maskPhone } = require('../utils/security');
 
 const DEFAULT_UI_PREFERENCES = {
@@ -41,7 +42,9 @@ const buildUserPayload = async (user, client) => {
   const executor = client || { query };
   const [patientResult, staffProfile] = await Promise.all([
     user.role === 'patient'
-      ? executor.query('SELECT id FROM patients WHERE user_id = $1', [user.id])
+      ? executor.query(`SELECT id, gender, care_type,
+          EXISTS (SELECT 1 FROM pregnancies pr WHERE pr.patient_id = patients.id AND pr.status = 'active') AS has_active_pregnancy
+          FROM patients WHERE user_id = $1`, [user.id])
       : Promise.resolve({ rows: [] }),
     user.role === 'patient'
       ? Promise.resolve(null)
@@ -60,6 +63,9 @@ const buildUserPayload = async (user, client) => {
     avatarUrl: user.avatar_url || null,
     uiPreferences: sanitizeUiPreferences(user.ui_preferences || {}),
     patientId,
+    patientGender: patientResult.rows[0]?.gender || null,
+    careType: patientResult.rows[0]?.care_type || null,
+    hasActivePregnancy: patientResult.rows[0]?.has_active_pregnancy === true,
     staffProfile,
     createdAt: user.created_at,
   };
@@ -349,6 +355,7 @@ const register = async (req, res, next) => {
     const normalizedLastName = lastName.trim();
     const normalizedPhone = phone?.trim() || null;
     const normalizedCity = city?.trim() || null;
+    const patientCare = role === 'patient' ? normalizePatientCare(req.body, { newPatient: true }) : {};
 
     const existing = await query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
     if (existing.rows.length > 0) {
@@ -410,8 +417,8 @@ const register = async (req, res, next) => {
 
         await client.query(
           `INSERT INTO patients (
-            user_id, patient_code, birthing_id, first_name, last_name, date_of_birth, city, phone, email, created_by
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+            user_id, patient_code, birthing_id, first_name, last_name, date_of_birth, city, phone, email, created_by, gender, care_type
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
           [
             user.id,
             patientCode,
@@ -423,6 +430,8 @@ const register = async (req, res, next) => {
             normalizedPhone,
             normalizedEmail,
             user.id,
+            patientCare.gender,
+            patientCare.careType,
           ]
         );
       }
