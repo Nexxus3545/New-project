@@ -3,22 +3,21 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts'
 import api from '../../utils/api'
-import RealtimeVitalsPanel from '../../components/patient/RealtimeVitalsPanel'
-
-const formatDate = (value) => new Date(value).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
+import RecordedVitalsCard from '../../components/patient/RecordedVitalsCard'
+import { getRecordedTrend } from '../../utils/recordedCare'
 
 export default function PatientReportsPage() {
-  const { data: patient, isLoading: patientLoading } = useQuery({
+  const { data: patient, isLoading: patientLoading, isError: patientError } = useQuery({
     queryKey: ['patient-me-reports'],
     queryFn: () => api.get('/patients/me').then((response) => response.data.data),
   })
 
-  const { data: dashboard, isLoading: dashboardLoading } = useQuery({
+  const { data: dashboard, isLoading: dashboardLoading, isError: dashboardError } = useQuery({
     queryKey: ['patient-dashboard-reports'],
     queryFn: () => api.get('/reports/patient-dashboard').then((response) => response.data.data),
   })
 
-  const { data: vitals, isLoading: vitalsLoading } = useQuery({
+  const { data: vitals, isLoading: vitalsLoading, isError: vitalsError } = useQuery({
     queryKey: ['patient-vitals-reports', patient?.id],
     queryFn: () => api.get(`/vitals/patient/${patient.id}`).then((response) => response.data.data),
     enabled: !!patient?.id,
@@ -33,11 +32,12 @@ export default function PatientReportsPage() {
     return <div className="flex justify-center py-16"><div className="loading-spinner h-8 w-8" /></div>
   }
 
-  const chartData = [...(vitals || [])].slice(0, 5).reverse().map((item) => ({
-    date: formatDate(item.visit_date),
-    systolic: item.bp_systolic || 0,
-    diastolic: item.bp_diastolic || 0,
-  }))
+  if (patientError || dashboardError || vitalsError) {
+    return <div role="alert" className="alert-critical">Reports could not be loaded. Your saved readings are unavailable, not zero. Please refresh to try again.</div>
+  }
+
+  const chartData = getRecordedTrend(vitals || [])
+  const hasReadings = chartData.some((item) => item.systolic !== null || item.diastolic !== null)
 
   const latestVitals = (vitals || [])[0]
   const featuredTips = education.slice(0, 3)
@@ -55,19 +55,19 @@ export default function PatientReportsPage() {
         <div className="card"><p className="text-xs font-medium uppercase tracking-[0.18em] text-gray-500">Verified docs</p><p className="mt-3 text-3xl font-semibold text-gray-900">{dashboard?.documentSummary?.verified || 0}</p></div>
         <div className="card"><p className="text-xs font-medium uppercase tracking-[0.18em] text-gray-500">Unread threads</p><p className="mt-3 text-3xl font-semibold text-gray-900">{dashboard?.unreadMessages || 0}</p></div>
         <div className="card"><p className="text-xs font-medium uppercase tracking-[0.18em] text-gray-500">Open tasks</p><p className="mt-3 text-3xl font-semibold text-gray-900">{dashboard?.openCareTasks || 0}</p></div>
-        <div className="card"><p className="text-xs font-medium uppercase tracking-[0.18em] text-gray-500">Clinic rating</p><p className="mt-3 text-3xl font-semibold text-gray-900">{Number(dashboard?.reviewSummary?.average_rating || 0).toFixed(2)}</p></div>
+        <div className="card"><p className="text-xs font-medium uppercase tracking-[0.18em] text-gray-500">Saved clinic visits</p><p className="mt-3 text-3xl font-semibold text-gray-900">{vitals?.length || 0}</p></div>
       </div>
 
-      <RealtimeVitalsPanel
+      <RecordedVitalsCard
         latestVitals={latestVitals}
-        activePregnancy={dashboard?.activePregnancy}
-        title="Latest vitals report"
+        title="Latest saved visit readings"
       />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <div className="card">
-          <h3 className="section-title">Vitals trend</h3>
-          {!chartData.length ? (
+          <h3 className="section-title">Recorded blood pressure history</h3>
+          <p className="mt-2 text-sm text-slate-500">Saved clinic visits only. Missing readings are left blank, never plotted as zero.</p>
+          {!hasReadings ? (
             <p className="mt-4 text-sm text-gray-500">No vitals trend is available yet.</p>
           ) : (
             <div className="mt-5 h-[280px]">
@@ -75,10 +75,10 @@ export default function PatientReportsPage() {
                 <LineChart data={chartData} margin={{ top: 12, right: 12, left: -24, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} unit=" mmHg" width={80} />
                   <Tooltip />
-                  <Line type="monotone" dataKey="systolic" stroke="#c98994" strokeWidth={3} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="diastolic" stroke="#0f766e" strokeWidth={3} dot={{ r: 3 }} />
+                  <Line name="Systolic (mmHg)" type="linear" dataKey="systolic" stroke="#c98994" strokeWidth={2} dot={{ r: 4 }} isAnimationActive={false} connectNulls={false} />
+                  <Line name="Diastolic (mmHg)" type="linear" dataKey="diastolic" stroke="#0f766e" strokeWidth={2} dot={{ r: 4 }} isAnimationActive={false} connectNulls={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
