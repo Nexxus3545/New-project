@@ -24,6 +24,9 @@ export default function OAuthCallback() {
   const isLoading = useAuthStore((state) => state.isLoading)
   const storeError = useAuthStore((state) => state.error)
   const handled = useRef(false)
+  const originalCode = useRef(searchParams.get('code'))
+  const [verification, setVerification] = useState(null)
+  const [emailCode, setEmailCode] = useState('')
   const [needsProfile, setNeedsProfile] = useState(false)
   const [form, setForm] = useState({ dateOfBirth: '', phone: '', city: '', gender: '', careType: 'general' })
   const [notice, setNotice] = useState('')
@@ -38,6 +41,12 @@ export default function OAuthCallback() {
     const exchange = async () => {
       const result = await completeOAuthLogin(code)
       if (!result.success) return
+      // Keep the pending proof only in memory, not in browser history or storage.
+      navigate('/oauth-callback', { replace: true })
+      if (result.verificationRequired) {
+        setVerification(result)
+        return
+      }
       if (result.user.role !== 'patient') {
         navigate('/dashboard', { replace: true })
         return
@@ -59,7 +68,19 @@ export default function OAuthCallback() {
     if (result.success) navigate('/my/dashboard', { replace: true })
   }
 
-  const error = callbackErrors[callbackError] || storeError || (!code && !callbackError ? 'Your sign-in link is incomplete. Please return to the login page and try again.' : '')
+  const verifyEmail = async (event) => {
+    event.preventDefault()
+    const result = await completeOAuthLogin(originalCode.current, emailCode)
+    if (!result.success || result.verificationRequired) return
+    setVerification(null)
+    if (result.user.patientId) navigate('/my/dashboard', { replace: true })
+    else {
+      setNeedsProfile(true)
+      setNotice('Your email code is verified. Complete your patient details to open your care portal.')
+    }
+  }
+
+  const error = callbackErrors[callbackError] || (!verification && storeError) || (!originalCode.current && !callbackError ? 'Your sign-in link is incomplete. Please return to the login page and try again.' : '')
 
   if (error) {
     return (
@@ -72,6 +93,25 @@ export default function OAuthCallback() {
         <Link to="/login" className="btn-primary w-full justify-center">Return to sign in</Link>
       </div>
     )
+  }
+
+  if (verification) {
+    return <div className="auth-form-stack">
+      <div className="auth-form-heading">
+        <p className="auth-kicker">Google identity verified</p>
+        <h2>Check your email</h2>
+        <p>A sign-in code was sent to {verification.destination}. Patient access opens only after this additional check.</p>
+      </div>
+      <form onSubmit={verifyEmail} className="auth-login-form">
+        {storeError ? <div className="alert-critical" role="alert">{storeError}</div> : null}
+        <div><label htmlFor="google-email-code" className="label">Six-digit email code</label>
+          <input id="google-email-code" className="input" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={emailCode} onChange={(event) => setEmailCode(event.target.value.replace(/\D/g, ''))} />
+        </div>
+        <p className="text-sm text-slate-500">The code expires in 10 minutes and works once. Never share it, including with clinic staff. This check does not give MWOS access to your Gmail inbox.</p>
+        <button className="btn-primary w-full justify-center" disabled={isLoading || !/^\d{6}$/.test(emailCode)}>{isLoading ? 'Verifying...' : 'Verify and continue'}</button>
+      </form>
+      <Link to="/login" className="text-sm font-semibold text-[var(--accent)] underline">Start Google sign-in again for a new code</Link>
+    </div>
   }
 
   if (needsProfile) {

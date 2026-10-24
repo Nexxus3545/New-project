@@ -7,6 +7,7 @@ import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
 import { accentPresets, appearanceOptions, normalizeAppearance } from '../utils/appearance'
 import ContactNumberCard from '../components/common/ContactNumberCard'
+import EmailNotificationSettings from '../components/common/EmailNotificationSettings'
 import AppIcon from '../components/common/AppIcon'
 import { updateAccountProfile } from '../utils/accountProfile'
 import PatientCareFields from '../components/patient/PatientCareFields'
@@ -611,6 +612,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
           </form>
 
           {isSettings ? <ContactNumberCard /> : null}
+          {isSettings ? <EmailNotificationSettings /> : null}
 
           {!isSettings && account?.role === 'patient' ? (
             <form className="card space-y-6" onSubmit={handlePatientSubmit}>

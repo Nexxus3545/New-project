@@ -450,6 +450,7 @@ router.get('/reports/births/monthly', authenticate, authorize('admin','doctor'),
 router.get('/reports/audit-logs', authenticate, authorize('admin'), reportCtrl.getAuditLogs);
 
 // ── USERS (admin) ─────────────────────────────────────────────
+router.post('/users', authenticate, authorize('admin'), requireStepUp('critical'), authCtrl.register);
 router.get('/users', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const { search, role, status } = req.query;
@@ -560,6 +561,7 @@ router.post('/staff/registry/:staffId/documents', authenticate, authorize('admin
 router.patch('/staff/documents/:id/review', authenticate, authorize('admin'), staffDocumentCtrl.reviewDocument);
 router.patch('/staff/registry/:userId/license', authenticate, authorize('admin'), requireStepUp('license-change'), staffCtrl.updateLicense);
 router.get('/notifications', authenticate, notificationCtrl.getMine);
+router.get('/notifications/settings', authenticate, notificationCtrl.getSettings);
 router.patch('/notifications/:id/read', authenticate, notificationCtrl.markRead);
 router.post('/notifications', authenticate, authorize('admin','doctor','midwife','nurse'), notificationCtrl.create);
 

@@ -39,6 +39,9 @@ export const signInWithGoogle = async () => {
   if (error) throw new Error(errors[error] || 'Google sign-in was not completed. Please try again.');
   const code = params.get('code');
   if (!code) throw new Error('The sign-in response is incomplete. Please start again.');
-  const exchanged = await api.post('/auth/oauth/exchange', { code, codeVerifier });
+  const exchanged = await api.post('/auth/oauth/exchange', { code, codeVerifier, emailVerificationSupported: true }, { timeout: 30000 });
+  if (exchanged.data.data.verificationRequired) {
+    return { ...exchanged.data.data, pendingProof: { code, codeVerifier, emailVerificationSupported: true } };
+  }
   return exchanged.data.data;
 };

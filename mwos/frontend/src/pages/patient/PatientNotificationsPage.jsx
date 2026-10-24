@@ -1,6 +1,15 @@
 import React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../utils/api'
+import { Link } from 'react-router-dom'
+
+const emailStatus = {
+  accepted: 'Email accepted by sender; inbox delivery is not guaranteed.',
+  pending: 'Email is pending.', sending: 'Email delivery is being attempted.',
+  failed: 'Email could not be sent. This MWOS notification is still saved.',
+  unconfigured: 'Email was not sent: the clinic email service is not connected.',
+  no_verified_recipient: 'Email was not sent: no Google-verified recipient is linked to this account. Your MWOS notification is still saved.',
+}
 
 const badgeTone = {
   critical: 'badge-danger',
@@ -60,6 +69,8 @@ export default function PatientNotificationsPage() {
                   </div>
                   <p className="mt-3 text-lg font-semibold text-gray-900">{item.title}</p>
                   <p className="mt-2 text-sm text-gray-600">{item.body}</p>
+                  {emailStatus[item.email_status] ? <p className="mt-2 text-xs text-slate-500">{emailStatus[item.email_status]}</p> : null}
+                  {['/my/settings', '/my/appointments'].includes(item.metadata?.route) ? <Link className="mt-3 inline-block text-sm font-semibold text-[var(--accent)] underline" to={item.metadata.route}>{item.metadata.route === '/my/settings' ? 'Review security settings' : 'Review appointment'}</Link> : null}
                   <p className="mt-3 text-xs text-gray-400">{formatDateTime(item.created_at)}</p>
                 </div>
                 {!item.is_read ? (

@@ -88,7 +88,7 @@ export default function PatientAppointmentsScreen({ route }) {
       scheduledDate,
       scheduledTime,
       notes: notes.trim(),
-    }),
+    }, { timeout: 30000 }),
     onSuccess: () => {
       setScheduledDate('')
       setScheduledTime('')
@@ -133,7 +133,7 @@ export default function PatientAppointmentsScreen({ route }) {
         ) : null}
 
         {createMutation.isSuccess ? (
-          <AlertBox type="success" message="Appointment request sent successfully." />
+          <AlertBox type="success" message={`Appointment request saved. ${createMutation.data?.data?.notification?.email === 'accepted' ? 'The email server accepted your schedule update; check your inbox or spam folder.' : 'Check MWOS Notifications for updates. Email delivery is not confirmed.'}`} />
         ) : null}
 
         <Card patient>

@@ -16,9 +16,13 @@ export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
+  const [emailCode, setEmailCode] = useState('')
   const {
     login,
     loginWithGoogle,
+    googleEmailVerification,
+    verifyGoogleEmail,
+    cancelGoogleEmailVerification,
     loginWithBiometrics,
     biometricEnabled,
     biometricPending,
@@ -62,6 +66,15 @@ export default function LoginScreen({ navigation }) {
           </View>
 
           <View style={styles.card}>
+            {googleEmailVerification ? <>
+              <Text style={styles.cardTitle}>Check your Google email</Text>
+              <Text style={styles.cardSub}>A sign-in code was sent to {googleEmailVerification.destination}. Patient access opens only after this check.</Text>
+              {error ? <AlertBox type="critical" message={error} /> : null}
+              <Input label="Six-digit email code" value={emailCode} onChangeText={(value) => { clearError(); setEmailCode(value.replace(/\D/g, '')) }} keyboardType="number-pad" maxLength={6} autoComplete="one-time-code" />
+              <Text style={styles.cardSub}>Expires in 10 minutes. Never share the code. MWOS does not need access to your Gmail inbox.</Text>
+              <Button title="Verify and continue" loading={isLoading} disabled={isLoading || !/^\d{6}$/.test(emailCode)} onPress={() => verifyGoogleEmail(emailCode)} />
+              <Button title="Cancel and restart sign-in" variant="secondary" disabled={isLoading} onPress={() => { cancelGoogleEmailVerification(); setEmailCode('') }} style={{ marginTop: spacing.sm }} />
+            </> : <>
             <Text style={styles.cardTitle}>Sign in securely</Text>
             <Text style={styles.cardSub}>
               {biometricPending
@@ -140,6 +153,7 @@ export default function LoginScreen({ navigation }) {
                 Your health information is protected and available only to authorized clinic personnel.
               </Text>
             </View>
+            </>}
           </View>
 
           <View style={styles.footerWrap}>

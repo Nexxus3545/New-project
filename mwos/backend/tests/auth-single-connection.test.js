@@ -215,7 +215,7 @@ test('new Google patients finish the callback, exchange, and required profile wi
 test('existing Google patients finish callback and exchange without creating another account', async () => {
   identityLinked = true;
   patientId = 'patient-record';
-  const result = await invoke(oauth.finish, { user: { provider: 'google', subject: 'known-subject' } });
+  const result = await invoke(oauth.finish, { user: { provider: 'google', subject: 'known-subject', email: user.email, emailVerified: true } });
   assert.ifError(result.failure);
   assert.equal(new URL(result.location).searchParams.has('new_account'), false);
   const login = await invoke(oauth.exchange, { body: { code: new URL(result.location).searchParams.get('code') } });
@@ -224,16 +224,29 @@ test('existing Google patients finish callback and exchange without creating ano
   assert.equal(statements.some((sql) => sql.startsWith('INSERT INTO users')), false);
 });
 
-test('patient and admin registration reuse the transaction for identifiers and profile lookup', async () => {
+test('patient and authorized admin-created registration reuse the transaction without leaking staff sessions', async () => {
   for (const role of ['patient', 'admin']) {
-    const result = await invoke(auth.register, { body: {
+    const result = await invoke(auth.register, { user: role === 'admin' ? { ...user, role: 'admin' } : user, body: {
       email: `${role}@example.invalid`, password: 'test-only-password', role,
       firstName: 'Test', lastName: 'Account', dateOfBirth: '2000-01-01',
     } });
     assert.ifError(result.failure);
     assert.equal(result.status, 201);
     assert.equal(result.payload.data.user.role, role);
-    if (role === 'admin') assert.equal(result.payload.data.user.staffProfile.staffId, 'staff-record');
+    if (role === 'admin') {
+      assert.equal(result.payload.data.user.staffProfile.staffId, 'staff-record');
+      assert.equal(result.payload.data.accessToken, undefined);
+      assert.equal(result.payload.data.refreshToken, undefined);
+    }
+  }
+});
+
+test('public registration cannot self-assign any staff or administrator role', async () => {
+  for (const role of ['admin', 'doctor', 'midwife', 'nurse']) {
+    statements = [];
+    const result = await invoke(auth.register, { user: undefined, body: { email: 'staff@example.invalid', password: 'test-password', role, firstName: 'Test', lastName: 'Staff' } });
+    assert.equal(result.status, 403);
+    assert.equal(statements.length, 0, 'Reject privilege escalation before any database writes');
   }
 });
 
@@ -249,7 +262,7 @@ test('native OAuth handoff rejects intercepted codes without the original verifi
   const verifier = 'v'.repeat(64);
   identityLinked = true;
   const callback = await invoke(oauth.finish, {
-    user: { provider: 'google', subject: 'native-google-subject' },
+    user: { provider: 'google', subject: 'native-google-subject', email: user.email, emailVerified: true },
     mobileOAuth: { codeChallenge: verifierChallenge(verifier) },
   });
   assert.ifError(callback.failure);

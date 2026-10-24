@@ -218,6 +218,14 @@ WHERE ui_preferences IS NULL
    );
 
 -- Password reset tokens
+ALTER TABLE oauth_login_codes ADD COLUMN IF NOT EXISTS provider VARCHAR(24);
+ALTER TABLE oauth_login_codes ADD COLUMN IF NOT EXISTS verified_email VARCHAR(255);
+ALTER TABLE oauth_login_codes ADD COLUMN IF NOT EXISTS email_otp_required BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE oauth_login_codes ADD COLUMN IF NOT EXISTS email_otp_hash TEXT;
+ALTER TABLE oauth_login_codes ADD COLUMN IF NOT EXISTS email_otp_expires_at TIMESTAMPTZ;
+ALTER TABLE oauth_login_codes ADD COLUMN IF NOT EXISTS email_otp_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE oauth_login_codes ADD COLUMN IF NOT EXISTS email_otp_sent_at TIMESTAMPTZ;
+
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
@@ -739,8 +747,27 @@ CREATE TABLE IF NOT EXISTS notifications (
   read_at TIMESTAMPTZ
 );
 
--- Consent-based GPS location shares for active emergency coordination.
+-- Private delivery receipts, not exposed through the Supabase Data API.
+CREATE TABLE IF NOT EXISTS notification_email_events (
+  id UUID PRIMARY KEY,
+  event_key TEXT NOT NULL UNIQUE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  notification_id UUID REFERENCES notifications(id) ON DELETE CASCADE,
+  recipient VARCHAR(255),
+  subject TEXT NOT NULL,
+  text_body TEXT NOT NULL,
+  delivery_status VARCHAR(24) NOT NULL CHECK (delivery_status IN ('pending','sending','accepted','failed','unconfigured','no_verified_recipient')),
+  error_code VARCHAR(40),
+  attempted_at TIMESTAMPTZ,
+  accepted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_notification_email_events_notification ON notification_email_events(notification_id);
+CREATE INDEX IF NOT EXISTS idx_notification_email_events_user ON notification_email_events(user_id);
+REVOKE ALL ON notification_email_events FROM PUBLIC;
+
 -- A share expires automatically when the patient's device stops sending updates.
+-- Consent-based GPS location shares for active emergency coordination.
 CREATE TABLE IF NOT EXISTS emergency_location_shares (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   patient_id UUID REFERENCES patients(id) ON DELETE CASCADE NOT NULL UNIQUE,
@@ -986,7 +1013,7 @@ BEGIN
     'immunizations', 'education_content', 'media_feed_posts', 'patient_documents',
     'service_requirements', 'patient_requirement_submissions', 'staff_documents',
     'upload_sessions', 'reviews', 'inventory', 'billing', 'audit_logs',
-    'notifications', 'emergency_location_shares', 'conversation_threads',
+    'notifications', 'notification_email_events', 'emergency_location_shares', 'conversation_threads',
     'conversation_participants', 'conversation_messages', 'tele_consult_sessions',
     'care_tasks', 'backup_logs'
   ] LOOP
