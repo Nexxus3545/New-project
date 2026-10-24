@@ -57,7 +57,7 @@ app.use(
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Step-Up-Token'],
   })
 );
 
@@ -86,6 +86,8 @@ const smsLoginLimiter = rateLimit({
 app.use(limiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/v1/auth/login', authLimiter);
+app.use('/api/auth/oauth/exchange', authLimiter);
+app.use('/api/v1/auth/oauth/exchange', authLimiter);
 app.use('/api/auth/sms-login/request', smsLoginLimiter);
 app.use('/api/v1/auth/sms-login/request', smsLoginLimiter);
 

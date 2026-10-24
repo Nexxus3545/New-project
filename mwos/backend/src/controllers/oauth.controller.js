@@ -6,6 +6,9 @@ const { generateUniqueCode } = require('../utils/identifiers');
 const { generateSessionTokens } = require('../utils/tokens');
 const { buildUserPayload } = require('./auth.controller');
 const { MOBILE_CALLBACK, createState, readMobileState, codeHash, verifierChallenge } = require('../utils/oauthHandoff');
+const { sendMail, isEmailConfigured } = require('../utils/mailer');
+const { requiresGoogleEmailCode, maskEmail, createEmailCode, matchesEmailCode } = require('../utils/googleEmailVerification');
+const { queueGoogleSignIn, deliverNotification } = require('../utils/notificationEvents');
 
 const VALID_PROVIDERS = new Set(['google', 'facebook']);
 const OAUTH_STATE_COOKIE = 'mwos_oauth_state';
@@ -129,6 +132,12 @@ const provisionPatientFromProvider = async (providerProfile, req) => {
     if (!user.is_active) {
       throw createOAuthError('oauth_account_inactive', 'This account is not active. Please contact the clinic.');
     }
+    if (provider === 'google' && (!email || !providerProfile.emailVerified)) {
+      throw createOAuthError('oauth_email_required', 'A verified Google email address is required.');
+    }
+    if (provider === 'google') {
+      await query('UPDATE oauth_identities SET provider_email = $1, updated_at = NOW() WHERE user_id = $2 AND provider = $3', [email, user.id, provider]);
+    }
     return { user, created: false };
   }
 
@@ -180,13 +189,13 @@ const provisionPatientFromProvider = async (providerProfile, req) => {
   }
 };
 
-const createOneTimeCode = async (userId, challenge) => {
+const createOneTimeCode = async (userId, challenge, providerProfile) => {
   const code = crypto.randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + OAUTH_CODE_TTL_MS);
   await query(
-    `INSERT INTO oauth_login_codes (user_id, code_hash, expires_at)
-     VALUES ($1, $2, $3)`,
-    [userId, codeHash(code, challenge), expiresAt]
+    `INSERT INTO oauth_login_codes (user_id, code_hash, expires_at, provider, verified_email, email_otp_required)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [userId, codeHash(code, challenge), expiresAt, providerProfile.provider, providerProfile.emailVerified ? providerProfile.email?.trim().toLowerCase() : null, providerProfile.provider === 'google' && requiresGoogleEmailCode()]
   );
   return code;
 };
@@ -252,8 +261,7 @@ const ensureConfigured = (providerName) => (req, res, next) => {
 const finish = async (req, res, next) => {
   try {
     const { user, created } = await provisionPatientFromProvider(req.user, req);
-    const code = await createOneTimeCode(user.id, req.mobileOAuth?.codeChallenge);
-    await query('UPDATE users SET last_login_at = NOW(), last_seen_at = NOW(), updated_at = NOW() WHERE id = $1', [user.id]);
+    const code = await createOneTimeCode(user.id, req.mobileOAuth?.codeChallenge, req.user);
     if (req.mobileOAuth) return loginRedirect(req, res, { code });
     return frontendRedirect(res, '/oauth-callback', { code, new_account: created ? '1' : undefined });
   } catch (error) {
@@ -281,10 +289,14 @@ const exchange = async (req, res, next) => {
 
     const client = await getClient();
     let user;
+    let data;
+    let emailCodeMessage;
+    let eventId;
     try {
       await client.query('BEGIN');
       const result = await client.query(
-        `SELECT c.id AS code_id, ${prefixedAuthUserFields('u')}
+        `SELECT c.id AS code_id, c.provider, c.verified_email, c.email_otp_required,
+                c.email_otp_hash, c.email_otp_expires_at, c.email_otp_attempts, ${prefixedAuthUserFields('u')}
          FROM oauth_login_codes c
          JOIN users u ON u.id = c.user_id
          WHERE c.code_hash = $1 AND c.consumed_at IS NULL AND c.expires_at > NOW()
@@ -303,30 +315,79 @@ const exchange = async (req, res, next) => {
         return res.status(403).json({ success: false, message: 'This account is not active. Please contact the clinic.' });
       }
 
-      const { accessToken, refreshToken } = generateSessionTokens(user.id, user.role);
-      await client.query('UPDATE oauth_login_codes SET consumed_at = NOW() WHERE id = $1', [user.code_id]);
-      await client.query(
-        'UPDATE users SET refresh_token = $1, last_login_at = NOW(), last_seen_at = NOW(), updated_at = NOW() WHERE id = $2',
-        [refreshToken, user.id]
-      );
-      await auditOAuthEvent(client, { userId: user.id, action: 'oauth_login', provider: 'external', req });
-      const userPayload = await buildUserPayload(user, client);
-      await client.query('COMMIT');
+      if (user.role !== 'patient') {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ success: false, message: 'Google sign-in only authorizes patient access. Staff must use their clinic account.' });
+      }
 
-      return res.json({
-        success: true,
-        data: {
-          accessToken,
-          refreshToken,
-          user: userPayload,
-        },
-      });
+      let verified = !user.email_otp_required;
+      if (user.email_otp_required) {
+        if (challenge && req.body.emailVerificationSupported !== true) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ success: false, code: 'CLIENT_UPDATE_REQUIRED', message: 'Update the MWOS Android app or use the clinic website to complete the required email-code check.' });
+        }
+        if (!user.email_otp_hash) {
+          if (!user.verified_email || !isEmailConfigured()) {
+            await client.query('ROLLBACK');
+            return res.status(503).json({ success: false, code: 'EMAIL_UNAVAILABLE', message: 'Secure email verification is temporarily unavailable. Please contact the clinic or try again later.' });
+          }
+          const generated = createEmailCode(user.code_id);
+          await client.query(
+            `UPDATE oauth_login_codes SET email_otp_hash = $1, email_otp_expires_at = $2,
+             email_otp_sent_at = NOW(), expires_at = $2 WHERE id = $3`,
+            [generated.hash, generated.expiresAt, user.code_id]
+          );
+          emailCodeMessage = { id: user.code_id, to: user.verified_email, code: generated.code };
+          data = { verificationRequired: true, destination: maskEmail(user.verified_email), expiresAt: generated.expiresAt };
+        } else if (req.body.verificationCode === undefined) {
+          data = { verificationRequired: true, destination: maskEmail(user.verified_email), expiresAt: user.email_otp_expires_at };
+        } else {
+          const attempts = Number(user.email_otp_attempts || 0) + 1;
+          const supplied = typeof req.body.verificationCode === 'string' ? req.body.verificationCode.trim() : '';
+          const expired = !user.email_otp_expires_at || new Date(user.email_otp_expires_at) <= new Date();
+          verified = !expired && attempts <= 5 && matchesEmailCode(user.code_id, supplied, user.email_otp_hash);
+          await client.query(
+            `UPDATE oauth_login_codes SET email_otp_attempts = $1,
+             consumed_at = CASE WHEN $2 THEN NOW() ELSE consumed_at END WHERE id = $3`,
+            [attempts, expired || (!verified && attempts >= 5), user.code_id]
+          );
+          if (!verified) {
+            await client.query('COMMIT');
+            return res.status(400).json({ success: false, code: expired || attempts >= 5 ? 'EMAIL_CODE_EXPIRED' : 'EMAIL_CODE_INVALID', message: expired || attempts >= 5 ? 'This verification attempt has ended. Start Google sign-in again for a new code.' : 'The verification code is incorrect. Check your email and try again.' });
+          }
+        }
+      }
+
+      if (verified) {
+        const { accessToken, refreshToken } = generateSessionTokens(user.id, user.role);
+        await client.query('UPDATE oauth_login_codes SET consumed_at = NOW() WHERE id = $1', [user.code_id]);
+        await client.query(
+          'UPDATE users SET refresh_token = $1, last_login_at = NOW(), last_seen_at = NOW(), updated_at = NOW() WHERE id = $2',
+          [refreshToken, user.id]
+        );
+        await auditOAuthEvent(client, { userId: user.id, action: 'oauth_login', provider: user.provider || 'external', req });
+        const userPayload = await buildUserPayload(user, client);
+        if (user.provider === 'google') eventId = await queueGoogleSignIn(client, user, { eventId: user.code_id, verifiedEmail: user.verified_email, emailVerified: user.email_otp_required });
+        data = { accessToken, refreshToken, user: userPayload };
+      }
+      await client.query('COMMIT');
     } catch (error) {
       try { await client.query('ROLLBACK'); } catch {}
       throw error;
     } finally {
       client.release();
     }
+
+    if (emailCodeMessage) {
+      try {
+        await sendMail({ to: emailCodeMessage.to, subject: 'Your MWOS Google sign-in verification code', text: `Your MWOS sign-in code is ${emailCodeMessage.code}. It expires in 10 minutes and can be used once. Do not share this code. If you did not start this sign-in, ignore this email. Clinic staff will never ask for this code.` });
+      } catch {
+        await query('UPDATE oauth_login_codes SET consumed_at = NOW() WHERE id = $1', [emailCodeMessage.id]);
+        return res.status(503).json({ success: false, code: 'EMAIL_DELIVERY_FAILED', message: 'Your verification email could not be sent. No sign-in session was created. Please start Google sign-in again later.' });
+      }
+    }
+    if (eventId) data.notification = await deliverNotification(eventId);
+    return res.json({ success: true, data });
   } catch (error) {
     return next(error);
   }

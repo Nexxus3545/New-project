@@ -16,6 +16,7 @@ function runtime() {
   let enrolled = true;
   let browserResult = { type: 'success', url: 'tmccopinomwos://oauth?code=test-code' };
   let browserUrl;
+  let emailCodeRequired = false;
   const user = { id: 'patient-user', role: 'patient', patientId: 'patient-record', firstName: 'Test', lastName: 'Patient', email: 'test@example.invalid' };
   const session = { accessToken: 'test-access-token', refreshToken: 'test-refresh-token', user };
   const api = {
@@ -27,7 +28,14 @@ function runtime() {
       requests.push({ url });
       return { data: { data: url === '/auth/providers' ? { google: true } : user } };
     },
-    post: async (url, body) => { requests.push({ url, body }); return { data: { data: session } }; },
+    post: async (url, body) => {
+      requests.push({ url, body });
+      if (url === '/auth/oauth/exchange' && emailCodeRequired) {
+        if (!body.verificationCode) return { data: { data: { verificationRequired: true, destination: 't***@example.invalid' } } };
+        if (body.verificationCode !== '123456') throw { response: { data: { message: 'Incorrect code' }, status: 400 } };
+      }
+      return { data: { data: session } };
+    },
     patch: async (url, body) => {
       requests.push({ url, body, method: 'patch' });
       return { data: { data: { ...user, phone: body.phone } } };
@@ -92,6 +100,7 @@ function runtime() {
   return { load, secure, cache, writes, requests, hooks, user, session,
     deny: (value) => { denied = value; }, enroll: (value) => { enrolled = value; },
     browser: (value) => { browserResult = value; }, browserUrl: () => browserUrl,
+    requireEmail: () => { emailCodeRequired = true; },
   };
 }
 
@@ -142,6 +151,37 @@ test('cancelled or unexpected Google callbacks never issue a session', async () 
     assert.equal(r.secure.has('accessToken'), false);
     assert.equal(r.requests.some((request) => request.url === '/auth/oauth/exchange'), false);
   }
+});
+
+test('mobile email verification keeps the handoff in memory and cannot create a session early', async () => {
+  const r = runtime();
+  r.requireEmail();
+  const store = r.load('src/hooks/useAuthStore.js').useAuthStore;
+  assert.equal((await store.getState().loginWithGoogle()).verificationRequired, true);
+  assert.equal(store.getState().user, null);
+  assert.equal(r.secure.has('accessToken'), false);
+  assert.equal(r.secure.has('refreshToken'), false);
+  assert.equal(r.cache.size, 0);
+  const pending = store.getState().googleEmailVerification;
+  assert.ok(pending.pendingProof.codeVerifier);
+  assert.ok(![...r.secure.values()].some((value) => String(value).includes('pendingProof')));
+  assert.equal((await store.getState().verifyGoogleEmail('000000')).success, false);
+  assert.equal(store.getState().user, null);
+  assert.equal((await store.getState().verifyGoogleEmail('123456')).success, true);
+  assert.equal(store.getState().googleEmailVerification, null);
+  assert.equal(r.secure.get('accessToken'), r.session.accessToken);
+  const request = r.requests.filter((item) => item.url === '/auth/oauth/exchange').at(-1);
+  assert.equal(request.body.codeVerifier, pending.pendingProof.codeVerifier);
+});
+
+test('cancelling the email check discards the in-memory proof without saving credentials', async () => {
+  const r = runtime(); r.requireEmail();
+  const store = r.load('src/hooks/useAuthStore.js').useAuthStore;
+  await store.getState().loginWithGoogle();
+  store.getState().cancelGoogleEmailVerification();
+  assert.equal(store.getState().googleEmailVerification, null);
+  assert.equal((await store.getState().verifyGoogleEmail('123456')).success, false);
+  assert.equal(r.secure.has('accessToken'), false);
 });
 
 test('fingerprint lock removes usable tokens and cancelled biometric access does not restore the user', async () => {

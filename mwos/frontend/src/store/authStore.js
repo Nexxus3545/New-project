@@ -43,6 +43,7 @@ const setSessionTokens = (accessToken, refreshToken, stepUpToken = null) => {
 const friendlyAuthError = (error, fallback) => {
   const status = error.response?.status
   const message = error.response?.data?.message
+  if (['EMAIL_UNAVAILABLE', 'EMAIL_DELIVERY_FAILED'].includes(error.response?.data?.code) && message) return message
 
   if ([404, 405, 502, 503, 504].includes(status) || /route .* not found/i.test(message || '')) {
     return 'The clinic service is temporarily unavailable. Please try again shortly or contact TMC Copino for assistance.'
@@ -141,10 +142,17 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  completeOAuthLogin: async (code) => {
+  completeOAuthLogin: async (code, verificationCode) => {
     set({ isLoading: true, error: null })
     try {
-      const res = await api.post('/auth/oauth/exchange', { code })
+      const res = await api.post('/auth/oauth/exchange', { code, ...(verificationCode !== undefined ? { verificationCode } : {}) }, { timeout: 30000 })
+      if (res.data.data.verificationRequired) {
+        set({ isLoading: false, error: null })
+        return { success: true, ...res.data.data }
+      }
+      if (!res.data.data.accessToken || !res.data.data.refreshToken || !res.data.data.user) {
+        throw new Error('Your sign-in response is incomplete. Please start Google sign-in again.')
+      }
       const { accessToken, refreshToken, user } = res.data.data
       setSessionTokens(accessToken, refreshToken)
       applyAuthenticatedUser(user, set)

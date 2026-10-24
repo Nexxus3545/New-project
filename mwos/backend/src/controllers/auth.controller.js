@@ -341,6 +341,10 @@ const register = async (req, res, next) => {
     if (!['admin', 'doctor', 'midwife', 'nurse', 'patient'].includes(role)) {
       return res.status(400).json({ success: false, message: 'Invalid role' });
     }
+    const managedAccount = req.user?.role === 'admin';
+    if (role !== 'patient' && !managedAccount) {
+      return res.status(403).json({ success: false, message: 'Public registration is for patients only. Staff accounts must be created by an authorized clinic administrator.' });
+    }
 
     if (password.length < 6) {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
@@ -434,6 +438,12 @@ const register = async (req, res, next) => {
             patientCare.careType,
           ]
         );
+      }
+
+      if (managedAccount) {
+        const userPayload = await buildUserPayload(user, client);
+        await client.query('COMMIT');
+        return res.status(201).json({ success: true, message: 'Clinic account created. No sign-in session was issued.', data: { user: userPayload } });
       }
 
       const { accessToken, refreshToken } = generateSessionTokens(user.id, user.role);

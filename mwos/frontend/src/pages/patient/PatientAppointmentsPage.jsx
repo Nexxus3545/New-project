@@ -14,7 +14,7 @@ export default function PatientAppointmentsPage() {
   const appointments = useQuery({ queryKey: ['patient-appointments'], queryFn: () => api.get('/appointments', { params: { limit: 100 } }).then((response) => response.data.data) })
   const directory = useQuery({ queryKey: ['patient-appointment-directory'], queryFn: () => api.get('/interactions/directory').then((response) => response.data.data) })
   const booking = useMutation({
-    mutationFn: (payload) => api.post('/appointments', payload).then((response) => response.data.data),
+    mutationFn: (payload) => api.post('/appointments', payload, { timeout: 30000 }).then((response) => ({ ...response.data.data, notification: response.data.notification })),
     onSuccess: (saved) => {
       setReceipt(saved)
       queryClient.invalidateQueries({ queryKey: ['patient-appointments'] })
@@ -40,6 +40,7 @@ export default function PatientAppointmentsPage() {
           <h3 className="font-semibold">Your appointment request was saved</h3>
           <p className="mt-2">{appointmentLabel(receipt.appointment_type)} | {formatCareDate(receipt.scheduled_date)} | {formatCareTime(receipt.scheduled_time)}</p>
           <p className="mt-2 text-sm">Reference: {receipt.id}. Status: {receipt.status || 'scheduled'}. Wait for the clinic to confirm your visit; you do not need to send this request again.</p>
+          {receipt.notification ? <p className="mt-2 text-sm">{receipt.notification.email === 'accepted' ? 'The email server accepted your appointment update. Check your inbox or spam folder; delivery is not guaranteed.' : receipt.notification.email === 'unconfigured' ? 'Your request is saved in MWOS. Email updates are not active because the clinic email sender is not connected yet.' : 'Your request is saved in MWOS, but email delivery could not be confirmed. Check Notifications for the latest update.'}</p> : null}
           <button type="button" className="btn-secondary mt-4" onClick={() => { setReceipt(null); setForm((current) => ({ ...current, scheduledDate: '', scheduledTime: '', notes: '' })); booking.reset() }}>Request another visit</button>
         </div>
       ) : <form onSubmit={submit} className="mt-4 space-y-4">

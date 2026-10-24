@@ -106,6 +106,7 @@ const authenticateWithBiometrics = async (promptMessage) => {
 
 export const useAuthStore = create((set, get) => ({
   user: null,
+  googleEmailVerification: null,
   isLoading: false,
   isInitialized: false,
   error: null,
@@ -153,7 +154,7 @@ export const useAuthStore = create((set, get) => ({
   },
 
   login: async (email, password) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, googleEmailVerification: null });
     try {
       const res = await api.post('/auth/login', { email: email.trim(), password });
       const { accessToken, refreshToken, user } = res.data.data;
@@ -211,8 +212,14 @@ export const useAuthStore = create((set, get) => ({
     try {
       const session = await signInWithGoogle();
       if (session.cancelled) { set({ isLoading: false }); return { success: false, cancelled: true }; }
+      if (session.verificationRequired) {
+        // Pending sign-in proofs remain in memory; they are not authenticated sessions.
+        set({ googleEmailVerification: session, isLoading: false, error: null });
+        return { success: true, verificationRequired: true };
+      }
+      if (!session.accessToken || !session.refreshToken || !session.user) throw new Error('Your Google sign-in response is incomplete. Please start again.');
       const biometricEnabled = await saveSession(session);
-      set({ user: session.user, isLoading: false, error: null, stepUpToken: null, biometricPending: false, biometricEnabled });
+      set({ user: session.user, googleEmailVerification: null, isLoading: false, error: null, stepUpToken: null, biometricPending: false, biometricEnabled });
       return { success: true, user: session.user };
     } catch (error) {
       const message = error.response?.data?.message || error.message || 'Google sign-in was not completed.';
@@ -220,6 +227,26 @@ export const useAuthStore = create((set, get) => ({
       return { success: false, error: message };
     }
   },
+
+  verifyGoogleEmail: async (verificationCode) => {
+    const pending = get().googleEmailVerification;
+    if (!pending?.pendingProof) return { success: false, error: 'Start Google sign-in again.' };
+    set({ isLoading: true, error: null });
+    try {
+      const response = await api.post('/auth/oauth/exchange', { ...pending.pendingProof, verificationCode }, { timeout: 30000 });
+      const session = response.data.data;
+      if (session.verificationRequired || !session.accessToken || !session.refreshToken || !session.user) throw new Error('The email check was not completed.');
+      const biometricEnabled = await saveSession(session);
+      set({ user: session.user, googleEmailVerification: null, isLoading: false, error: null, stepUpToken: null, biometricPending: false, biometricEnabled });
+      return { success: true, user: session.user };
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'The email code could not be verified.';
+      set({ isLoading: false, error: message });
+      return { success: false, error: message };
+    }
+  },
+
+  cancelGoogleEmailVerification: () => set({ googleEmailVerification: null, error: null }),
 
   completeGoogleProfile: async (form) => {
     set({ isLoading: true, error: null });
@@ -343,7 +370,7 @@ export const useAuthStore = create((set, get) => ({
   logout: async () => {
     try { await api.post('/auth/logout'); } catch {}
     await clearTokens();
-    set({ user: null, error: null, stepUpToken: null, biometricEnabled: false, biometricPending: false });
+    set({ user: null, googleEmailVerification: null, error: null, stepUpToken: null, biometricEnabled: false, biometricPending: false });
   },
 
   clearError: () => set({ error: null }),

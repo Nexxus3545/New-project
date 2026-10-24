@@ -6,11 +6,10 @@ import useSignInProviders from '../hooks/useSignInProviders'
 import { GoogleProviderIcon } from '../components/common/AuthProviderIcons'
 import PatientCareFields from '../components/patient/PatientCareFields'
 
-const roles = ['patient', 'nurse', 'midwife', 'doctor', 'admin']
 const steps = [
   { label: 'Patient Info', description: 'Identity and birth details' },
   { label: 'Contact', description: 'Reachability and location' },
-  { label: 'Access', description: 'Role and sign-in details' },
+  { label: 'Access', description: 'Secure patient sign-in details' },
   { label: 'Review', description: 'Confirm before creating the account' },
 ]
 
@@ -161,16 +160,7 @@ export default function RegisterPage() {
 
             {step === 2 ? (
               <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="label">Role</label>
-                  <select name="role" value={form.role} onChange={onChange} className="input">
-                    {roles.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <div><p className="label">Account type</p><p className="mt-3 text-sm font-semibold">Patient</p></div>
                 <div>
                   <label className="label">Password</label>
                   <input
@@ -185,7 +175,7 @@ export default function RegisterPage() {
                   />
                 </div>
                 <div className="md:col-span-2 rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                  Patient accounts use the clinic portal. Staff accounts open the internal workspace.
+                  Public registration creates patient accounts only. Clinic staff access is assigned by an authorized administrator.
                 </div>
               </div>
             ) : null}

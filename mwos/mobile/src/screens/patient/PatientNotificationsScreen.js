@@ -74,6 +74,7 @@ export default function PatientNotificationsScreen() {
                 </View>
                 <Text style={styles.title}>{item.title}</Text>
                 <Text style={styles.body}>{item.body}</Text>
+                {item.email_status ? <Text style={styles.body}>{item.email_status === 'accepted' ? 'Email accepted by sender. Check your inbox or spam folder; delivery is not guaranteed.' : item.email_status === 'unconfigured' ? 'Email sender not connected. This MWOS notification is saved.' : item.email_status === 'no_verified_recipient' ? 'No Google-verified email is linked. This MWOS notification is saved.' : 'Email delivery is pending or could not be confirmed. Check MWOS for the latest update.'}</Text> : null}
                 <Text style={styles.time}>
                   {new Date(item.created_at).toLocaleString('en-PH', {
                     month: 'short',

@@ -29,6 +29,7 @@ test('migration is transactional, bounded, and rolls back on error', async () =>
 
 const database = require('../src/config/database');
 const originalQuery = database.query;
+const originalGetClient = database.getClient;
 let statements;
 let ownsPatient;
 let pregnancyMatches;
@@ -39,11 +40,14 @@ database.query = async (sql, params = []) => {
   if (sql.startsWith('SELECT id FROM pregnancies')) return { rows: pregnancyMatches ? [{ id: 'pregnancy-1' }] : [] };
   if (sql.startsWith('SELECT id FROM appointments')) return { rows: [] };
   if (sql.startsWith('INSERT INTO appointments')) return { rows: [{ id: 'appointment-1', appointment_type: params[3], pregnancy_id: params[1] }] };
+  if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)) return { rows: [] };
+  if (sql.includes('oi.provider_email AS email')) return { rows: [] };
   throw new Error(`Unexpected query: ${sql}`);
 };
+database.getClient = async () => ({ query: database.query, release() {} });
 const controller = require('../src/controllers/appointment.controller');
 beforeEach(() => { statements = []; ownsPatient = true; pregnancyMatches = true; hasProfile = true; });
-after(async () => { database.query = originalQuery; await database.pool.end(); });
+after(async () => { database.query = originalQuery; database.getClient = originalGetClient; await database.pool.end(); });
 
 async function invoke(handler, body = {}) {
   const result = { status: 200 };

@@ -1,13 +1,16 @@
 const { query } = require('../config/database');
 const { sendMail } = require('../utils/mailer');
+const { emailSecurityStatus } = require('../utils/googleEmailVerification');
 
 const getMine = async (req, res, next) => {
   try {
     const result = await query(
-      `SELECT id, title, body, type, channel, is_read, metadata, created_at, read_at
-       FROM notifications
-       WHERE user_id = $1
-       ORDER BY created_at DESC
+      `SELECT n.id, n.title, n.body, n.type, n.channel, n.is_read, n.metadata, n.created_at, n.read_at,
+              e.delivery_status AS email_status
+       FROM notifications n
+       LEFT JOIN notification_email_events e ON e.notification_id = n.id
+       WHERE n.user_id = $1
+       ORDER BY n.created_at DESC
        LIMIT 100`,
       [req.user.id]
     );
@@ -73,9 +76,8 @@ const create = async (req, res, next) => {
         to: targetUser.email,
         subject: `[MWOS] ${title}`,
         text: body,
-        html: `<p>Hello ${targetUser.first_name || 'User'},</p><p>${body}</p>`,
       }).catch((err) => {
-        console.error('Email notification failed:', err.message);
+        console.error('Email notification failed:', String(err.code || 'EMAIL_FAILED').slice(0, 40));
       });
     }
 
@@ -85,4 +87,6 @@ const create = async (req, res, next) => {
   }
 };
 
-module.exports = { getMine, markRead, create };
+const getSettings = (_req, res) => res.json({ success: true, data: emailSecurityStatus() });
+
+module.exports = { getMine, markRead, create, getSettings };
