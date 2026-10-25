@@ -80,7 +80,7 @@ npm run build --prefix frontend
 node frontend/tests/browser/account-security-smoke.cjs
 ```
 
-Run all nine browser suites listed in `frontend/tests/browser/README.md` against
+Run all ten browser suites listed in `frontend/tests/browser/README.md` against
 the resulting build. Screenshots contain synthetic accounts only.
 
 Release checks passed: 135 tests (67 API, 47 web, 21 mobile), all nine browser
@@ -94,6 +94,27 @@ The appearance browser suite measures the rendered panel's text and active
 controls in both light and dark mode against a 4.5:1 text contrast target
 ([W3C guidance](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)).
 This is focused verification, not a whole-system accessibility certification.
+
+## Clinic Photo Tour
+
+The pictured clinic-spaces section now uses the same four original photographs
+in a responsive slideshow. No facility photograph is generated or altered.
+The main top-of-page building hero remains unchanged. Crossfades and gentle zoom
+are scoped to the photo tour, not the rest of the app's calm-motion defaults.
+Rotation runs every seven seconds only when the next image is ready and the
+tour/page is visible. Hover temporarily suspends rotation; entering keyboard
+focus or choosing a photograph stops it until explicitly played again.
+
+Play/pause, previous/next, arrow-key navigation, numbered thumbnails, real text
+captions and loading-failure feedback are available. Operating-system reduced
+motion disables autoplay/zoom and retains manual viewing. Narrow phones use a
+two-column thumbnail grid. No clinical values, records or booking flows change.
+See the [W3C carousel animation guidance](https://www.w3.org/WAI/tutorials/carousels/animations/).
+
+Photo-tour release verification: 49 web tests, all ten browser suites and the
+production build passed. The existing profile-alignment suite now waits for
+fonts and resized layout frames before measuring; its unchanged alignment
+assertions passed three consecutive runs. All browser data remained synthetic.
 
 If rollback is necessary, redeploy the preceding API and web production commit.
 Leave the additive table and nullable column in place; do not reset or reseed the

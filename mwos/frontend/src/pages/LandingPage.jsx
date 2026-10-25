@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { publicApi } from '../utils/api'
 import BrandMark from '../components/common/BrandMark'
 import AppIcon from '../components/common/AppIcon'
+import ClinicSlideshow from '../components/common/ClinicSlideshow'
 import { useAuthStore } from '../store/authStore'
 import '../styles/landing.css'
 
@@ -14,12 +15,6 @@ const services = [
   { icon: 'delivery', title: 'Birth preparation', text: 'Discuss your birth plan, required documents, and next steps with the clinic care team.' },
   { icon: 'postnatal', title: 'Postnatal follow-up', text: 'Stay connected with your care team after birth, with visits and recovery questions in one place.' },
   { icon: 'baby', title: 'Mother & newborn care', text: 'Bring your questions about feeding, newborn follow-up, and ongoing care to your clinic visit.' },
-]
-const spaces = [
-  { src: '/clinic/maternal-reception.jpg', title: 'A familiar welcome', alt: 'TMC Copino reception and information area' },
-  { src: '/clinic/maternal-consultation-room.jpg', title: 'Room for your questions', alt: 'Clinic consultation room with an examination bed and care equipment' },
-  { src: '/clinic/maternal-birthing-room.jpg', title: 'A look inside the birthing room', alt: 'TMC Copino birthing room with a delivery bed and newborn bassinet' },
-  { src: '/clinic/maternal-recovery-room.jpg', title: 'A place to rest', alt: 'Clinic recovery room with two patient beds' },
 ]
 const teamRoles = [
   { icon: 'prenatal', title: 'Midwifery care', text: 'Pregnancy visits, birth preparation, and continuity of maternal care.' },
@@ -38,21 +33,6 @@ const faqs = [
 function SectionHeading({ eyebrow, title, children, id }) {
   return <div className="clinic-section-heading">
     <p className="clinic-eyebrow">{eyebrow}</p><h2 id={id}>{title}</h2>{children ? <p>{children}</p> : null}
-  </div>
-}
-
-function ClinicGallery() {
-  const [selected, setSelected] = useState(0)
-  return <div className="clinic-gallery">
-    <figure className="clinic-gallery-main">
-      <img src={spaces[selected].src} alt={spaces[selected].alt} loading="lazy" width="2048" height="2048" />
-      <figcaption aria-live="polite"><span>Inside TMC Copino</span><strong>{spaces[selected].title}</strong></figcaption>
-    </figure>
-    <div className="clinic-gallery-thumbs" aria-label="Explore clinic spaces">
-      {spaces.map((space, index) => <button key={space.src} type="button" aria-label={`Show ${space.title.toLowerCase()}`} aria-pressed={selected === index} onClick={() => setSelected(index)}>
-        <img src={space.src} alt="" loading="lazy" width="120" height="100" /><span>{String(index + 1).padStart(2, '0')}</span>
-      </button>)}
-    </div>
   </div>
 }
 
@@ -121,10 +101,10 @@ export default function LandingPage() {
       </section>
 
       <section id="clinic" className="clinic-spaces-section" aria-labelledby="clinic-spaces-title">
-        <div className="clinic-container clinic-spaces-layout"><ClinicGallery /><div className="clinic-spaces-copy"><SectionHeading eyebrow="Step inside" title="A familiar place for an important chapter." id="clinic-spaces-title">Get to know the spaces at TMC Copino before your visit. These are photographs of the clinic supplied for this website, not stock images.</SectionHeading>
+        <div className="clinic-container clinic-spaces-layout"><ClinicSlideshow /><div className="clinic-spaces-copy"><SectionHeading eyebrow="Step inside" title="A familiar place for an important chapter." id="clinic-spaces-title">Take a little tour before your visit. Explore the real spaces at TMC Copino, from your first welcome to a place to rest.</SectionHeading>
           <p>From your first conversation at reception to your follow-up visits, MWOS helps you keep appointments, requirements, and saved records connected with the clinic.</p>
           <div className="clinic-address-card"><AppIcon name="emergency" /><div><strong>TMC Copino Birthing Home & Medical Clinic</strong><span>Gajo, Tiwi, Albay</span><a href={clinicPage} target="_blank" rel="noopener noreferrer">Visit the clinic Facebook page <span aria-hidden="true">&nearr;</span></a></div></div>
-          <p className="clinic-small-note">Please confirm clinic hours and service availability before travelling.</p>
+          <p className="clinic-small-note">Actual clinic photographs supplied for this website. Please confirm clinic hours and service availability before travelling.</p>
         </div></div>
       </section>
 

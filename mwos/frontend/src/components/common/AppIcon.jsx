@@ -29,6 +29,10 @@ const artwork = {
   activity: <><path d="M9 6h12M9 12h12M9 18h12M3 6h.01M3 12h.01M3 18h.01" /></>,
   preferences: <><path d="M3 6h5m4 0h9M3 12h11m4 0h3M3 18h3m4 0h11" /><circle cx="10" cy="6" r="2" /><circle cx="16" cy="12" r="2" /><circle cx="8" cy="18" r="2" /></>,
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+  play: <path d="m8 5 11 7-11 7Z" />,
+  pause: <><path d="M8 5v14M16 5v14" /></>,
+  arrowLeft: <path d="m14 5-7 7 7 7M7 12h14" />,
+  arrowRight: <path d="m10 5 7 7-7 7M3 12h14" />,
   signOut: <><path d="M9 4H4v16h5m6-12 4 4-4 4m-7-4h11" /></>,
 }
 

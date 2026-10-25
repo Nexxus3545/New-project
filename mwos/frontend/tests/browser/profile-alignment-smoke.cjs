@@ -54,6 +54,11 @@ async function main() {
   const near = (a, b, label) => assert.ok(Math.abs(a - b) < 2, `${label}: ${a} vs ${b}`);
   async function check(page, width, uploaded = false) {
     await page.setViewportSize({ width, height: 1000 });
+    // Avoid mixing geometry from before and after a responsive layout change.
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
     const form = page.getByRole('form', { name: 'Profile details', exact: true });
     const photo = await form.locator('[aria-label="Profile photo"]').boundingBox();
     const upload = await form.locator('label[for="profile-photo-upload"]').boundingBox();
