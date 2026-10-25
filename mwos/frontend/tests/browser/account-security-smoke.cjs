@@ -114,11 +114,11 @@ async function main() {
     await review.page.getByRole('link', { name: 'Recover or set MWOS password', exact: true }).click();
     await review.page.getByRole('heading', { name: 'Forgot password', exact: true }).waitFor();
     await review.page.goto(origin + '/my/settings?tab=appearance');
-    await review.page.getByRole('button', { name: 'Restore TMC Copino defaults', exact: true }).click();
+    await review.page.getByRole('form', { name: 'Appearance', exact: true }).waitFor();
     await review.page.getByRole('button', { name: 'Save appearance', exact: true }).click();
     await review.page.getByText('Appearance preferences synced across your account.', { exact: true }).waitFor();
     assert.equal(await review.page.getByRole('group', { name: 'Surface style', exact: true }).count(), 0);
-    assert.equal(review.writes.at(-1).body.uiPreferences.accent, 'rose');
+    assert.equal(review.writes.at(-1).body.uiPreferences.accent, 'blush');
     await review.context.close();
 
     const unavailable = await fixture({ available: false });

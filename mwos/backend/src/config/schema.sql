@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   last_name VARCHAR(100) NOT NULL,
   phone VARCHAR(20),
   avatar_url TEXT,
-  ui_preferences JSONB DEFAULT '{"theme":"light","accent":"rose","density":"comfortable","surface":"solid","motion":"full"}',
+  ui_preferences JSONB DEFAULT '{"theme":"light","accent":"blush","density":"comfortable","surface":"solid","motion":"reduced"}',
   is_active BOOLEAN DEFAULT true,
   refresh_token TEXT,
   last_login_at TIMESTAMPTZ,

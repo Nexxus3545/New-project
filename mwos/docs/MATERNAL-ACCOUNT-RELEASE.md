@@ -11,9 +11,10 @@ the separate unreviewed findings-guidance and private-file migration work.
   booking intent is allowlisted; Google completion retains the existing patient
   dashboard destination. The Download Center remains at `/download`; missing
   installers are not advertised as available binaries.
-- TMC Copino logo-based rose/blush defaults, a restore-defaults control, light/
-  dark/system, density and reduced motion. Unrelated color and glass options are
-  removed. Other clinical modules are not deleted.
+- TMC Copino fixed blush defaults, comfortable spacing, solid surfaces and calm
+  motion. Only light/dark/system mode remains selectable. Palette, density,
+  motion and restore-default controls were removed in the follow-up appearance
+  update. Existing account/browser choices normalize without changing records.
 - Patient deactivation and verified deletion requests require an emailed code.
   Sending a code or selecting an action never closes access. Codes are HMAC
   protected, single-use, expire in ten minutes and allow at most five attempts.
@@ -85,6 +86,14 @@ the resulting build. Screenshots contain synthetic accounts only.
 Release checks passed: 135 tests (67 API, 47 web, 21 mobile), all nine browser
 suites, and the production web build. The API tests included the isolated local
 PostgreSQL checks and loopback SMTP delivery, not real clinic email delivery.
+
+The follow-up blush update adds normalization/parity and text contrast tests.
+Its checks passed: 137 tests (67 API, 49 web, 21 mobile), nine browser suites,
+and the production web build. No new live database migration is required.
+The appearance browser suite measures the rendered panel's text and active
+controls in both light and dark mode against a 4.5:1 text contrast target
+([W3C guidance](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)).
+This is focused verification, not a whole-system accessibility certification.
 
 If rollback is necessary, redeploy the preceding API and web production commit.
 Leave the additive table and nullable column in place; do not reset or reseed the

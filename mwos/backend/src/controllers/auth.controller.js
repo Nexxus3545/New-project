@@ -10,33 +10,7 @@ const { issuedAfterRevocation } = require('../utils/sessionRevocation');
 const { normalizePatientCare } = require('../utils/patientCare');
 const { deliverOtp, generateOtpCode, hashOtpCode, maskPhone } = require('../utils/security');
 
-const DEFAULT_UI_PREFERENCES = {
-  theme: 'light',
-  accent: 'rose',
-  density: 'comfortable',
-  surface: 'solid',
-  motion: 'full',
-};
-
-const PREFERENCE_OPTIONS = {
-  theme: ['system', 'light', 'dark'],
-  accent: ['rose', 'slate'],
-  density: ['comfortable', 'compact'],
-  surface: ['solid'],
-  motion: ['full', 'reduced'],
-};
-
-const sanitizeUiPreferences = (input = {}) => {
-  const normalized = { ...DEFAULT_UI_PREFERENCES };
-
-  for (const [key, allowed] of Object.entries(PREFERENCE_OPTIONS)) {
-    if (typeof input[key] === 'string' && allowed.includes(input[key])) {
-      normalized[key] = input[key];
-    }
-  }
-
-  return normalized;
-};
+const { DEFAULT_UI_PREFERENCES, sanitizeUiPreferences } = require('../utils/appearance');
 
 const buildUserPayload = async (user, client) => {
   // Transaction callers must not acquire a second connection from a one-client pool.

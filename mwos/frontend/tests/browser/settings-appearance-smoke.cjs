@@ -17,7 +17,7 @@ async function main() {
   const errors = [];
 
   async function fixture(role = 'patient') {
-    let user = { id: 'test-user', role, firstName: 'Test', lastName: 'User', email: 'test@example.invalid', phone: '09171234567', careType: 'general' };
+    let user = { id: 'test-user', role, firstName: 'Test', lastName: 'User', email: 'test@example.invalid', phone: '09171234567', careType: 'general', uiPreferences: { theme: 'light', accent: 'slate', density: 'compact', surface: 'glass', motion: 'full' } };
     const writes = [];
     const requests = [];
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
@@ -25,6 +25,7 @@ async function main() {
       if (location.origin !== origin) return;
       if (!localStorage.getItem('user')) localStorage.setItem('user', JSON.stringify(user));
       if (!localStorage.getItem('accessToken')) localStorage.setItem('accessToken', 'test-only-not-a-real-session');
+      if (!localStorage.getItem('appearance')) localStorage.setItem('appearance', JSON.stringify(user.uiPreferences));
     }, { user, origin });
     await context.route('**/*', async (route) => {
       const req = route.request();
@@ -63,6 +64,23 @@ async function main() {
     assert.equal(await page.getByRole('button', { name: 'Change password', exact: true }).count(), 0);
   }
 
+  async function checkContrast(page) {
+    const ratios = await page.getByRole('form', { name: 'Appearance', exact: true }).locator('p, h2, h3, .appearance-choice.active, button[type="submit"]').evaluateAll((elements) => {
+      const rgb = (value) => value.match(/[\d.]+/g).map(Number);
+      const blend = (over, under) => over.slice(0, 3).map((value, index) => value * (over[3] ?? 1) + under[index] * (1 - (over[3] ?? 1)));
+      const luminance = (value) => value.map((channel) => channel / 255).map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+      return elements.filter((element) => element.textContent.trim()).map((element) => {
+        const ancestors = [];
+        for (let current = element; current; current = current.parentElement) ancestors.unshift(current);
+        const background = ancestors.reduce((base, node) => blend(rgb(getComputedStyle(node).backgroundColor), base), [255, 255, 255]);
+        const foreground = blend(rgb(getComputedStyle(element).color), background);
+        const light = luminance(foreground), dark = luminance(background);
+        return { text: element.textContent.trim().slice(0, 60), ratio: (Math.max(light, dark) + 0.05) / (Math.min(light, dark) + 0.05) };
+      });
+    });
+    for (const result of ratios) assert.ok(result.ratio >= 4.5, `Readable text '${result.text}': ${result.ratio.toFixed(2)}:1`);
+  }
+
   try {
     const app = await fixture();
     await app.page.goto(origin + app.base, { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -79,17 +97,27 @@ async function main() {
     for (const width of [1440, 1024, 768, 390, 320]) await checkFit(app.page, width);
     await checkFit(app.page, 1440);
     const form = app.page.getByRole('form', { name: 'Appearance', exact: true });
+    for (const group of ['Accent palette', 'Density', 'Motion', 'Surface style']) assert.equal(await form.getByRole('group', { name: group, exact: true }).count(), 0);
+    assert.equal(await form.getByRole('button', { name: /Restore/ }).count(), 0);
+    assert.equal(await form.getByRole('group').count(), 1);
+    assert.deepEqual(await app.page.evaluate(() => JSON.parse(localStorage.getItem('appearance'))), { theme: 'light', accent: 'blush', density: 'comfortable', surface: 'solid', motion: 'reduced' });
+    await checkContrast(app.page);
     await form.screenshot({ path: path.join(screenshots, 'appearance-desktop.png') });
-    for (const [group, choice] of [['Theme mode', 'Dark'], ['Accent palette', 'Graphite'], ['Density', 'Compact'], ['Motion', 'Reduced motion']]) {
+    await checkFit(app.page, 390);
+    await form.screenshot({ path: path.join(screenshots, 'appearance-mobile-light.png') });
+    await checkFit(app.page, 1440);
+    for (const [group, choice] of [['Theme mode', 'Dark']]) {
       const option = form.getByRole('group', { name: group, exact: true }).getByRole('button', { name: choice, exact: true });
       await option.click();
       assert.equal(await option.getAttribute('aria-pressed'), 'true');
     }
-    const expected = { theme: 'dark', accent: 'slate', density: 'compact', surface: 'solid', motion: 'reduced' };
+    const expected = { theme: 'dark', accent: 'blush', density: 'comfortable', surface: 'solid', motion: 'reduced' };
     assert.deepEqual(await app.page.evaluate(() => JSON.parse(localStorage.getItem('appearance'))), expected);
-    for (const cssClass of ['dark', 'ui-compact', 'ui-motion-reduced']) {
+    for (const cssClass of ['dark', 'ui-motion-reduced']) {
       assert.ok(await app.page.locator('html').evaluate((element, name) => element.classList.contains(name), cssClass));
     }
+    assert.equal(await app.page.locator('html').evaluate((element) => element.classList.contains('ui-compact') || element.classList.contains('ui-glass')), false);
+    await checkContrast(app.page);
     await form.getByRole('button', { name: 'Save appearance', exact: true }).click();
     await form.getByRole('status').getByText('Appearance preferences synced across your account.', { exact: true }).waitFor();
     assert.deepEqual(app.writes, [{ uiPreferences: expected }]);

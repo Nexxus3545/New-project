@@ -5,7 +5,7 @@ import api from '../utils/api'
 import { uploadResumableFile } from '../utils/chunkedUpload'
 import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
-import { accentPresets, appearanceOptions, defaultAppearance, normalizeAppearance } from '../utils/appearance'
+import { appearanceOptions, normalizeAppearance } from '../utils/appearance'
 import AccountManagement from '../components/common/AccountSecurityActions'
 import ContactNumberCard from '../components/common/ContactNumberCard'
 import EmailNotificationSettings from '../components/common/EmailNotificationSettings'
@@ -485,7 +485,6 @@ export default function AccountCenterPage({ section = 'profile' }) {
     } catch {}
   }
 
-  const previewPalette = accentPresets[appearanceForm.accent] || accentPresets.rose
   const deliveries = Array.isArray(patientProfile?.deliveries) ? patientProfile.deliveries.filter(Boolean) : []
   const latestDelivery = useMemo(
     () => deliveries.slice().sort((left, right) => new Date(right.delivery_date || 0) - new Date(left.delivery_date || 0))[0],
@@ -904,86 +903,26 @@ export default function AccountCenterPage({ section = 'profile' }) {
             <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
               <div className="w-full min-w-0 sm:flex-1">
                 <h2 className="section-title mb-1">Appearance</h2>
-                <p className="text-sm text-gray-500 dark:text-slate-400">TMC Copino rose and soft blush are the clinic defaults, based on its logo. Light/dark mode, readable spacing, and reduced motion remain available.</p>
+                <p className="text-sm text-slate-600 dark:text-slate-300">Blush is the clinic default. Soft surfaces, clear text, comfortable spacing, and calm motion are applied automatically.</p>
               </div>
               {appearanceNotice ? <span role="status" className="badge badge-success max-w-full whitespace-normal">{appearanceNotice}</span> : null}
             </div>
 
             <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]">
-            <div
-              className="rounded-3xl border border-white/60 p-4 shadow-sm"
-              style={{ background: `linear-gradient(145deg, ${previewPalette.accentGhost}, ${previewPalette.accentSoft})` }}
-            >
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em]" style={{ color: previewPalette.accentText }}>Live preview</p>
-                  <p className="mt-2 text-lg font-semibold text-slate-900">Modern, calm, and reliable.</p>
-                </div>
-                <div className="flex gap-2">
-                  {appearanceOptions.accent.map((option) => (
-                    <span
-                      key={option.value}
-                      className={`h-3 w-3 rounded-full ${appearanceForm.accent === option.value ? 'ring-4 ring-white' : ''}`}
-                      style={{ background: accentPresets[option.value].accent }}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div className={`grid gap-3 ${appearanceForm.density === 'compact' ? 'grid-cols-2 text-xs' : 'grid-cols-1 text-sm'}`}>
-                <div className="rounded-2xl bg-white/80 p-3 shadow-sm backdrop-blur">
-                  <p className="font-semibold text-slate-900">Dashboard cards</p>
-                  <p className="mt-1 text-slate-500">Adapts spacing, mood, and emphasis.</p>
-                </div>
-                <div className="rounded-2xl bg-slate-950 px-4 py-3 text-white">
-                  <div className="mb-2 h-2 w-24 rounded-full" style={{ background: previewPalette.accent }} />
-                  <div className="h-2 w-16 rounded-full bg-white/40" />
-                </div>
-              </div>
-            </div>
+            <aside className="appearance-preview" aria-label="Blush theme preview">
+              <p className="appearance-preview-label">TMC Copino Blush</p>
+              <h3 className="appearance-preview-heading">Calm color.<br />Clear text.</h3>
+              <p className="appearance-preview-copy">Soft blush surfaces with high-contrast text. Buttons keep a deeper rose shade so their labels stay clear.</p>
+              <p className="appearance-preview-note"><AppIcon name="lock" />Your account and care information stay in the secure portal.</p>
+            </aside>
 
             <div className="space-y-6">
             <AppearanceGroup
               label="Theme mode"
-              description="Use system theme or pin the interface to light or dark."
+              description="Use your device's mode, or choose light or dark. The blush styling stays consistent."
               field="theme"
               value={appearanceForm.theme}
               options={appearanceOptions.theme}
-              onChange={(field, value) => {
-                const next = { ...appearanceForm, [field]: value }
-                setAppearanceForm(next)
-                setThemePreferences(next)
-              }}
-            />
-            <AppearanceGroup
-              label="Accent palette"
-              description="Use the clinic logo palette or a neutral alternative."
-              field="accent"
-              value={appearanceForm.accent}
-              options={appearanceOptions.accent}
-              onChange={(field, value) => {
-                const next = { ...appearanceForm, [field]: value }
-                setAppearanceForm(next)
-                setThemePreferences(next)
-              }}
-            />
-            <AppearanceGroup
-              label="Density"
-              description="Choose roomier spacing or a tighter workspace."
-              field="density"
-              value={appearanceForm.density}
-              options={appearanceOptions.density}
-              onChange={(field, value) => {
-                const next = { ...appearanceForm, [field]: value }
-                setAppearanceForm(next)
-                setThemePreferences(next)
-              }}
-            />
-            <AppearanceGroup
-              label="Motion"
-              description="Reduce visual motion for a calmer experience."
-              field="motion"
-              value={appearanceForm.motion}
-              options={appearanceOptions.motion}
               onChange={(field, value) => {
                 const next = { ...appearanceForm, [field]: value }
                 setAppearanceForm(next)
@@ -994,7 +933,6 @@ export default function AccountCenterPage({ section = 'profile' }) {
             </div>
 
             <div className="flex flex-wrap justify-end gap-3">
-              <button type="button" className="btn-secondary" onClick={() => { setAppearanceForm({ ...defaultAppearance }); setThemePreferences(defaultAppearance); setAppearanceNotice('Clinic defaults previewed. Save appearance to sync.') }}>Restore TMC Copino defaults</button>
               <button type="submit" className="btn-primary" disabled={appearanceMutation.isPending}>
                 {appearanceMutation.isPending ? 'Saving appearance...' : 'Save appearance'}
               </button>

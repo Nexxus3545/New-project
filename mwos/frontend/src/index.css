@@ -3,19 +3,20 @@
 @tailwind utilities;
 
 :root {
-  --accent: #d65c8a;
-  --accent-strong: #9b2e63;
-  --accent-soft: #fde5ef;
-  --accent-ghost: #fff8fb;
-  --accent-text: #7d3358;
-  --accent-ring: rgba(214, 92, 138, 0.24);
-  --brand-rose: #d65c8a;
-  --brand-blush: #fff1f7;
+  --accent: #98405f;
+  --accent-strong: #78334f;
+  --accent-soft: #fae7ef;
+  --accent-ghost: #fff5f9;
+  --accent-text: #78334f;
+  --accent-link: #98405f;
+  --accent-ring: rgba(152, 64, 95, 0.42);
+  --brand-rose: #98405f;
+  --brand-blush: #fff5f9;
   --brand-pearl: #fffdfd;
-  --brand-copper: #9c5960;
-  --hero-start: #fde6f0;
-  --hero-mid: #ecdafc;
-  --hero-end: #fffdfd;
+  --brand-copper: #78334f;
+  --hero-start: #71334d;
+  --hero-mid: #f5d5e2;
+  --hero-end: #98405f;
 }
 
 @layer base {
@@ -24,7 +25,7 @@
   }
 
   html {
-    background: #f7fbff;
+    background: #fff7fa;
   }
 
   body {
@@ -181,8 +182,8 @@
   }
 
   .input:focus {
-    border-color: color-mix(in srgb, var(--accent) 45%, white);
-    box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.16);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-ring);
     outline: none;
   }
 
@@ -368,10 +369,10 @@
   }
 
   .appearance-choice.active {
-    border-color: rgba(236, 72, 153, 0.28);
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(253, 230, 240, 0.9));
+    border-color: var(--accent);
+    background: var(--accent-soft);
     color: var(--accent-text);
-    box-shadow: 0 0 0 4px rgba(236, 72, 153, 0.12);
+    box-shadow: none;
   }
 
   .account-avatar {
@@ -710,7 +711,7 @@ body,
 .dark body,
 .futuristic-shell,
 .auth-scene {
-  background: #fff8fb !important;
+  background: #fff7fa !important;
 }
 
 .dark body,
@@ -783,6 +784,97 @@ body,
 .sidebar-link-patient.active {
   background: var(--accent-soft) !important;
   color: var(--accent-text) !important;
+}
+
+.text-\[var\(--accent\)\],
+.text-\[color\:var\(--accent\)\] {
+  color: var(--accent-link);
+}
+
+.appearance-preview {
+  padding: 1.5rem;
+  border: 1px solid #e4bdce;
+  border-radius: 1.5rem;
+  background: #fff2f7;
+  color: #382c35;
+}
+
+.appearance-preview-label {
+  color: #78334f;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.appearance-preview-heading {
+  margin-top: 1rem;
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.appearance-preview-copy {
+  margin-top: 1rem;
+  color: #65535f;
+  font-size: 0.875rem;
+  line-height: 1.8;
+}
+
+.appearance-preview-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e4bdce;
+  color: #65535f;
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+.appearance-preview-note svg {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+.dark .appearance-preview {
+  border-color: #725265;
+  background: #281e29;
+  color: #f7edf3;
+}
+
+.dark .appearance-preview-label {
+  color: #f2bdd1;
+}
+
+.dark .appearance-preview-copy,
+.dark .appearance-preview-note {
+  color: #d5bdcd;
+  border-color: #725265;
+}
+
+.input::placeholder {
+  color: #766473;
+  opacity: 1;
+}
+
+.dark .input::placeholder {
+  color: #b5a3b4;
+}
+
+.ui-motion-reduced .btn-primary:hover,
+.ui-motion-reduced .btn-patient:hover,
+.ui-motion-reduced .card-hover:hover {
+  transform: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .clinic-hero {

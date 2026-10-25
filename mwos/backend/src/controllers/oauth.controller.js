@@ -13,13 +13,7 @@ const { queueGoogleSignIn, deliverNotification } = require('../utils/notificatio
 const VALID_PROVIDERS = new Set(['google', 'facebook']);
 const OAUTH_STATE_COOKIE = 'mwos_oauth_state';
 const OAUTH_CODE_TTL_MS = 60 * 1000;
-const DEFAULT_UI_PREFERENCES = {
-  theme: 'light',
-  accent: 'rose',
-  density: 'comfortable',
-  surface: 'solid',
-  motion: 'full',
-};
+const { DEFAULT_UI_PREFERENCES } = require('../utils/appearance');
 
 const getProvider = (value) => (VALID_PROVIDERS.has(value) ? value : null);
 

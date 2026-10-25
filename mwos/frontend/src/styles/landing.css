@@ -1,10 +1,10 @@
 .clinic-landing {
   --clinic-ink: #292d32;
-  --clinic-muted: #63666c;
-  --clinic-rose: #984651;
-  --clinic-line: #e8dfd8;
-  --clinic-paper: #faf7f2;
-  --clinic-blush: #f2e5df;
+  --clinic-muted: #655760;
+  --clinic-rose: #98405f;
+  --clinic-line: #ecd5df;
+  --clinic-paper: #fff7fa;
+  --clinic-blush: #fae7ef;
   color: var(--clinic-ink);
   background: var(--clinic-paper);
   font-family: 'Manrope', sans-serif;
@@ -16,7 +16,7 @@
 .clinic-landing :is(a, button, summary):focus-visible { outline: 3px solid #984651; outline-offset: 5px; }
 .clinic-landing :is(section, main) { scroll-margin-top: 110px; }
 .clinic-landing .clinic-container { width: min(1240px, calc(100% - 96px)); margin-inline: auto; }
-.clinic-landing .clinic-header { border-bottom: 1px solid var(--clinic-line); background: #faf7f2f5; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(14px); }
+.clinic-landing .clinic-header { border-bottom: 1px solid var(--clinic-line); background: #fff7faf5; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(14px); }
 .clinic-landing .clinic-header-inner { width: min(1360px, calc(100% - 80px)); margin: auto; min-height: 100px; display: flex; align-items: center; justify-content: space-between; gap: 25px; }
 .clinic-landing .clinic-home-link { min-width: 0; }
 .clinic-landing .brand-mark-label { color: var(--clinic-ink); }

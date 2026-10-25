@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { accentPresets, defaultAppearance, normalizeAppearance } from '../utils/appearance'
+import { defaultAppearance, getAppearancePalette, normalizeAppearance } from '../utils/appearance'
 
 const getStoredAppearance = () => {
   try {
@@ -26,8 +26,8 @@ const resolveThemeMode = (theme) => {
 
 const applyAppearance = (appearance) => {
   const normalized = normalizeAppearance(appearance)
-  const palette = accentPresets[normalized.accent] || accentPresets.rose
   const resolvedTheme = resolveThemeMode(normalized.theme)
+  const palette = getAppearancePalette(resolvedTheme)
   const root = document.documentElement
 
   root.classList.toggle('dark', resolvedTheme === 'dark')
@@ -40,6 +40,7 @@ const applyAppearance = (appearance) => {
   root.style.setProperty('--accent-soft', palette.accentSoft)
   root.style.setProperty('--accent-ghost', palette.accentGhost)
   root.style.setProperty('--accent-text', palette.accentText)
+  root.style.setProperty('--accent-link', palette.accentLink)
   root.style.setProperty('--accent-ring', palette.accentRing)
   root.style.setProperty('--hero-start', palette.heroStart)
   root.style.setProperty('--hero-end', palette.heroEnd)
