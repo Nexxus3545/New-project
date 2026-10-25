@@ -70,7 +70,7 @@ export const useAuthStore = create((set, get) => ({
 
     set({ isHydrating: true })
     try {
-      const res = await api.get('/auth/me')
+      const res = await api.get('/auth/me', { sessionRedirect: false })
       const storedStepUp = localStorage.getItem('stepUpToken')
       applyAuthenticatedUser(res.data.data, set)
       set({ stepUpToken: storedStepUp })

@@ -9,7 +9,7 @@ async function main() {
   const deployed = process.env.MWOS_VERIFY_ORIGIN;
   if (deployed && deployed !== 'https://tmc-copino-mwos.vercel.app') throw new Error('Unrecognized verification target');
   const { preview } = await import('vite');
-  const server = deployed ? null : await preview({ root: path.resolve(__dirname, '../..'), preview: { host: '127.0.0.1', port: 4186, strictPort: true } });
+  const server = deployed ? null : await preview({ configFile: false, root: path.resolve(__dirname, '../..'), preview: { host: '127.0.0.1', port: 4186, strictPort: true } });
   const origin = deployed || 'http://127.0.0.1:4186';
   const browser = await chromium.launch({ headless: true, executablePath: process.env.MWOS_CHROME_BINARY });
   const screenshots = path.join(os.tmpdir(), 'mwos-settings-appearance');
@@ -80,14 +80,14 @@ async function main() {
     await checkFit(app.page, 1440);
     const form = app.page.getByRole('form', { name: 'Appearance', exact: true });
     await form.screenshot({ path: path.join(screenshots, 'appearance-desktop.png') });
-    for (const [group, choice] of [['Theme mode', 'Dark'], ['Accent palette', 'Graphite'], ['Density', 'Compact'], ['Surface style', 'Glass'], ['Motion', 'Reduced motion']]) {
+    for (const [group, choice] of [['Theme mode', 'Dark'], ['Accent palette', 'Graphite'], ['Density', 'Compact'], ['Motion', 'Reduced motion']]) {
       const option = form.getByRole('group', { name: group, exact: true }).getByRole('button', { name: choice, exact: true });
       await option.click();
       assert.equal(await option.getAttribute('aria-pressed'), 'true');
     }
-    const expected = { theme: 'dark', accent: 'slate', density: 'compact', surface: 'glass', motion: 'reduced' };
+    const expected = { theme: 'dark', accent: 'slate', density: 'compact', surface: 'solid', motion: 'reduced' };
     assert.deepEqual(await app.page.evaluate(() => JSON.parse(localStorage.getItem('appearance'))), expected);
-    for (const cssClass of ['dark', 'ui-compact', 'ui-glass', 'ui-motion-reduced']) {
+    for (const cssClass of ['dark', 'ui-compact', 'ui-motion-reduced']) {
       assert.ok(await app.page.locator('html').evaluate((element, name) => element.classList.contains(name), cssClass));
     }
     await form.getByRole('button', { name: 'Save appearance', exact: true }).click();

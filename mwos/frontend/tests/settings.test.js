@@ -4,7 +4,7 @@ import { createServer } from 'vite'
 import { fileURLToPath } from 'node:url'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { StaticRouter } from 'react-router-dom/server.js'
+import { StaticRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 let server, settings, Panel
@@ -16,7 +16,7 @@ before(async () => {
     getItem: (key) => values.get(key) ?? null,
     setItem: (key, value) => { if (blocked) throw new Error('Storage blocked'); values.set(key, value) },
   } })
-  server = await createServer({ root: fileURLToPath(new URL('..', import.meta.url)), configFile: false, appType: 'custom', logLevel: 'error', server: { middlewareMode: true, watch: null, hmr: false } })
+  server = await createServer({ root: fileURLToPath(new URL('..', import.meta.url)), configFile: false, appType: 'custom', logLevel: 'error', optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, watch: null, hmr: false, ws: false } })
   settings = await server.ssrLoadModule('/src/store/settingsStore.js')
   Panel = (await server.ssrLoadModule('/src/components/common/SettingsPanel.jsx')).default
 })

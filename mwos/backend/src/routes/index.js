@@ -8,6 +8,7 @@ const { requireStepUp } = require('../middleware/stepUp');
 // Controllers
 const authCtrl = require('../controllers/auth.controller');
 const accountCtrl = require('../controllers/account.controller');
+const accountSecurity = require('../controllers/accountSecurity.controller');
 const patientCtrl = require('../controllers/patient.controller');
 const vitalsCtrl = require('../controllers/vitals.controller');
 const apptCtrl = require('../controllers/appointment.controller');
@@ -41,6 +42,8 @@ router.post(['/auth/sms-login/request', '/auth/sms-login/verify'], (_req, res) =
 router.post('/auth/register', authCtrl.register);
 router.post('/auth/forgot-password', authCtrl.forgotPassword);
 router.post('/auth/reset-password', authCtrl.resetPassword);
+router.post('/account/reactivate/request', accountSecurity.requestCode);
+router.post('/account/reactivate/confirm', accountSecurity.confirm);
 router.post('/auth/refresh', authCtrl.refreshToken);
 router.post('/auth/logout', authenticate, authCtrl.logout);
 router.get('/auth/me', authenticate, authCtrl.getMe);
@@ -71,6 +74,10 @@ router.post('/reviews', reviewCtrl.create);
 router.use(authenticate, activityLogger);
 
 router.get('/account/activity', accountCtrl.getActivity);
+router.get('/account/security', accountSecurity.status);
+router.post('/account/security/request', accountSecurity.requestCode);
+router.post('/account/security/confirm', accountSecurity.confirm);
+router.get('/account/deletion-requests', authorize('admin'), accountSecurity.deletionQueue);
 
 router.post('/uploads/sessions', uploadSessionCtrl.createSession);
 router.get('/uploads/sessions/:id', uploadSessionCtrl.getSession);
@@ -545,10 +552,13 @@ router.get('/users', authenticate, authorize('admin'), async (req, res, next) =>
 router.patch('/users/:id/toggle', authenticate, authorize('admin'), requireStepUp('critical'), async (req, res, next) => {
   try {
     const result = await query(
-      'UPDATE users SET is_active = NOT is_active, updated_at = NOW() WHERE id = $1 RETURNING id, email, role, is_active',
+      `UPDATE users SET is_active = NOT is_active, refresh_token = NULL, sessions_revoked_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND NOT EXISTS (
+         SELECT 1 FROM account_security_requests WHERE user_id = $1 AND purpose = 'delete' AND confirmed_at IS NOT NULL
+       ) RETURNING id, email, role, is_active`,
       [req.params.id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
+    if (result.rows.length === 0) return res.status(409).json({ success: false, message: 'Account not found or a verified deletion request requires a separate clinic review.' });
     res.json({ success: true, data: result.rows[0] });
   } catch (err) { next(err); }
 });

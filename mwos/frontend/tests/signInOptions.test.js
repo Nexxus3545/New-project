@@ -3,7 +3,7 @@ import { after, before, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { StaticRouter } from 'react-router-dom/server.js'
+import { StaticRouter } from 'react-router-dom'
 import { createServer } from 'vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -26,7 +26,8 @@ before(async () => {
     configFile: false,
     appType: 'custom',
     logLevel: 'error',
-    server: { middlewareMode: true, watch: null, hmr: false },
+    optimizeDeps: { noDiscovery: true, include: [] },
+    server: { middlewareMode: true, watch: null, hmr: false, ws: false },
   })
   ;({ getSignInProviderNote } = await server.ssrLoadModule('/src/hooks/useSignInProviders.js'))
 })
@@ -118,12 +119,14 @@ test('appearance has its own settings view for patients and staff without accoun
     const html = await renderAccount('settings', role, '?tab=appearance')
     assert.match(html, /<h1[^>]*>Settings<\/h1>/)
     assert.match(html, /aria-label="Appearance"/)
-    for (const label of ['Theme mode', 'Accent palette', 'Density', 'Surface style', 'Motion']) {
+    for (const label of ['Theme mode', 'Accent palette', 'Density', 'Motion']) {
       assert.match(html, new RegExp(`aria-label="${label}"`))
     }
     assert.match(html, /aria-pressed="true"/)
     assert.match(html, /data-app-icon="appearance"/)
     assert.match(html, /Save appearance/)
+    assert.match(html, /Restore TMC Copino defaults/)
+    assert.doesNotMatch(html, /aria-label="Surface style"|>Lavender<|>Sunrise<|>Glass</)
     assert.doesNotMatch(html, /Login email|Current password|contact-recovery-phone|Step-up access|Save patient record/)
     const navigation = html.match(/<nav aria-label="Settings sections"[\s\S]*?<\/nav>/)[0]
     const activeLink = navigation.match(/<a aria-current="page"[^>]*>/)[0]

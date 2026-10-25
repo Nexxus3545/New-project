@@ -1,11 +1,12 @@
 import React, { startTransition, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../utils/api'
 import { uploadResumableFile } from '../utils/chunkedUpload'
 import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
-import { accentPresets, appearanceOptions, normalizeAppearance } from '../utils/appearance'
+import { accentPresets, appearanceOptions, defaultAppearance, normalizeAppearance } from '../utils/appearance'
+import AccountManagement from '../components/common/AccountSecurityActions'
 import ContactNumberCard from '../components/common/ContactNumberCard'
 import EmailNotificationSettings from '../components/common/EmailNotificationSettings'
 import AppIcon from '../components/common/AppIcon'
@@ -76,6 +77,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
   const settingsLanguage = useSettingsStore((state) => state.preferences.language)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const location = useLocation()
   const user = useAuthStore((state) => state.user)
   const updateCurrentUser = useAuthStore((state) => state.updateCurrentUser)
   const logout = useAuthStore((state) => state.logout)
@@ -138,6 +140,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
     newPassword: '',
     confirmPassword: '',
   })
+  const [emailPassword, setEmailPassword] = useState('')
   const [stepUpForm, setStepUpForm] = useState({
     purpose: 'critical',
     code: '',
@@ -160,6 +163,9 @@ export default function AccountCenterPage({ section = 'profile' }) {
     queryFn: () => api.get('/auth/me').then((response) => response.data.data),
     initialData: user,
   })
+  useEffect(() => {
+    if (isSettings && isAccount && location.hash === '#change-password' && !isLoading) document.getElementById('change-password')?.scrollIntoView({ block: 'start' })
+  }, [isSettings, isAccount, isLoading, location.hash])
 
   const { data: patientProfile } = useQuery({
     queryKey: ['patients-me-settings'],
@@ -237,6 +243,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
       queryClient.setQueryData(['auth-me'], nextUser)
       queryClient.invalidateQueries({ queryKey: ['auth-me'] })
       setProfileNotice(isSettings ? 'Login email updated successfully.' : 'Profile details updated successfully.')
+      setEmailPassword('')
       setLocalError('')
     },
     onError: (error) => {
@@ -416,7 +423,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
     setProfileNotice('')
     try {
       await profileMutation.mutateAsync(isSettings
-        ? { email: profileForm.email }
+        ? { email: profileForm.email, currentPassword: emailPassword }
         : { firstName: profileForm.firstName, lastName: profileForm.lastName, avatarUrl: profileForm.avatarUrl })
     } catch {}
   }
@@ -618,7 +625,8 @@ export default function AccountCenterPage({ section = 'profile' }) {
                   </div></> : <div className="md:col-span-2">
                     <label className="label" htmlFor="settings-login-email">Login email</label>
                     <input id="settings-login-email" className="input" type="email" required autoComplete="email" value={profileForm.email} onChange={(event) => setProfileForm((current) => ({ ...current, email: event.target.value }))} />
-                    <p className="mt-2 text-xs text-slate-500">For Google sign-in, continue using the Google account already linked to MWOS.</p>
+                    <p className="mt-2 text-xs text-slate-500">For Google sign-in, continue using the Google account already linked to MWOS. Google recovery still goes to its verified email.</p>
+                    {profileForm.email.trim().toLowerCase() !== account?.email?.toLowerCase() ? <label className="label mt-4">Current MWOS password to change login email<input type="password" autoComplete="current-password" className="input mt-2" value={emailPassword} onChange={(event) => setEmailPassword(event.target.value)} required /></label> : null}
                   </div>}
                 </div>
                 <div className="flex justify-end">
@@ -741,11 +749,11 @@ export default function AccountCenterPage({ section = 'profile' }) {
                   </div> : null}
                   <div>
                     <label className="label">Blood type</label>
-                    <input className="input" value={patientForm.bloodType} onChange={(event) => updatePatientField('bloodType', event.target.value)} placeholder="A+, O-, AB+" />
+                    <input className="input" value={patientForm.bloodType} readOnly placeholder="Clinic-recorded only" />
                   </div>
                   <div className="md:col-span-2">
                     <label className="label">Credential notes</label>
-                    <textarea className="input min-h-[96px]" value={patientForm.credentialNotes} onChange={(event) => updatePatientField('credentialNotes', event.target.value)} placeholder="Add notes about submitted IDs, verified documents, or pending requirements." />
+                    <textarea className="input min-h-[96px]" value={patientForm.credentialNotes} readOnly placeholder="Clinic verification notes" />
                   </div>
                 </div>
               </div>
@@ -753,16 +761,16 @@ export default function AccountCenterPage({ section = 'profile' }) {
               <div className="rounded-3xl border border-white/50 bg-white/60 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
                 <div className="mb-4">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Biometrics & Care Details</h3>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Clinical biometrics only. This stores care-related measurements, not raw fingerprint or facial authentication data.</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Clinic measurements and notes are read-only. Allergies, conditions, and medication history below are self-reported details for staff review, not new diagnoses or prescriptions. Contact the clinic to correct measured findings.</p>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label className="label">Height (cm)</label>
-                    <input className="input" type="number" step="0.01" value={patientForm.biometricHeightCm} onChange={(event) => updatePatientField('biometricHeightCm', event.target.value)} />
+                    <input className="input" type="number" step="0.01" value={patientForm.biometricHeightCm} readOnly />
                   </div>
                   <div>
                     <label className="label">Weight (kg)</label>
-                    <input className="input" type="number" step="0.01" value={patientForm.biometricWeightKg} onChange={(event) => updatePatientField('biometricWeightKg', event.target.value)} />
+                    <input className="input" type="number" step="0.01" value={patientForm.biometricWeightKg} readOnly />
                   </div>
                   <div>
                     <label className="label">BMI</label>
@@ -782,7 +790,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
                   </div>
                   <div className="md:col-span-2">
                     <label className="label">Biometric notes</label>
-                    <textarea className="input min-h-[96px]" value={patientForm.biometricNotes} onChange={(event) => updatePatientField('biometricNotes', event.target.value)} placeholder="Baseline observations, special handling notes, or physical chart references." />
+                    <textarea className="input min-h-[96px]" value={patientForm.biometricNotes} readOnly placeholder="Clinic-recorded observations" />
                   </div>
                 </div>
               </div>
@@ -853,9 +861,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
                           <span className={`badge ${document.verification_status === 'verified' ? 'badge-success' : document.verification_status === 'rejected' ? 'badge-danger' : 'badge-warning'}`}>
                             {document.verification_status}
                           </span>
-                          <a href={document.file_url} target="_blank" rel="noreferrer" className="text-sm font-medium text-[var(--accent)]">
-                            Open
-                          </a>
+                          <a href={document.file_url} target="_blank" rel="noreferrer" className="text-sm font-medium text-[var(--accent)]">Open</a>
                         </div>
                       </div>
                     ))
@@ -898,7 +904,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
             <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
               <div className="w-full min-w-0 sm:flex-1">
                 <h2 className="section-title mb-1">Appearance</h2>
-                <p className="text-sm text-gray-500 dark:text-slate-400">Personalize your display here. Sign-in, recovery, and security stay in Account &amp; security.</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">TMC Copino rose and soft blush are the clinic defaults, based on its logo. Light/dark mode, readable spacing, and reduced motion remain available.</p>
               </div>
               {appearanceNotice ? <span role="status" className="badge badge-success max-w-full whitespace-normal">{appearanceNotice}</span> : null}
             </div>
@@ -950,7 +956,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
             />
             <AppearanceGroup
               label="Accent palette"
-              description="Change the personality of buttons, active states, and highlights."
+              description="Use the clinic logo palette or a neutral alternative."
               field="accent"
               value={appearanceForm.accent}
               options={appearanceOptions.accent}
@@ -973,18 +979,6 @@ export default function AccountCenterPage({ section = 'profile' }) {
               }}
             />
             <AppearanceGroup
-              label="Surface style"
-              description="Solid cards for clarity or glass surfaces for a lighter feel."
-              field="surface"
-              value={appearanceForm.surface}
-              options={appearanceOptions.surface}
-              onChange={(field, value) => {
-                const next = { ...appearanceForm, [field]: value }
-                setAppearanceForm(next)
-                setThemePreferences(next)
-              }}
-            />
-            <AppearanceGroup
               label="Motion"
               description="Reduce visual motion for a calmer experience."
               field="motion"
@@ -999,7 +993,8 @@ export default function AccountCenterPage({ section = 'profile' }) {
             </div>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end gap-3">
+              <button type="button" className="btn-secondary" onClick={() => { setAppearanceForm({ ...defaultAppearance }); setThemePreferences(defaultAppearance); setAppearanceNotice('Clinic defaults previewed. Save appearance to sync.') }}>Restore TMC Copino defaults</button>
               <button type="submit" className="btn-primary" disabled={appearanceMutation.isPending}>
                 {appearanceMutation.isPending ? 'Saving appearance...' : 'Save appearance'}
               </button>
@@ -1070,7 +1065,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
             </div>
           ) : null}
 
-          <form className="card space-y-5" onSubmit={handlePasswordSubmit}>
+          <form id="change-password" className="card space-y-5" onSubmit={handlePasswordSubmit}>
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h2 className="section-title mb-1">Security</h2>
@@ -1110,15 +1105,17 @@ export default function AccountCenterPage({ section = 'profile' }) {
             </div>
 
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-              Changing your password will sign you out immediately so the new credential becomes the only valid login.
+              Changing your MWOS password ends existing MWOS sessions. It does not change your Google password or disconnect Google sign-in. For a Google-only account, use the recovery link to set an MWOS password.
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end gap-3">
+              <Link className="btn-secondary" to="/forgot-password">Recover or set MWOS password</Link>
               <button type="submit" className="btn-primary" disabled={passwordMutation.isPending}>
                 {passwordMutation.isPending ? 'Updating password...' : 'Change password'}
               </button>
             </div>
           </form>
+          <AccountManagement account={account} />
           </>}
         </div> : null}
       </div>

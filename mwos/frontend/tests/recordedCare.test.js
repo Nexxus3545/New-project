@@ -4,13 +4,13 @@ import { fileURLToPath } from 'node:url'
 import { access, readFile } from 'node:fs/promises'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { StaticRouter } from 'react-router-dom/server.js'
+import { StaticRouter } from 'react-router-dom'
 import { createServer } from 'vite'
 import { careLabel, formatCareDate, formatCareTime, getOpenCareTasks, getRecordedTrend, getRecordedVitals, getRequirementSummary, recordedNumber } from '../src/utils/recordedCare.js'
 
 let server
 before(async () => {
-  server = await createServer({ root: fileURLToPath(new URL('..', import.meta.url)), configFile: false, appType: 'custom', logLevel: 'error', server: { middlewareMode: true, watch: null, hmr: { port: 30000 + process.pid % 20000 } } })
+  server = await createServer({ root: fileURLToPath(new URL('..', import.meta.url)), configFile: false, appType: 'custom', logLevel: 'error', optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, watch: null, hmr: false, ws: false } })
 })
 after(async () => { await server?.close() })
 

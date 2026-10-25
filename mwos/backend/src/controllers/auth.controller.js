@@ -3,9 +3,10 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { query, getClient } = require('../config/database');
 const { generateUniqueCode } = require('../utils/identifiers');
-const { sendMail } = require('../utils/mailer');
+const { sendMail, isEmailConfigured } = require('../utils/mailer');
 const { fetchStaffProfileByUserId, recordLicenseEvent, upsertStaffRegistry } = require('../utils/staff');
 const { generateSessionTokens } = require('../utils/tokens');
+const { issuedAfterRevocation } = require('../utils/sessionRevocation');
 const { normalizePatientCare } = require('../utils/patientCare');
 const { deliverOtp, generateOtpCode, hashOtpCode, maskPhone } = require('../utils/security');
 
@@ -19,9 +20,9 @@ const DEFAULT_UI_PREFERENCES = {
 
 const PREFERENCE_OPTIONS = {
   theme: ['system', 'light', 'dark'],
-  accent: ['teal', 'rose', 'amber', 'cyan', 'slate'],
+  accent: ['rose', 'slate'],
   density: ['comfortable', 'compact'],
-  surface: ['solid', 'glass'],
+  surface: ['solid'],
   motion: ['full', 'reduced'],
 };
 
@@ -487,7 +488,7 @@ const refreshToken = async (req, res, next) => {
     }
 
     const result = await query(
-      'SELECT id, email, role, is_active, refresh_token FROM users WHERE id = $1',
+      'SELECT id, email, role, is_active, refresh_token, sessions_revoked_at FROM users WHERE id = $1',
       [decoded.userId]
     );
 
@@ -501,7 +502,7 @@ const refreshToken = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Account deactivated' });
     }
 
-    if (user.refresh_token !== token) {
+    if (user.refresh_token !== token || !issuedAfterRevocation(decoded, user.sessions_revoked_at)) {
       return res.status(401).json({ success: false, message: 'Refresh token reuse detected' });
     }
 
@@ -561,6 +562,12 @@ const updateProfile = async (req, res, next) => {
     }
 
     const emailValue = email.toLowerCase().trim();
+    if (emailValue !== req.user.email?.toLowerCase()) {
+      const current = await query('SELECT password FROM users WHERE id = $1', [req.user.id]);
+      if (typeof req.body.currentPassword !== 'string' || !current.rows[0] || !await bcrypt.compare(req.body.currentPassword, current.rows[0].password)) {
+        return res.status(403).json({ success: false, message: 'Verify your current MWOS password before changing the login email. Google-only users can set an MWOS password through recovery first.' });
+      }
+    }
     const existing = await query('SELECT id FROM users WHERE email = $1 AND id <> $2', [emailValue, req.user.id]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ success: false, message: 'Email already in use' });
@@ -649,7 +656,7 @@ const changePassword = async (req, res, next) => {
 
     const hashedPassword = await bcrypt.hash(newPassword, 12);
     await query(
-      'UPDATE users SET password = $1, refresh_token = NULL, updated_at = NOW() WHERE id = $2',
+      'UPDATE users SET password = $1, refresh_token = NULL, sessions_revoked_at = NOW(), updated_at = NOW() WHERE id = $2',
       [hashedPassword, req.user.id]
     );
 
@@ -662,12 +669,16 @@ const changePassword = async (req, res, next) => {
 const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
-    if (!email) {
+    if (typeof email !== 'string' || !email.trim() || email.length > 254) {
       return res.status(400).json({ success: false, message: 'Email is required' });
     }
+    if (!isEmailConfigured()) return res.status(503).json({ success: false, message: 'Clinic email recovery is unavailable. Contact the clinic for assistance.' });
 
     const userResult = await query(
-      'SELECT id, email, first_name FROM users WHERE email = $1',
+      `SELECT u.id, u.email, COALESCE(oi.provider_email, u.email) AS recovery_email
+       FROM users u LEFT JOIN oauth_identities oi ON oi.user_id = u.id AND oi.provider = 'google'
+       WHERE u.is_active = TRUE AND (LOWER(u.email) = $1 OR LOWER(oi.provider_email) = $1)
+       ORDER BY (LOWER(oi.provider_email) = $1) DESC NULLS LAST LIMIT 1`,
       [email.toLowerCase().trim()]
     );
 
@@ -687,14 +698,15 @@ const forgotPassword = async (req, res, next) => {
       [user.id, tokenHash, expiresAt]
     );
 
-    const appUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const resetUrl = `${appUrl}/reset-password?token=${resetToken}`;
+    const appUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim();
+    const resetUrl = new URL('/reset-password', appUrl);
+    if (!['https:', 'http:'].includes(resetUrl.protocol) || (process.env.NODE_ENV === 'production' && resetUrl.protocol !== 'https:')) throw new Error('A secure clinic recovery URL is required');
+    resetUrl.searchParams.set('token', resetToken);
 
     await sendMail({
-      to: user.email,
+      to: user.recovery_email,
       subject: 'MWOS Password Reset Request',
-      text: `Hi ${user.first_name}, reset your password using this link: ${resetUrl}`,
-      html: `<p>Hi ${user.first_name},</p><p>Reset your password using this link:</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>This link expires in 30 minutes.</p>`,
+      text: `Reset your MWOS password using this single-use link: ${resetUrl.toString()} . It expires in 30 minutes. This changes only your MWOS password, not your Google password. If this was not you, ignore this email and review your Google account security.`,
     });
 
     res.json({ success: true, message: 'If the email exists, a reset link has been sent' });
@@ -710,32 +722,24 @@ const resetPassword = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'token and newPassword are required' });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
     }
 
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
     const tokenResult = await query(
-      `SELECT id, user_id
-       FROM password_reset_tokens
-       WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW()
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [tokenHash]
+      `WITH consumed AS (
+         UPDATE password_reset_tokens SET used_at = NOW()
+         WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW() RETURNING user_id
+       ) UPDATE users SET password = $2, refresh_token = NULL, sessions_revoked_at = NOW(), updated_at = NOW()
+         WHERE id IN (SELECT user_id FROM consumed) AND is_active = TRUE RETURNING id`,
+      [tokenHash, hashedPassword]
     );
 
     if (tokenResult.rows.length === 0) {
       return res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
     }
-
-    const resetRow = tokenResult.rows[0];
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
-
-    await query('UPDATE users SET password = $1, refresh_token = NULL, updated_at = NOW() WHERE id = $2', [
-      hashedPassword,
-      resetRow.user_id,
-    ]);
-    await query('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1', [resetRow.id]);
 
     res.json({ success: true, message: 'Password has been reset successfully' });
   } catch (err) {

@@ -42,6 +42,6 @@ export const settingsPalette = (preferences) => {
     background: dark ? '#0f172a' : '#fffaf6', card: dark ? '#1e293b' : '#ffffff',
     text: dark ? '#f8fafc' : '#172033', muted: dark ? '#b8c4d7' : '#5b667a',
     border: dark ? '#475569' : '#e6dfe3', soft: dark ? '#334155' : '#f3edef',
-    accent: { coral: '#be123c', teal: '#0f766e', graphite: '#475569' }[preferences.accent],
+    accent: { coral: '#984451', teal: '#0f766e', graphite: '#475569' }[preferences.accent],
   }
 }

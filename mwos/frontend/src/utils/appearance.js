@@ -13,10 +13,7 @@ export const appearanceOptions = {
     { value: 'dark', label: 'Dark' },
   ],
   accent: [
-    { value: 'blush', label: 'Blush' },
-    { value: 'rose', label: 'Coral' },
-    { value: 'lavender', label: 'Lavender' },
-    { value: 'amber', label: 'Sunrise' },
+    { value: 'rose', label: 'TMC Copino (Default)' },
     { value: 'slate', label: 'Graphite' },
   ],
   density: [
@@ -25,7 +22,6 @@ export const appearanceOptions = {
   ],
   surface: [
     { value: 'solid', label: 'Solid' },
-    { value: 'glass', label: 'Glass' },
   ],
   motion: [
     { value: 'full', label: 'Full motion' },
@@ -45,14 +41,14 @@ export const accentPresets = {
     heroEnd: '#fde7f3',
   },
   rose: {
-    accent: '#e11d48',
-    accentStrong: '#be123c',
-    accentSoft: '#ffe4e6',
-    accentGhost: '#fff1f2',
-    accentText: '#9f1239',
-    accentRing: 'rgba(225, 29, 72, 0.28)',
-    heroStart: '#be123c',
-    heroEnd: '#fb7185',
+    accent: '#984451',
+    accentStrong: '#793541',
+    accentSoft: '#fae9e9',
+    accentGhost: '#fff7f7',
+    accentText: '#793541',
+    accentRing: 'rgba(152, 68, 81, 0.28)',
+    heroStart: '#793541',
+    heroEnd: '#984451',
   },
   lavender: {
     accent: '#a855f7',

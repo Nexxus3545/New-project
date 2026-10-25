@@ -11,7 +11,7 @@ async function main() {
   await fs.mkdir(output, { recursive: true });
   const deployedOrigin = process.env.MWOS_VERIFY_ORIGIN;
   if (deployedOrigin && deployedOrigin !== 'https://tmc-copino-mwos.vercel.app') throw new Error('Unrecognized deployed verification target');
-  const server = deployedOrigin ? null : await preview({ root: path.resolve(__dirname, '../..'), preview: { host: '127.0.0.1', port: 4181, strictPort: true } });
+  const server = deployedOrigin ? null : await preview({ configFile: false, root: path.resolve(__dirname, '../..'), preview: { host: '127.0.0.1', port: 4181, strictPort: true } });
   const origin = deployedOrigin || 'http://127.0.0.1:4181';
   const browser = await chromium.launch({ headless: true, ...(process.env.MWOS_CHROME_BINARY ? { executablePath: process.env.MWOS_CHROME_BINARY } : {}) });
   const errors = [];

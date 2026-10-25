@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { query } = require('../config/database');
+const { issuedAfterRevocation } = require('../utils/sessionRevocation');
 
 const authenticate = async (req, res, next) => {
   try {
@@ -24,7 +25,7 @@ const authenticate = async (req, res, next) => {
     }
 
     const result = await query(
-      'SELECT id, email, role, first_name, last_name, is_active FROM users WHERE id = $1',
+      'SELECT id, email, role, first_name, last_name, is_active, sessions_revoked_at FROM users WHERE id = $1',
       [decoded.userId]
     );
 
@@ -35,6 +36,9 @@ const authenticate = async (req, res, next) => {
     const user = result.rows[0];
     if (!user.is_active) {
       return res.status(403).json({ success: false, message: 'Account deactivated' });
+    }
+    if (!issuedAfterRevocation(decoded, user.sessions_revoked_at)) {
+      return res.status(401).json({ success: false, message: 'This session has ended. Please sign in again.', code: 'SESSION_REVOKED' });
     }
 
     await query(

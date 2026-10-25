@@ -88,6 +88,7 @@ app.use('/api/auth/login', authLimiter);
 app.use('/api/v1/auth/login', authLimiter);
 app.use('/api/auth/oauth/exchange', authLimiter);
 app.use('/api/v1/auth/oauth/exchange', authLimiter);
+app.use(['/api/account/security', '/api/v1/account/security', '/api/account/reactivate', '/api/v1/account/reactivate', '/api/auth/forgot-password', '/api/v1/auth/forgot-password', '/api/auth/reset-password', '/api/v1/auth/reset-password'], authLimiter);
 app.use('/api/auth/sms-login/request', smsLoginLimiter);
 app.use('/api/v1/auth/sms-login/request', smsLoginLimiter);
 

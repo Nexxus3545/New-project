@@ -9,7 +9,7 @@ async function main() {
   const deployed = process.env.MWOS_VERIFY_ORIGIN;
   if (deployed && deployed !== 'https://tmc-copino-mwos.vercel.app') throw new Error('Unrecognized target');
   const { preview } = await import('vite');
-  const server = deployed ? null : await preview({ root: path.resolve(__dirname, '../..'), preview: { host: '127.0.0.1', port: 4184, strictPort: true } });
+  const server = deployed ? null : await preview({ configFile: false, root: path.resolve(__dirname, '../..'), preview: { host: '127.0.0.1', port: 4184, strictPort: true } });
   const origin = deployed || 'http://127.0.0.1:4184';
   const browser = await chromium.launch({ headless: true, executablePath: process.env.MWOS_CHROME_BINARY });
   const output = path.join(os.tmpdir(), 'mwos-google-email-verification');

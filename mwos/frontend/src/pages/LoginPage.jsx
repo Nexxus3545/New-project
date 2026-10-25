@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore'
 import api from '../utils/api'
 import useSignInProviders from '../hooks/useSignInProviders'
 import { GoogleProviderIcon } from '../components/common/AuthProviderIcons'
+import { getPortalDestination, getPortalIntent } from '../utils/portalNavigation'
 
 const oauthErrors = {
   google_unavailable: 'Google sign-in is not available yet. Please use your MWOS email and password.',
@@ -52,7 +53,7 @@ export default function LoginPage() {
 
     const result = await login(form.email.trim(), form.password)
     if (result.success) {
-      navigate(result.user.role === 'patient' ? '/my/dashboard' : '/dashboard')
+      navigate(getPortalDestination(result.user, getPortalIntent(location.search)))
     }
   }
 
@@ -60,7 +61,7 @@ export default function LoginPage() {
     if (!form.email) return
     const result = await loginWithPasskey(form.email.trim())
     if (result.success) {
-      navigate(result.user.role === 'patient' ? '/my/dashboard' : '/dashboard')
+      navigate(getPortalDestination(result.user, getPortalIntent(location.search)))
     }
   }
 
@@ -86,6 +87,8 @@ export default function LoginPage() {
       </div>
 
       {error || providerError ? <div className="alert-critical auth-form-alert" role="alert">{error || providerError}</div> : null}
+      {new URLSearchParams(location.search).get('account') === 'deactivated' ? <p role="status" className="alert-success">Your account was deactivated after verification. <Link className="underline" to="/reactivate-account">Request reactivation</Link></p> : null}
+      {new URLSearchParams(location.search).get('account') === 'deletion-requested' ? <p role="status" className="alert-success">Your deletion request was verified. Login is closed while the clinic reviews retained records. No medical records have been erased.</p> : null}
 
       <form onSubmit={handleSubmit} className="auth-login-form">
         <div>
@@ -173,8 +176,10 @@ export default function LoginPage() {
 
 
         <p className="text-center text-sm leading-6 text-slate-500 dark:text-slate-400">
-          New patient? <Link to="/register" className="font-semibold text-[var(--accent)] hover:underline">Create your secure account</Link>
+          New patient? <Link to={`/register${getPortalIntent(location.search) ? `?intent=${getPortalIntent(location.search)}` : ''}`} className="font-semibold text-[var(--accent)] hover:underline">Create your secure account</Link>
         </p>
+
+        <p className="text-center text-sm"><Link to="/" className="text-slate-600 underline underline-offset-4">Back to the clinic homepage</Link></p>
 
         <p className="auth-privacy-note">
           Your health information is protected and available only to authorized clinic personnel.

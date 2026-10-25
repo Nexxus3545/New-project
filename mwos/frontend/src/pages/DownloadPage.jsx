@@ -1,27 +1,29 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import api from '../utils/api'
+import { publicApi } from '../utils/api'
 import BrandMark from '../components/common/BrandMark'
+import { useAuthStore } from '../store/authStore'
 
 const downloadCards = [
-  { title: 'Desktop App', subtitle: 'Windows setup guide', href: '/downloads/mwos-windows-guide.txt' },
-  { title: 'Desktop App', subtitle: 'macOS setup guide', href: '/downloads/mwos-macos-guide.txt' },
-  { title: 'Mobile App', subtitle: 'Android setup guide', href: '/downloads/mwos-android-guide.txt' },
-  { title: 'Mobile App', subtitle: 'iOS setup guide', href: '/downloads/mwos-ios-guide.txt' },
+  { title: 'Desktop app', subtitle: 'Windows portable app', description: 'Read the Windows setup guide. A reviewed release file is not published here yet.', href: '/downloads/mwos-windows-guide.txt' },
+  { title: 'Desktop app', subtitle: 'macOS app', description: 'A signed and notarized macOS release is not published yet.', href: '/downloads/mwos-macos-guide.txt' },
+  { title: 'Mobile app', subtitle: 'Android app', description: 'Internal preview testing is ongoing. A public-release APK is not published here yet.', href: '/downloads/mwos-android-guide.txt' },
+  { title: 'Mobile app', subtitle: 'iOS app', description: 'An Apple-signed iOS release is not published yet.', href: '/downloads/mwos-ios-guide.txt' },
 ]
 
 export default function DownloadPage() {
   const [form, setForm] = useState({ displayName: '', roleLabel: 'Guest', rating: 5, comment: '' })
   const [notice, setNotice] = useState('')
+  const sessionKey = useAuthStore((state) => `${state.user?.id || 'guest'}:${state.user?.role || ''}`)
 
   const { data: reviewSummary } = useQuery({
-    queryKey: ['public-review-summary'],
-    queryFn: () => api.get('/reviews/summary').then((response) => response.data.data),
+    queryKey: ['public-review-summary', sessionKey],
+    queryFn: () => publicApi.get('/reviews/summary').then((response) => response.data.data),
   })
 
   const reviewMutation = useMutation({
-    mutationFn: () => api.post('/reviews', form),
+    mutationFn: () => publicApi.post('/reviews', form),
     onSuccess: () => {
       setNotice('Thank you for your feedback.')
       setForm({ displayName: '', roleLabel: 'Guest', rating: 5, comment: '' })
@@ -30,37 +32,37 @@ export default function DownloadPage() {
   })
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#fff7f8_0%,#fffdfb_46%,#fff5f2_100%)] px-4 py-8 text-slate-900">
+    <main className="min-h-screen bg-[#fff8fb] px-4 py-8 text-slate-900">
       <div className="mx-auto max-w-7xl space-y-8">
+        <Link to="/" className="inline-block text-sm font-semibold text-rose-700 underline underline-offset-4">Back to the clinic homepage</Link>
         <div className="rounded-[36px] border border-white/70 bg-white/90 p-6 shadow-2xl backdrop-blur lg:p-10">
           <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
             <div className="space-y-6">
               <BrandMark sublabel="Maternal Wellness and Operations System" />
               <div>
                 <p className="text-sm uppercase tracking-[0.3em] text-rose-500">Download center</p>
-                <h1 className="mt-3 text-5xl font-semibold leading-tight">Choose your platform before you log in.</h1>
+                <h1 className="mt-3 text-4xl font-semibold leading-tight sm:text-5xl">Install MWOS on your device.</h1>
                 <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-                  Access MWOS through the web portal, desktop workspace, or mobile companion. The platform uses the clinic logo palette, light-first readability, and the same secure backend across experiences.
+                  Use the secure web portal, or explore the setup guides for desktop and mobile. Release availability is shown honestly; a setup guide is not an app installer.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
-                <Link to="/login" className="btn-primary">Open Web Version</Link>
+                <Link to="/portal" className="btn-primary">Open Web Version</Link>
                 <Link to="/register" className="btn-secondary">Create Account</Link>
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2" aria-label="Application downloads">
               {downloadCards.map((card) => (
-                <a
+                <article
                   key={card.href}
-                  href={card.href}
-                  download
-                  className="rounded-[28px] border border-rose-100 bg-[linear-gradient(180deg,#fffefe_0%,#fff3f4_100%)] p-5 shadow-sm transition-transform duration-300 hover:-translate-y-1"
+                  className="flex min-h-64 flex-col rounded-[28px] border border-rose-100 bg-white p-5 shadow-sm"
                 >
                   <p className="text-sm uppercase tracking-[0.24em] text-rose-500">{card.title}</p>
                   <h2 className="mt-3 text-xl font-semibold text-slate-900">{card.subtitle}</h2>
-                  <p className="mt-4 text-sm text-slate-500">Download guide</p>
-                </a>
+                  <p className="mt-4 text-sm leading-6 text-slate-500">{card.description}</p>
+                  <a href={card.href} className="btn-secondary mt-auto justify-center pt-3">View setup guide</a>
+                </article>
               ))}
             </div>
           </div>
@@ -89,7 +91,7 @@ export default function DownloadPage() {
             </div>
           </div>
 
-          <div className="rounded-[32px] border border-white/70 bg-white/90 p-6 shadow-xl">
+          <div id="review" className="rounded-[32px] border border-white/70 bg-white/90 p-6 shadow-xl">
             <h2 className="text-2xl font-semibold">Leave a review</h2>
             <p className="mt-2 text-sm text-slate-500">Share feedback about the portal, downloads, care visibility, or clinic workflow.</p>
             {notice ? <div className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{notice}</div> : null}
@@ -119,6 +121,6 @@ export default function DownloadPage() {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   )
 }

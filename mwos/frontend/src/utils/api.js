@@ -12,6 +12,9 @@ const apiBaseUrl = configuredApiUrl
 // origin before OAuth can safely leave the MWOS site.
 export const socialAuthAvailable = Boolean(configuredApiUrl) || import.meta.env.DEV
 
+// Public clinic content must not forward patient tokens or trigger session recovery.
+export const publicApi = axios.create({ baseURL: apiBaseUrl, timeout: 15000, headers: { 'Content-Type': 'application/json' } })
+
 const api = axios.create({
   baseURL: apiBaseUrl,
   timeout: 15000,
@@ -22,12 +25,12 @@ const clearStepUp = () => {
   localStorage.removeItem('stepUpToken')
 }
 
-const clearAuth = () => {
+const clearAuth = (redirect = true) => {
   localStorage.removeItem('accessToken')
   localStorage.removeItem('refreshToken')
   localStorage.removeItem('user')
   clearStepUp()
-  window.location.href = '/login'
+  if (redirect) window.location.href = '/login'
 }
 
 // Attach auth and step-up headers to every request.
@@ -83,7 +86,7 @@ api.interceptors.response.use(
 
         const refreshToken = localStorage.getItem('refreshToken')
         if (!refreshToken) {
-          clearAuth()
+          clearAuth(original.sessionRedirect !== false)
           return Promise.reject(error)
         }
 
@@ -98,14 +101,14 @@ api.interceptors.response.use(
           return api(original)
         } catch (refreshError) {
           processQueue(refreshError, null)
-          clearAuth()
+          clearAuth(original.sessionRedirect !== false)
           return Promise.reject(refreshError)
         } finally {
           isRefreshing = false
         }
       }
 
-      clearAuth()
+      clearAuth(original.sessionRedirect !== false)
     }
 
     if (error.response?.status === 403 && ['STEP_UP_REQUIRED', 'STEP_UP_PURPOSE_MISMATCH'].includes(error.response?.data?.code)) {

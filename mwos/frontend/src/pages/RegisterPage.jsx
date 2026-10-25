@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import api from '../utils/api'
 import useSignInProviders from '../hooks/useSignInProviders'
 import { GoogleProviderIcon } from '../components/common/AuthProviderIcons'
 import PatientCareFields from '../components/patient/PatientCareFields'
+import { getPortalDestination, getPortalIntent } from '../utils/portalNavigation'
 
 const steps = [
   { label: 'Patient Info', description: 'Identity and birth details' },
@@ -15,6 +16,7 @@ const steps = [
 
 export default function RegisterPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { register, isLoading, error, clearError } = useAuthStore()
   const [step, setStep] = useState(0)
   const [providerNotice, setProviderNotice] = useState('')
@@ -56,7 +58,7 @@ export default function RegisterPage() {
 
     const result = await register(form)
     if (result.success) {
-      navigate(result.user.role === 'patient' ? '/my/dashboard' : '/dashboard')
+      navigate(getPortalDestination(result.user, getPortalIntent(location.search)))
     }
   }
 

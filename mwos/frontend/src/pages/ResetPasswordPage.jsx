@@ -29,7 +29,7 @@ export default function ResetPasswordPage() {
         <input
           name="password"
           type="password"
-          minLength={6}
+          minLength={8}
           value={password}
           onChange={(e) => {
             clearError()

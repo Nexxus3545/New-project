@@ -9,6 +9,17 @@ Every API request is mocked and all other external traffic is blocked. It never 
 clinic request, uses a real login, or changes patient data. Screenshots use synthetic test data
 and are written under the system temporary directory.
 
+## Maternal Account Release
+
+Run these nine `*-smoke.cjs` suites after the production build: `account-transport`,
+`general-care`, `maternal-care`, `google-email`, `profile-alignment`,
+`settings-appearance`, `settings-center`, `landing-page`, and `account-security`.
+They disable the application proxy/config, mock API traffic, and use synthetic
+identities only. The account-security suite covers verification before closure,
+wrong-code retry, truthful deletion receipts, reactivation, recovery links,
+sign-in review, default theme, restricted review queue and 320-1280px layouts.
+The landing suite covers 320-1440px, public/expired-session entry and real assets.
+
 The backend's optional SQL check runs only with `MWOS_RUN_LOCAL_SQL_TEST=1`.
 Point `MWOS_LOCAL_TEST_ENV_FILE` at explicit local configuration. It refuses remote databases
 and uses a transaction-local temporary table that is rolled back, not clinic tables.

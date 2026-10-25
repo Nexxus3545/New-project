@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
+import { getPortalDestination, getPortalIntent } from './utils/portalNavigation'
+import LandingPage from './pages/LandingPage'
 
 // Layouts
 import AppLayout from './components/common/AppLayout'
@@ -11,6 +13,7 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import ReactivateAccountPage from './pages/ReactivateAccountPage'
 import DownloadPage from './pages/DownloadPage'
 import OAuthCallback from './pages/OAuthCallback'
 
@@ -66,10 +69,9 @@ const ProtectedRoute = ({ children, roles }) => {
 const EntryRoute = () => {
   const user = useAuthStore((s) => s.user)
   const isHydrating = useAuthStore((s) => s.isHydrating)
+  const location = useLocation()
   if (isHydrating && !user) return <div className="flex min-h-screen items-center justify-center"><div className="loading-spinner w-10 h-10" /></div>
-  if (!user) return <DownloadPage />
-  if (user.role === 'patient') return <Navigate to="/my/dashboard" replace />
-  return <Navigate to="/dashboard" replace />
+  return <Navigate to={getPortalDestination(user, getPortalIntent(location.search))} replace />
 }
 
 export default function App() {
@@ -88,10 +90,12 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/reactivate-account" element={<ReactivateAccountPage />} />
           <Route path="/oauth-callback" element={<OAuthCallback />} />
         </Route>
 
-        <Route path="/" element={<EntryRoute />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/portal" element={<EntryRoute />} />
         <Route path="/download" element={<DownloadPage />} />
 
         {/* Staff portal */}
@@ -151,6 +155,7 @@ export default function App() {
             <AppLayout patient />
           </ProtectedRoute>
         }>
+          <Route path="/my" element={<Navigate to="/my/dashboard" replace />} />
           <Route path="/my/dashboard" element={<PatientDashboardPage />} />
           <Route path="/my/doctors" element={<PatientDoctorsPage />} />
           <Route path="/my/doctors/:id" element={<PatientDoctorDetailPage />} />

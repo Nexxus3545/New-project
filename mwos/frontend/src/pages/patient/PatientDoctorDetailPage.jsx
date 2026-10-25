@@ -69,16 +69,17 @@ export default function PatientDoctorDetailPage() {
           <div className="card">
             <h3 className="section-title">About this provider</h3>
             <p className="mt-3 text-sm text-gray-600">
-              This profile keeps the current web portal styling while exposing the healthcare-style doctor flow across platforms.
+              Use the clinic's care-team directory to request a consultation. The clinic confirms this provider's availability and the time of your visit.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <span className="badge badge-success">Available this week</span>
+              <span className="badge badge-gray">Schedule confirmed by clinic</span>
               <span className="badge badge-info">{roleLabel(doctor.role)}</span>
             </div>
           </div>
 
           <div className="card">
-            <h3 className="section-title">Focus areas</h3>
+            <h3 className="section-title">Visit discussion topics</h3>
+            <p className="mt-3 text-sm text-gray-500">General conversation topics, not a verified list of this provider's specialties.</p>
             <div className="mt-4 space-y-3 text-sm text-gray-600">
               {specialties.map((item) => (
                 <div key={item} className="flex items-center gap-3 rounded-2xl bg-gray-50 px-4 py-3">
@@ -108,14 +109,9 @@ export default function PatientDoctorDetailPage() {
           </div>
 
           <div className="card">
-            <h3 className="section-title">Availability snapshot</h3>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {['Mon', 'Wed', 'Fri'].map((slot) => (
-                <span key={slot} className="badge badge-gray">{slot}</span>
-              ))}
-            </div>
+            <h3 className="section-title">Scheduling</h3>
             <p className="mt-4 text-sm text-gray-500">
-              Final appointment timing is confirmed by the clinic after your request is reviewed.
+              No live availability feed is connected. Request your preferred date and time; the clinic confirms the schedule after reviewing your request.
             </p>
           </div>
         </div>

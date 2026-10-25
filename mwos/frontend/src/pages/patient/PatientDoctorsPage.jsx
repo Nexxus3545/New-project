@@ -28,8 +28,8 @@ export default function PatientDoctorsPage() {
     <div className="space-y-6">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Top Doctors</h1>
-          <p className="page-sub">Browse the clinic care team using the same web UI language you already have.</p>
+          <h1 className="page-title">Care team</h1>
+          <p className="page-sub">Browse clinic doctors and midwives. The clinic confirms provider availability after reviewing your request.</p>
         </div>
       </div>
 
@@ -57,7 +57,7 @@ export default function PatientDoctorsPage() {
                 <p className="text-lg font-semibold text-gray-900">{doctor.first_name} {doctor.last_name}</p>
                 <p className="mt-1 text-sm text-gray-500">{roleLabel(doctor.role)} • TMC Copino Clinic</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="badge badge-success">Available</span>
+                  <span className="badge badge-gray">Clinic care team</span>
                   <span className="badge badge-gray">Care consultation</span>
                 </div>
               </div>

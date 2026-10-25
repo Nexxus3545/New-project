@@ -10,7 +10,7 @@ async function main() {
   const root = path.resolve(__dirname, '../..');
   const output = path.join(os.tmpdir(), 'mwos-account-transport-verification');
   await fs.mkdir(output, { recursive: true });
-  const server = await preview({ root, preview: { host: '127.0.0.1', port: 4177, strictPort: true } });
+  const server = await preview({ configFile: false, root, preview: { host: '127.0.0.1', port: 4177, strictPort: true } });
   const browser = await chromium.launch({
     headless: true,
     ...(process.env.MWOS_CHROME_BINARY ? { executablePath: process.env.MWOS_CHROME_BINARY } : {}),
@@ -47,7 +47,8 @@ async function main() {
       if (endpoint === '/auth/profile') {
         const body = request.postDataJSON();
         writes.push(body);
-        user = { ...user, ...body };
+        const { currentPassword, ...profile } = body;
+        user = { ...user, ...profile };
         return reply(user);
       }
       if (endpoint === '/auth/preferences') { user.uiPreferences = request.postDataJSON().uiPreferences; return reply(user); }
@@ -99,6 +100,7 @@ async function main() {
     await app.page.getByRole('button', { name: 'Save contact number', exact: true }).click();
     await app.page.getByText('Contact number saved.', { exact: false }).waitFor();
     await app.page.getByLabel('Login email', { exact: true }).fill('updated@example.invalid');
+    await app.page.getByLabel('Current MWOS password to change login email', { exact: true }).fill('synthetic-password-only');
     await app.page.getByRole('button', { name: 'Save login email', exact: true }).click();
     await app.page.getByText('Login email updated successfully.', { exact: true }).waitFor();
     await app.page.screenshot({ path: path.join(output, 'settings-desktop.png') });

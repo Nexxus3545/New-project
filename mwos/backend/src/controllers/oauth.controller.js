@@ -7,7 +7,7 @@ const { generateSessionTokens } = require('../utils/tokens');
 const { buildUserPayload } = require('./auth.controller');
 const { MOBILE_CALLBACK, createState, readMobileState, codeHash, verifierChallenge } = require('../utils/oauthHandoff');
 const { sendMail, isEmailConfigured } = require('../utils/mailer');
-const { requiresGoogleEmailCode, maskEmail, createEmailCode, matchesEmailCode } = require('../utils/googleEmailVerification');
+const { requiresGoogleEmailCode, googleEmailCodeReady, maskEmail, createEmailCode, matchesEmailCode } = require('../utils/googleEmailVerification');
 const { queueGoogleSignIn, deliverNotification } = require('../utils/notificationEvents');
 
 const VALID_PROVIDERS = new Set(['google', 'facebook']);
@@ -190,6 +190,7 @@ const provisionPatientFromProvider = async (providerProfile, req) => {
 };
 
 const createOneTimeCode = async (userId, challenge, providerProfile) => {
+  if (providerProfile.provider === 'google' && !googleEmailCodeReady()) throw createOAuthError('oauth_service_unavailable', 'Google email verification needs a verified clinic sender.');
   const code = crypto.randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + OAUTH_CODE_TTL_MS);
   await query(
@@ -207,7 +208,7 @@ const providerStatus = async (_req, res) => {
   return res.json({
     success: true,
     data: {
-      google: databaseReady && isProviderConfigured('google'),
+      google: databaseReady && isProviderConfigured('google') && googleEmailCodeReady(),
       facebook: databaseReady && isProviderConfigured('facebook'),
     },
   });

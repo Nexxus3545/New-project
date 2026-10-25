@@ -62,7 +62,7 @@ async function queueGoogleSignIn(client, user, { eventId, verifiedEmail, emailVe
   return queueNotification(client, {
     eventKey: `google-sign-in:${eventId}`, userId: user.id, recipient: verifiedEmail,
     title: 'Google sign-in security alert',
-    body: `A Google sign-in to your MWOS patient account completed on ${time} (Philippine time). Google identity verification${emailVerified ? ' and the additional email code check' : ''} succeeded. Patient access was authorized; this does not grant staff access. If this was not you, review your Google account security and contact the clinic. Review MWOS security settings: ${portalUrl('/my/settings')}`,
+    body: `Was this you? A Google sign-in to your MWOS patient account completed on ${time} (Philippine time). Google identity verification${emailVerified ? ' and the additional email code check' : ''} succeeded. Patient access was authorized; this does not grant staff access. Review this sign-in and confirm with an email code: ${portalUrl('/my/settings?tab=activity')}. If this was not you, secure your Google account: https://myaccount.google.com/security . MWOS password recovery: ${portalUrl('/forgot-password')} . Change your MWOS password: ${portalUrl('/my/settings#change-password')} . Changing an MWOS password does not change your Google password. Never share verification codes.`,
     metadata: { event: 'google_sign_in', route: '/my/settings', emailCodeVerified: emailVerified === true },
   });
 }
