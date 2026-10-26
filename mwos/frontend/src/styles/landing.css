@@ -117,8 +117,38 @@
 .clinic-landing .clinic-address-card { display: flex; gap: 13px; margin-top: 25px; padding-top: 24px; border-top: 1px solid #d6cabd; }
 .clinic-landing .clinic-address-card svg { color: var(--clinic-rose); }
 .clinic-landing .clinic-address-card strong, .clinic-landing .clinic-address-card span { display: block; font-size: 11px; line-height: 1.9; }
-.clinic-landing .clinic-address-card a { display: inline-block; font-size: 11px; margin-top: 12px; text-decoration: underline; text-underline-offset: 4px; }
-.clinic-landing .clinic-address-card a span { display: inline; }
+.clinic-landing .clinic-address-card a { display: flex; width: fit-content; align-items: center; gap: 7px; min-height: 44px; font-size: 12px; margin-top: 6px; text-decoration: underline; text-underline-offset: 4px; }
+.clinic-landing .clinic-address-card a svg { width: 15px; height: 15px; flex-shrink: 0; }
+.clinic-landing .clinic-address-card .clinic-address-hours { color: var(--clinic-rose); font-weight: 600; }
+.clinic-landing .clinic-contact-section { padding-top: 76px; }
+.clinic-landing .clinic-contact-section > .clinic-section-heading { margin-bottom: 30px; }
+.clinic-landing .clinic-contact-layout { display: grid; grid-template-columns: .8fr 1.2fr; gap: 32px; align-items: start; }
+.clinic-landing .clinic-hours-card { padding: 32px; border: 1px solid #e4bfce; border-radius: 18px; background: linear-gradient(135deg, #fae7ef, #fffafd); }
+.clinic-landing .clinic-hours-card > .clinic-icon-circle { background: #fff7fa; }
+.clinic-landing .clinic-contact-layout h3 { margin-top: 20px; font-size: 25px; font-weight: 500; }
+.clinic-landing .clinic-hours-highlight { margin-top: 18px; color: var(--clinic-rose); font-size: clamp(30px, 3vw, 38px); font-family: 'Fraunces', Georgia, serif; line-height: 1.2; }
+.clinic-landing .clinic-hours-schedule { margin-top: 24px; border-block: 1px solid #dfbacb; padding-block: 18px; font-size: 14px; }
+.clinic-landing .clinic-hours-schedule > div { display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: space-between; }
+.clinic-landing .clinic-hours-schedule dd { margin: 0; font-weight: 700; }
+.clinic-landing .clinic-contact-timezone { margin-top: 12px; font-size: 12px; color: var(--clinic-muted); }
+.clinic-landing .clinic-hours-note { margin-top: 24px; color: var(--clinic-muted); font-size: 14px; line-height: 1.8; }
+.clinic-landing .clinic-hours-card > a { margin-top: 20px; min-height: 44px; }
+.clinic-landing .clinic-contact-details { min-width: 0; padding: 8px 0 0 8px; }
+.clinic-landing .clinic-contact-details-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; justify-content: space-between; margin-bottom: 8px; }
+.clinic-landing .clinic-contact-details-heading h3 { margin: 0; }
+.clinic-landing .clinic-contact-details-heading > span { padding: 6px 10px; background: #fae7ef; border-radius: 30px; font-size: 11px; color: #78334f; }
+.clinic-landing .clinic-contact-methods { font-style: normal; }
+.clinic-landing .clinic-contact-methods > div { display: flex; align-items: flex-start; gap: 16px; padding-block: 19px; border-bottom: 1px solid var(--clinic-line); }
+.clinic-landing .clinic-contact-methods > div > svg { color: var(--clinic-rose); width: 22px; height: 22px; margin-top: 4px; }
+.clinic-landing .clinic-contact-methods > div > div { min-width: 0; }
+.clinic-landing .clinic-contact-label { display: block; font-size: 11px; color: var(--clinic-muted); letter-spacing: .06em; text-transform: uppercase; }
+.clinic-landing .clinic-contact-methods a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; text-decoration: underline; text-underline-offset: 4px; }
+.clinic-landing .clinic-contact-methods a > svg { width: 15px; height: 15px; flex-shrink: 0; }
+.clinic-landing .clinic-contact-methods p { font-size: 12px; color: var(--clinic-muted); line-height: 1.8; }
+.clinic-landing .clinic-contact-methods strong { display: block; margin-block: 10px 4px; font-size: 14px; font-weight: 600; line-height: 1.7; }
+.clinic-landing .clinic-contact-methods .clinic-contact-map { font-size: 12px; margin-top: 6px; }
+.clinic-landing .clinic-contact-privacy { font-size: 12px; line-height: 1.9; color: var(--clinic-muted); margin-top: 18px; }
+.clinic-landing .clinic-contact-privacy a { color: var(--clinic-rose); text-decoration: underline; text-underline-offset: 3px; }
 .clinic-landing .clinic-small-note { font-size: 10px; color: #776d66; line-height: 1.8; }
 .clinic-landing .clinic-visit-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 35px; }
 .clinic-landing .clinic-visit-header > a { flex-shrink: 0; margin-bottom: 8px; }
@@ -183,6 +213,8 @@
   .clinic-landing .clinic-hero-note { right: 0; padding: 13px; }
   .clinic-landing .clinic-public-hero h1 { font-size: 58px; }
   .clinic-landing .clinic-spaces-layout, .clinic-landing .clinic-faq-section { gap: 45px; }
+  .clinic-landing .clinic-contact-layout { gap: 25px; }
+  .clinic-landing .clinic-hours-card { padding: 25px; }
   .clinic-landing .clinic-team-section { gap: 35px; padding: 35px; }
   .clinic-landing .clinic-download-section { gap: 35px; padding: 36px; }
   .clinic-landing .clinic-service { padding-inline: 16px; }
@@ -260,6 +292,10 @@
   .clinic-landing .clinic-tour-play { top: 12px; right: 12px; padding-inline: 12px; }
   .clinic-landing .clinic-tour-arrows { right: 18px; bottom: 18px; }
   .clinic-landing .clinic-tour-footer { font-size: 9px; }
+  .clinic-landing .clinic-contact-section { padding-top: 48px; }
+  .clinic-landing .clinic-contact-layout { grid-template-columns: 1fr; gap: 30px; }
+  .clinic-landing .clinic-hours-card { padding: 26px 22px; }
+  .clinic-landing .clinic-contact-details { padding: 0; }
   .clinic-landing .clinic-visit-steps { grid-template-columns: 1fr; gap: 25px; margin-top: 30px; }
   .clinic-landing .clinic-visit-steps h3 { font-size: 25px; margin-top: 15px; }
   .clinic-landing .clinic-visit-steps p { font-size: 12px; max-width: none; }

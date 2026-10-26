@@ -33,6 +33,10 @@ const artwork = {
   pause: <><path d="M8 5v14M16 5v14" /></>,
   arrowLeft: <path d="m14 5-7 7 7 7M7 12h14" />,
   arrowRight: <path d="m10 5 7 7-7 7M3 12h14" />,
+  externalLink: <><path d="M14 3h7v7m0-7L10 14M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  phone: <path d="m7 3 3 5-2 2a15 15 0 0 0 6 6l2-2 5 3v3a1 1 0 0 1-1 1C10 21 3 14 3 4a1 1 0 0 1 1-1Z" />,
+  mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 6 9 7 9-7" /></>,
   signOut: <><path d="M9 4H4v16h5m6-12 4 4-4 4m-7-4h11" /></>,
 }
 

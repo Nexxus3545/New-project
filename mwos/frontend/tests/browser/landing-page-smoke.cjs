@@ -54,6 +54,21 @@ async function main() {
     assert.equal(new URL(guest.page.url()).pathname, '/');
     const text = await guest.page.locator('main').innerText();
     assert.doesNotMatch(text, /dental|2000\+|24\/7|successful patients/i);
+    assert.doesNotMatch(text, /&nearr;|&amp;nearr;/i, 'External link arrows never render as entity text');
+    const contact = guest.page.getByRole('region', { name: 'Hours & contact', exact: true });
+    await contact.getByRole('heading', { name: 'Working hours', exact: true }).waitFor();
+    assert.match(await contact.innerText(), /Open 24 hours/);
+    assert.match(await contact.innerText(), /Monday - Sunday/);
+    assert.match(await contact.innerText(), /Opening hours are not a confirmed consultation slot/);
+    assert.match(await contact.innerText(), /Temporary contact details/);
+    assert.equal(await contact.getByRole('link', { name: '0992 682 1514', exact: true }).getAttribute('href'), 'tel:+639926821514');
+    assert.equal(await contact.getByRole('link', { name: 'nexxus1122@gmail.com', exact: true }).getAttribute('href'), 'mailto:nexxus1122@gmail.com');
+    const facebook = guest.page.locator('.clinic-address-card').getByRole('link', { name: /Visit the clinic Facebook page/ });
+    assert.equal(await facebook.locator('[data-app-icon="externalLink"]').count(), 1);
+    assert.doesNotMatch(await facebook.innerText(), /&\w+;/);
+    for (const link of await contact.locator('a[target="_blank"]').all()) {
+      assert.equal(await link.getAttribute('rel'), 'noopener noreferrer');
+    }
     await guest.page.getByText('No written reviews have been published yet.', { exact: true }).waitFor();
     await guest.page.getByRole('button', { name: 'Show a place to rest', exact: true }).click();
     assert.equal(await guest.page.getByRole('button', { name: 'Show a place to rest', exact: true }).getAttribute('aria-pressed'), 'true');
@@ -71,19 +86,28 @@ async function main() {
     await guest.page.screenshot({ path: path.join(screenshots, 'desktop.png'), fullPage: true });
     for (const width of [1024, 768, 390, 320]) {
       await guest.page.setViewportSize({ width, height: 900 });
+      await guest.page.evaluate(async () => { await document.fonts.ready; await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))); });
       assert.ok(await guest.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `No horizontal overflow at ${width}px`);
       if (width <= 768) {
         const toggle = guest.page.getByRole('button', { name: 'Toggle navigation' });
         await toggle.click();
         assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
-        await guest.page.getByRole('navigation', { name: 'Clinic navigation' }).getByRole('link', { name: 'FAQs', exact: true }).click();
+        await guest.page.getByRole('navigation', { name: 'Clinic navigation' }).getByRole('link', { name: 'Hours & contact', exact: true }).click();
         assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+        assert.equal(new URL(guest.page.url()).hash, '#contact');
       }
+      await contact.scrollIntoViewIfNeeded();
+      assert.ok(await contact.evaluate((element) => element.scrollWidth <= element.clientWidth), `Contact section fits ${width}px`);
+      for (const link of await contact.locator('.clinic-contact-methods a').all()) {
+        assert.ok((await link.boundingBox()).height >= 44, 'Contact actions keep a 44px touch target');
+      }
+      if (width === 390 || width === 320) await contact.screenshot({ path: path.join(screenshots, `contact-${width}.png`) });
       await guest.page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
       if (width === 390) await guest.page.screenshot({ path: path.join(screenshots, 'hero-mobile.png') });
       await guest.page.screenshot({ path: path.join(screenshots, `width-${width}.png`), fullPage: true });
     }
     await guest.page.setViewportSize({ width: 1440, height: 1000 });
+    await contact.screenshot({ path: path.join(screenshots, 'contact-desktop.png') });
     await guest.page.getByRole('link', { name: 'Book an appointment', exact: true }).click();
     await guest.page.waitForURL('**/login?intent=appointment');
     await guest.page.locator('input[name="email"]').fill('fixture@example.invalid');
@@ -131,7 +155,7 @@ async function main() {
     }
     await ended.context.close();
     assert.deepEqual(errors, []);
-    process.stdout.write(`Maternal landing checks passed: public entry, expired sessions, role-aware portal, booking intent, gallery, FAQ, feedback states, guides, 320-1440px. Screenshots: ${screenshots}\n`);
+    process.stdout.write(`Maternal landing checks passed: public entry, expired sessions, role-aware portal, booking intent, gallery, hours/contact links, SVG external icon, FAQ, feedback states, guides, 320-1440px. Screenshots: ${screenshots}\n`);
   } catch (error) {
     for (const context of browser.contexts()) for (const page of context.pages()) {
       await page.screenshot({ path: path.join(screenshots, 'failure.png'), fullPage: true }).catch(() => {});

@@ -5,11 +5,13 @@ import { publicApi } from '../utils/api'
 import BrandMark from '../components/common/BrandMark'
 import AppIcon from '../components/common/AppIcon'
 import ClinicSlideshow from '../components/common/ClinicSlideshow'
+import ClinicContact from '../components/common/ClinicContact'
+import { clinicContact } from '../utils/clinicContact'
 import { useAuthStore } from '../store/authStore'
 import '../styles/landing.css'
 
 const bookingPath = '/portal?intent=appointment'
-const clinicPage = 'https://www.facebook.com/people/TMC-Copino-Birthing-Home/61575314979762/'
+const clinicPage = clinicContact.facebook
 const services = [
   { icon: 'prenatal', title: 'Prenatal care', text: 'Keep your visits, saved clinic findings, and follow-up plans together as your pregnancy progresses.' },
   { icon: 'delivery', title: 'Birth preparation', text: 'Discuss your birth plan, required documents, and next steps with the clinic care team.' },
@@ -62,7 +64,7 @@ export default function LandingPage() {
         <Link className="clinic-home-link" to="/" aria-label="TMC Copino home"><BrandMark compact sublabel="Birthing home & medical clinic" /></Link>
         <button className="clinic-menu-button" type="button" aria-label="Toggle navigation" aria-expanded={menuOpen} aria-controls="clinic-navigation" onClick={() => setMenuOpen((open) => !open)}><AppIcon name="menu" /><span>Menu</span></button>
         <nav id="clinic-navigation" className="clinic-navigation" data-open={menuOpen} aria-label="Clinic navigation" onKeyDown={(event) => { if (event.key === 'Escape') setMenuOpen(false) }}>
-          <a href="#care" onClick={() => setMenuOpen(false)}>Our care</a><a href="#clinic" onClick={() => setMenuOpen(false)}>The clinic</a><a href="#your-visit" onClick={() => setMenuOpen(false)}>Your visit</a><a href="#questions" onClick={() => setMenuOpen(false)}>FAQs</a><a href="#downloads" onClick={() => setMenuOpen(false)}>Downloads</a>
+          <a href="#care" onClick={() => setMenuOpen(false)}>Our care</a><a href="#clinic" onClick={() => setMenuOpen(false)}>The clinic</a><a href="#contact" onClick={() => setMenuOpen(false)}>Hours & contact</a><a href="#your-visit" onClick={() => setMenuOpen(false)}>Your visit</a><a href="#questions" onClick={() => setMenuOpen(false)}>FAQs</a><a href="#downloads" onClick={() => setMenuOpen(false)}>Downloads</a>
           <Link className="clinic-button clinic-button-small" to={bookingPath}>Book a visit <span aria-hidden="true">&rarr;</span></Link>
         </nav>
       </div>
@@ -103,10 +105,12 @@ export default function LandingPage() {
       <section id="clinic" className="clinic-spaces-section" aria-labelledby="clinic-spaces-title">
         <div className="clinic-container clinic-spaces-layout"><ClinicSlideshow /><div className="clinic-spaces-copy"><SectionHeading eyebrow="Step inside" title="A familiar place for an important chapter." id="clinic-spaces-title">Take a little tour before your visit. Explore the real spaces at TMC Copino, from your first welcome to a place to rest.</SectionHeading>
           <p>From your first conversation at reception to your follow-up visits, MWOS helps you keep appointments, requirements, and saved records connected with the clinic.</p>
-          <div className="clinic-address-card"><AppIcon name="emergency" /><div><strong>TMC Copino Birthing Home & Medical Clinic</strong><span>Gajo, Tiwi, Albay</span><a href={clinicPage} target="_blank" rel="noopener noreferrer">Visit the clinic Facebook page <span aria-hidden="true">&nearr;</span></a></div></div>
+          <div className="clinic-address-card"><AppIcon name="emergency" /><div><strong>{clinicContact.name}</strong><span>{clinicContact.address}</span><a href={clinicPage} target="_blank" rel="noopener noreferrer">Visit the clinic Facebook page <AppIcon name="externalLink" /><span className="clinic-visually-hidden"> (opens in a new tab)</span></a><a className="clinic-address-hours" href="#contact"><AppIcon name="clock" /> Open 24 hours daily. View hours & contact</a></div></div>
           <p className="clinic-small-note">Actual clinic photographs supplied for this website. Please confirm clinic hours and service availability before travelling.</p>
         </div></div>
       </section>
+
+      <ClinicContact />
 
       <section id="your-visit" className="clinic-section clinic-container" aria-labelledby="visit-title">
         <div className="clinic-visit-header"><SectionHeading eyebrow="A simpler way to begin" title="Your next visit, without the guesswork." id="visit-title">A secure account keeps your appointment request linked to the right patient record.</SectionHeading><Link className="clinic-button" to={bookingPath}>Request an appointment <span aria-hidden="true">&rarr;</span></Link></div>
@@ -124,6 +128,6 @@ export default function LandingPage() {
       <section id="downloads" className="clinic-download-section clinic-container" aria-labelledby="downloads-title"><div><p className="clinic-eyebrow">Your care, connected</p><h2 id="downloads-title">The clinic portal.<br /><em>Wherever you begin.</em></h2><p>Use MWOS in your browser, or explore the desktop and mobile setup guides. You do not need an app to request a visit.</p><div className="clinic-actions"><Link className="clinic-button" to="/portal">Open Web Version <span aria-hidden="true">&rarr;</span></Link><Link className="clinic-quiet-link" to="/download">Visit Download Center <span aria-hidden="true">&rarr;</span></Link></div></div><div className="clinic-platforms"><span>Windows</span><span>Android</span><span>macOS</span><span>iOS</span><p>Platform guides available. Reviewed app installers are not published here yet.</p><Link to="/register">New here? Create a patient account</Link></div></section>
     </main>
 
-    <footer className="clinic-footer clinic-container"><div><BrandMark compact sublabel="Birthing home & medical clinic" /><p>Maternal care. Connected with you.</p></div><div><strong>Gajo, Tiwi, Albay</strong><a href={clinicPage} target="_blank" rel="noopener noreferrer">Clinic Facebook page</a><Link to="/download">Download Center</Link></div><p className="clinic-footer-safety">MWOS is not an emergency response service. For urgent help, contact local emergency services directly. Online appointment and transport requests need clinic confirmation.</p></footer>
+    <footer className="clinic-footer clinic-container"><div><BrandMark compact sublabel="Birthing home & medical clinic" /><p>Maternal care. Connected with you.</p></div><div><strong>{clinicContact.address}</strong><a href="#contact">Open 24 hours daily. Hours & contact</a><a href={clinicContact.phoneHref}>{clinicContact.phone}</a><a href={`mailto:${clinicContact.email}`}>{clinicContact.email}</a><a href={clinicPage} target="_blank" rel="noopener noreferrer">Clinic Facebook page</a><Link to="/download">Download Center</Link></div><p className="clinic-footer-safety">MWOS is not an emergency response service. For urgent help, contact local emergency services directly. Online appointment and transport requests need clinic confirmation.</p></footer>
   </div>
 }

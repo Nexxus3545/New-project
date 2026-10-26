@@ -19,7 +19,9 @@ They disable the application proxy/config, mock API traffic, and use synthetic
 identities only. The account-security suite covers verification before closure,
 wrong-code retry, truthful deletion receipts, reactivation, recovery links,
 sign-in review, default theme, restricted review queue and 320-1280px layouts.
-The landing suite covers 320-1440px, public/expired-session entry and real assets.
+The landing suite covers 320-1440px, public/expired-session entry, real assets,
+owner-confirmed hours/contact, callable/email links, mobile contact navigation,
+touch targets and SVG external-link icons without literal entity text.
 The clinic-slideshow suite checks real-photo rotation, play/pause, hover/focus,
 keyboard navigation, offscreen/hidden-page suspension, reduced motion, image
 failures, touch-target size and 320-1440px layouts with an isolated browser clock.

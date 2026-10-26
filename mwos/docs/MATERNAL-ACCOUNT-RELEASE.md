@@ -116,6 +116,23 @@ production build passed. The existing profile-alignment suite now waits for
 fonts and resized layout frames before measuring; its unchanged alignment
 assertions passed three consecutive runs. All browser data remained synthetic.
 
+## Public Hours And Contact
+
+The owner confirmed daily 24-hour opening, the corrected complete phone number
+09926821514, and nexxus1122@gmail.com as temporary public contact details.
+These values live in `frontend/src/utils/clinicContact.js`. The homepage now
+includes working hours in Philippine time, callable/email links, the clinic
+Facebook page, a named Google Maps search and menu/footer shortcuts.
+Opening hours do not claim continuous provider availability or a confirmed visit.
+Public contact publication does not configure SMTP or change authentication.
+The screenshot's literal `&nearr;` was replaced by a decorative SVG external-link
+icon with a screen-reader new-tab notice.
+
+Contact release verification: 52 web tests, all ten browser suites and the web
+production build passed, including contact links, mobile menu navigation,
+44px contact targets and 320-1440px layouts. No clinical data or real messages
+were accessed or changed by the tests.
+
 If rollback is necessary, redeploy the preceding API and web production commit.
 Leave the additive table and nullable column in place; do not reset or reseed the
 database. Clinical guidance, medical-record erasure, sender delivery, store
