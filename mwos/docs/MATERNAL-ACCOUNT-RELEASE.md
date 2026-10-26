@@ -133,6 +133,26 @@ production build passed, including contact links, mobile menu navigation,
 44px contact targets and 320-1440px layouts. No clinical data or real messages
 were accessed or changed by the tests.
 
+## Mobile Landing Readability
+
+The hero now uses the same upright serif and ink color across all three phrases;
+the final phrase has a subtle lower blush shadow instead of italic styling.
+The public palette uses stronger ink, secondary text and rose contrast without
+depending on shadows. This change is scoped to the public homepage.
+
+Responsive phone/tablet layouts are automatic, not a separate account setting or
+a scaled-down desktop page. Reading text is 16px on phones, actions stack,
+major sections become single-column earlier and photo thumbnails use two columns.
+The compact header opens a single-list, independently scrollable navigation panel
+with a backdrop. It does not expand the header or push the hero. Escape returns
+focus to the toggle; tapping or focusing outside and returning to desktop closes it.
+
+Readability release verification: 54 web tests, all ten browser suites and the
+production build passed. Coverage includes rendered hero font/color consistency,
+contrast without shadow, menu touch targets, no layout shift, 320-1440px widths
+and a touch-enabled portrait/short-landscape booking flow. All API traffic used
+synthetic fixtures; clinic contacts, patient data and authentication are unchanged.
+
 If rollback is necessary, redeploy the preceding API and web production commit.
 Leave the additive table and nullable column in place; do not reset or reseed the
 database. Clinical guidance, medical-record erasure, sender delivery, store

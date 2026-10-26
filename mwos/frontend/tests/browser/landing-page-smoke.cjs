@@ -14,8 +14,8 @@ async function main() {
   await fs.mkdir(screenshots, { recursive: true });
   const errors = [], requests = [];
   const patient = { id: 'landing-fixture-only', role: 'patient', patientId: 'fixture-patient', firstName: 'Test', lastName: 'Patient', careType: 'maternal' };
-  async function fixture({ user, expired = false, feedback = 'empty', viewport = { width: 1440, height: 1000 } } = {}) {
-    const context = await browser.newContext({ viewport, serviceWorkers: 'block', reducedMotion: 'reduce' });
+  async function fixture({ user, expired = false, feedback = 'empty', mobile = false, viewport = { width: 1440, height: 1000 } } = {}) {
+    const context = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile, serviceWorkers: 'block', reducedMotion: 'reduce' });
     if (user) await context.addInitScript(({ user }) => { localStorage.setItem('user', JSON.stringify(user)); localStorage.setItem('accessToken', 'synthetic-test-token'); }, { user });
     await context.route('**/*', async (route) => {
       const req = route.request(), url = new URL(req.url());
@@ -51,6 +51,27 @@ async function main() {
     const guest = await fixture();
     await guest.page.goto(origin);
     await guest.page.getByRole('heading', { level: 1 }).filter({ hasText: 'first embrace.' }).waitFor();
+    const title = guest.page.locator('#clinic-hero-title');
+    const titleStyles = await title.evaluate((element) => [...element.children].map((child) => {
+      const style = getComputedStyle(child);
+      return { family: style.fontFamily, style: style.fontStyle, color: style.color, shadow: style.textShadow };
+    }));
+    assert.equal(titleStyles.length, 3);
+    for (const style of titleStyles) {
+      assert.equal(style.style, 'normal', 'All headline letters, including f, use an upright style');
+      assert.equal(style.family, titleStyles[0].family);
+      assert.equal(style.color, titleStyles[0].color);
+    }
+    assert.notEqual(titleStyles[2].shadow, 'none', 'The final phrase has the requested subtle lower shadow');
+    assert.ok(await guest.page.evaluate(() => {
+      const rgb = (color) => color.match(/[\d.]+/g).slice(0, 3).map(Number);
+      const luminance = (color) => rgb(color).map((value) => { const c = value / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; }).reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
+      const background = luminance(getComputedStyle(document.querySelector('.clinic-landing')).backgroundColor);
+      return ['#clinic-hero-title', '.clinic-hero-description', '.clinic-booking-note', '.clinic-hero-copy > .clinic-eyebrow'].every((selector) => {
+        const foreground = luminance(getComputedStyle(document.querySelector(selector)).color);
+        return (Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05) >= 4.5;
+      });
+    }), 'Rendered hero text meets the contrast target without counting shadows');
     assert.equal(new URL(guest.page.url()).pathname, '/');
     const text = await guest.page.locator('main').innerText();
     assert.doesNotMatch(text, /dental|2000\+|24\/7|successful patients/i);
@@ -84,17 +105,43 @@ async function main() {
     await guest.page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
     await guest.page.screenshot({ path: path.join(screenshots, 'hero-desktop.png') });
     await guest.page.screenshot({ path: path.join(screenshots, 'desktop.png'), fullPage: true });
-    for (const width of [1024, 768, 390, 320]) {
+    for (const width of [1100, 1024, 880, 768, 620, 480, 390, 320]) {
       await guest.page.setViewportSize({ width, height: 900 });
       await guest.page.evaluate(async () => { await document.fonts.ready; await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))); });
       assert.ok(await guest.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `No horizontal overflow at ${width}px`);
-      if (width <= 768) {
+      if (width <= 1100) {
+        await guest.page.evaluate(() => window.scrollTo(0, 0));
         const toggle = guest.page.getByRole('button', { name: 'Toggle navigation' });
+        const nav = guest.page.getByRole('navigation', { name: 'Clinic navigation' });
+        const headerBefore = await guest.page.locator('.clinic-header').boundingBox();
+        const titleBefore = await title.boundingBox();
         await toggle.click();
         assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
-        await guest.page.getByRole('navigation', { name: 'Clinic navigation' }).getByRole('link', { name: 'Hours & contact', exact: true }).click();
+        const headerAfter = await guest.page.locator('.clinic-header').boundingBox();
+        assert.ok(Math.abs(headerAfter.height - headerBefore.height) < 1, 'Opening the mobile menu never grows the header');
+        assert.ok(Math.abs((await title.boundingBox()).y - titleBefore.y) < 1, 'The menu never pushes the hero down');
+        const links = await nav.getByRole('link').all();
+        for (const link of links) assert.ok((await link.boundingBox()).height >= 48, 'Navigation has roomy tap targets');
+        assert.ok((await links[1].boundingBox()).y > (await links[0].boundingBox()).y, 'Phone navigation is a single list, not squeezed columns');
+        if (width === 390 || width === 320) await guest.page.screenshot({ path: path.join(screenshots, `menu-${width}.png`) });
+        await guest.page.keyboard.press('Escape');
+        assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+        assert.equal(await toggle.evaluate((element) => element === document.activeElement), true);
+        await toggle.click();
+        await guest.page.mouse.click(3, 850);
+        assert.equal(await toggle.getAttribute('aria-expanded'), 'false', 'Tapping outside closes the non-modal menu');
+        await toggle.click();
+        await nav.getByRole('link', { name: 'Hours & contact', exact: true }).click();
         assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
         assert.equal(new URL(guest.page.url()).hash, '#contact');
+      }
+      if (width <= 620) {
+        assert.ok(await guest.page.locator('.clinic-hero-description').evaluate((element) => parseFloat(getComputedStyle(element).fontSize) >= 16), 'Phone reading text is not shrunk to fit');
+        const actions = guest.page.locator('.clinic-hero-copy .clinic-actions');
+        const primary = await actions.getByRole('link', { name: 'Book an appointment', exact: true }).boundingBox();
+        const secondary = await actions.getByRole('link', { name: /Explore maternal care/ }).boundingBox();
+        assert.ok(primary.height >= 56 && secondary.y >= primary.y + primary.height + 10, 'Phone calls to action stack with breathing room');
+        assert.ok(await title.evaluate((element) => [...element.children].every((line) => line.scrollWidth <= line.clientWidth)), 'Every hero line fits without clipping');
       }
       await contact.scrollIntoViewIfNeeded();
       assert.ok(await contact.evaluate((element) => element.scrollWidth <= element.clientWidth), `Contact section fits ${width}px`);
@@ -115,6 +162,20 @@ async function main() {
     await guest.page.getByRole('button', { name: 'Sign in securely', exact: true }).click();
     await guest.page.waitForURL('**/my/appointments');
     await guest.context.close();
+
+    const touch = await fixture({ mobile: true, viewport: { width: 390, height: 844 } });
+    await touch.page.goto(origin);
+    const touchToggle = touch.page.getByRole('button', { name: 'Toggle navigation' });
+    await touchToggle.tap();
+    assert.equal(await touchToggle.getAttribute('aria-expanded'), 'true');
+    await touch.page.setViewportSize({ width: 844, height: 390 });
+    await touch.page.evaluate(() => window.scrollTo(0, 0));
+    const touchNav = touch.page.getByRole('navigation', { name: 'Clinic navigation' });
+    assert.ok(await touchNav.evaluate((element) => element.scrollHeight > element.clientHeight), 'Short landscape menus can scroll independently');
+    await touchNav.getByRole('link', { name: 'Book a visit', exact: true }).scrollIntoViewIfNeeded();
+    await touchNav.getByRole('link', { name: 'Book a visit', exact: true }).tap();
+    await touch.page.waitForURL('**/login?intent=appointment');
+    await touch.context.close();
 
     for (const role of ['patient', 'admin']) {
       const signed = await fixture({ user: { ...patient, role }, feedback: 'published' });
@@ -155,7 +216,7 @@ async function main() {
     }
     await ended.context.close();
     assert.deepEqual(errors, []);
-    process.stdout.write(`Maternal landing checks passed: public entry, expired sessions, role-aware portal, booking intent, gallery, hours/contact links, SVG external icon, FAQ, feedback states, guides, 320-1440px. Screenshots: ${screenshots}\n`);
+    process.stdout.write(`Maternal landing checks passed: consistent upright hero, contrast, automatic phone layout, no-push menu, touch/landscape booking, public entry, expired sessions, role-aware portal, gallery, hours/contact links, FAQ, guides, 320-1440px. Screenshots: ${screenshots}\n`);
   } catch (error) {
     for (const context of browser.contexts()) for (const page of context.pages()) {
       await page.screenshot({ path: path.join(screenshots, 'failure.png'), fullPage: true }).catch(() => {});

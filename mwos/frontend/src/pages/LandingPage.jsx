@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { publicApi } from '../utils/api'
@@ -57,13 +57,37 @@ function PublishedReviews() {
 
 export default function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const header = useRef(null)
+  const menuButton = useRef(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const dismissOutside = (event) => { if (!header.current?.contains(event.target)) setMenuOpen(false) }
+    const dismissWithEscape = (event) => {
+      if (event.key === 'Escape') { setMenuOpen(false); menuButton.current?.focus() }
+    }
+    const desktop = window.matchMedia('(min-width: 1101px)')
+    const dismissOnDesktop = () => { if (desktop.matches) setMenuOpen(false) }
+    document.addEventListener('pointerdown', dismissOutside)
+    document.addEventListener('keydown', dismissWithEscape)
+    desktop.addEventListener('change', dismissOnDesktop)
+    return () => {
+      document.removeEventListener('pointerdown', dismissOutside)
+      document.removeEventListener('keydown', dismissWithEscape)
+      desktop.removeEventListener('change', dismissOnDesktop)
+    }
+  }, [menuOpen])
+
   return <div className="clinic-landing">
     <a className="clinic-skip" href="#main-content">Skip to content</a>
-    <header className="clinic-header">
+    {menuOpen ? <div className="clinic-menu-shade" aria-hidden="true" /> : null}
+    <header ref={header} className="clinic-header" onBlurCapture={(event) => {
+      if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setMenuOpen(false)
+    }}>
       <div className="clinic-header-inner">
         <Link className="clinic-home-link" to="/" aria-label="TMC Copino home"><BrandMark compact sublabel="Birthing home & medical clinic" /></Link>
-        <button className="clinic-menu-button" type="button" aria-label="Toggle navigation" aria-expanded={menuOpen} aria-controls="clinic-navigation" onClick={() => setMenuOpen((open) => !open)}><AppIcon name="menu" /><span>Menu</span></button>
-        <nav id="clinic-navigation" className="clinic-navigation" data-open={menuOpen} aria-label="Clinic navigation" onKeyDown={(event) => { if (event.key === 'Escape') setMenuOpen(false) }}>
+        <button ref={menuButton} className="clinic-menu-button" type="button" aria-label="Toggle navigation" aria-expanded={menuOpen} aria-controls="clinic-navigation" onClick={() => setMenuOpen((open) => !open)}><AppIcon name={menuOpen ? 'close' : 'menu'} /><span>{menuOpen ? 'Close' : 'Menu'}</span></button>
+        <nav id="clinic-navigation" className="clinic-navigation" data-open={menuOpen} aria-label="Clinic navigation">
           <a href="#care" onClick={() => setMenuOpen(false)}>Our care</a><a href="#clinic" onClick={() => setMenuOpen(false)}>The clinic</a><a href="#contact" onClick={() => setMenuOpen(false)}>Hours & contact</a><a href="#your-visit" onClick={() => setMenuOpen(false)}>Your visit</a><a href="#questions" onClick={() => setMenuOpen(false)}>FAQs</a><a href="#downloads" onClick={() => setMenuOpen(false)}>Downloads</a>
           <Link className="clinic-button clinic-button-small" to={bookingPath}>Book a visit <span aria-hidden="true">&rarr;</span></Link>
         </nav>
@@ -74,7 +98,7 @@ export default function LandingPage() {
       <section className="clinic-public-hero clinic-container" aria-labelledby="clinic-hero-title">
         <div className="clinic-hero-copy">
           <p className="clinic-eyebrow"><span className="clinic-tiny-line" /> Maternal care, thoughtfully connected</p>
-          <h1 id="clinic-hero-title">With you, from<br />first visit to<br /><em>first embrace.</em></h1>
+          <h1 id="clinic-hero-title"><span>With you, from</span>{' '}<span>first visit to</span>{' '}<span className="clinic-hero-emphasis">first embrace.</span></h1>
           <p className="clinic-hero-description">A little reassurance. A clearer next step. Connect with TMC Copino Birthing Home & Medical Clinic for your pregnancy journey and care after birth.</p>
           <div className="clinic-actions"><Link className="clinic-button" to={bookingPath}>Book an appointment <AppIcon name="calendar" /></Link><a className="clinic-quiet-link" href="#care">Explore maternal care <span aria-hidden="true">&rarr;</span></a></div>
           <p className="clinic-booking-note">Request online. Your visit is confirmed by the clinic.</p>

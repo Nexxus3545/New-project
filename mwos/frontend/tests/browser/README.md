@@ -21,7 +21,10 @@ wrong-code retry, truthful deletion receipts, reactivation, recovery links,
 sign-in review, default theme, restricted review queue and 320-1280px layouts.
 The landing suite covers 320-1440px, public/expired-session entry, real assets,
 owner-confirmed hours/contact, callable/email links, mobile contact navigation,
-touch targets and SVG external-link icons without literal entity text.
+touch targets and SVG external-link icons without literal entity text. It also
+checks hero font/color consistency and contrast, automatic phone layout, a
+non-shifting single-list menu, outside/Escape dismissal and touch-enabled
+portrait/short-landscape booking.
 The clinic-slideshow suite checks real-photo rotation, play/pause, hover/focus,
 keyboard navigation, offscreen/hidden-page suspension, reduced motion, image
 failures, touch-target size and 320-1440px layouts with an isolated browser clock.
