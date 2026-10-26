@@ -163,7 +163,7 @@ test('every patient, staff, and admin navigation module uses an icon without rem
   const originalUser = snapshot.user
   // SSR needs each fixture's current role rather than Zustand's module-load snapshot.
   try {
-    for (const [role, count] of [['patient', 11], ['nurse', 15], ['admin', 18]]) {
+    for (const [role, count] of [['patient', 11], ['nurse', 15], ['midwife', 15], ['doctor', 16], ['admin', 19]]) {
       snapshot.user = { id: 'test-user', role, firstName: 'Test', lastName: 'User', careType: 'maternal' }
       const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: role === 'patient' ? '/my/settings' : '/settings' },
         React.createElement(Layout, { patient: role === 'patient' })))
@@ -182,6 +182,8 @@ test('every patient, staff, and admin navigation module uses an icon without rem
       assert.match(html, /data-app-icon="menu"/)
       assert.match(html, /data-app-icon="signOut"/)
       if (role !== 'admin') assert.doesNotMatch(nav, /User Management|Staff Credentials|Compliance/)
+      if (['admin', 'doctor'].includes(role)) assert.match(nav, /Billing &amp; Payments/)
+      else assert.doesNotMatch(nav, /Billing &amp; Payments/)
     }
   } finally {
     snapshot.user = originalUser

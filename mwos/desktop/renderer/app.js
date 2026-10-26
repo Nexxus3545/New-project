@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { isDesktopStaffAccount, requireDesktopStaffAccount } from './platformAccess.cjs'
 
 const api = axios.create({
   baseURL: 'http://localhost:5000/api',
@@ -70,7 +71,8 @@ platformEl.textContent = window.mwosDesktop?.platform || 'unknown'
 function readStoredUser() {
   try {
     const stored = localStorage.getItem(DESKTOP_USER_KEY)
-    return stored ? JSON.parse(stored) : null
+    const user = stored ? JSON.parse(stored) : null
+    return isDesktopStaffAccount(user) ? user : null
   } catch {
     return null
   }
@@ -140,21 +142,13 @@ function formatDateTime(value) {
 }
 
 function setWorkspaceChrome() {
-  if (roleIsPatient()) {
-    heroTitle.textContent = 'One desktop workspace, now with patient care flows.'
-    heroDescription.textContent = 'Review doctors, pharmacy, notifications, reports, and emergency options without changing the desktop shell.'
-    systemModeText.textContent = 'Patient care'
-    designLanguageText.textContent = 'Existing desktop layout'
-    snapshotSubtitle.textContent = 'Pull patient-facing metrics from the shared MWOS backend.'
-    sessionChip.textContent = `${currentUser.role} session active`
-  } else {
-    heroTitle.textContent = 'One interface language for web, mobile, and desktop.'
-    heroDescription.textContent = 'The desktop app now follows the same light-first MWOS structure: secure sign-in, care priorities, educational media, analytics, and offline drafting in one branded surface.'
-    systemModeText.textContent = 'Connected care'
-    designLanguageText.textContent = 'Rose glass + teal depth'
-    snapshotSubtitle.textContent = 'Pull live metrics from the backend API.'
-    sessionChip.textContent = currentUser ? `${currentUser.role} session active` : 'Awaiting sign in'
-  }
+  heroTitle.textContent = 'Your clinic operations workspace.'
+  heroDescription.textContent = 'Admin, Doctor, Midwife and Nurse accounts use the desktop clinic workspace. Patients use the mobile app or the web patient portal.'
+  systemModeText.textContent = 'Staff operations'
+  designLanguageText.textContent = 'TMC Copino'
+  snapshotSubtitle.textContent = 'Pull staff metrics from the backend API.'
+  sessionChip.textContent = currentUser ? `${currentUser.role} session active` : 'Awaiting staff sign-in'
+  togglePatientPanels(false)
 }
 
 function togglePatientPanels(isVisible) {
@@ -583,13 +577,14 @@ async function hydrateDesktopSession() {
   applyToken(token)
   try {
     const userRes = await api.get('/auth/me')
-    currentUser = userRes.data.data
+    currentUser = requireDesktopStaffAccount(userRes.data.data)
     persistDesktopUser(currentUser)
     loginResult.textContent = `Signed in as ${currentUser.firstName} ${currentUser.lastName} (${currentUser.role})`
     setWorkspaceChrome()
-  } catch {
+  } catch (error) {
     clearDesktopSession()
-    loginResult.textContent = 'Sign in required.'
+    setWorkspaceChrome()
+    loginResult.textContent = error.code === 'DESKTOP_STAFF_ONLY' ? error.message : 'Sign in required.'
   }
 }
 
@@ -600,13 +595,10 @@ async function loadDesktopWorkspace() {
       await hydrateDesktopSession()
     }
     if (!currentUser) return
+    requireDesktopStaffAccount(currentUser)
 
     setWorkspaceChrome()
-    if (roleIsPatient()) {
-      await loadPatientWorkspace()
-    } else {
-      await loadStaffWorkspace()
-    }
+    await loadStaffWorkspace()
   } catch (error) {
     loginResult.textContent = error.response?.data?.message || error.message
   }
@@ -629,6 +621,7 @@ loginForm.addEventListener('submit', async (event) => {
   try {
     const res = await api.post('/auth/login', { email, password })
     const { accessToken, user } = res.data.data
+    requireDesktopStaffAccount(user)
     currentUser = user
     persistDesktopUser(user)
     applyToken(accessToken)
@@ -636,8 +629,8 @@ loginForm.addEventListener('submit', async (event) => {
     setWorkspaceChrome()
     await loadDesktopWorkspace()
   } catch (error) {
-    loginResult.textContent = error.response?.data?.message || 'Login failed'
-    sessionChip.textContent = 'Sign in required'
+    loginResult.textContent = error.code === 'DESKTOP_STAFF_ONLY' ? error.message : error.response?.data?.message || 'Login failed'
+    sessionChip.textContent = currentUser ? `${currentUser.role} session active` : 'Sign in required'
   }
 })
 

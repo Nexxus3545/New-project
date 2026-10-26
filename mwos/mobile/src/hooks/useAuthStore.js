@@ -3,6 +3,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { Platform } from 'react-native';
 import api, { getToken, setToken, clearTokens, lockTokens, unlockRefreshToken, enableBiometricToken, removeBiometricToken, purgePrivateCache } from '../services/api';
 import { signInWithGoogle } from '../services/googleSignIn';
+import { isPatientAppAccount, requirePatientAppAccount, PATIENT_APP_ONLY, PATIENT_APP_MESSAGE } from '../utils/patientAppAccess';
 
 const persistJson = async (key, value) => {
   let stored = value;
@@ -22,6 +23,7 @@ const persistJson = async (key, value) => {
 };
 
 const saveSession = async ({ accessToken, refreshToken, user }) => {
+  requirePatientAppAccount(user);
   const previous = await getToken('user');
   let previousId;
   try { previousId = previous ? JSON.parse(previous).id : null; } catch {}
@@ -129,6 +131,12 @@ export const useAuthStore = create((set, get) => ({
       }
       const capability = await getBiometricCapability();
       const storedUser = userStr ? JSON.parse(userStr) : null;
+      if (storedUser && !isPatientAppAccount(storedUser)) {
+        // Clear only this device's old staff session, not the staff account.
+        await clearTokens();
+        set({ user: null, stepUpToken: null, biometricEnabled: false, biometricPending: false, error: PATIENT_APP_MESSAGE, isInitialized: true });
+        return;
+      }
       const requiresBiometricUnlock = biometricEnabled === 'true' && Boolean(storedUser);
       await purgePrivateCache();
       if (requiresBiometricUnlock) await lockTokens();
@@ -162,7 +170,7 @@ export const useAuthStore = create((set, get) => ({
       set({ user, isLoading: false, error: null, stepUpToken: null, biometricPending: false, biometricEnabled });
       return { success: true, user };
     } catch (err) {
-      const msg = err.response?.data?.message || 'Login failed. Check your connection.';
+      const msg = err.code === PATIENT_APP_ONLY ? err.message : err.response?.data?.message || 'Login failed. Check your connection.';
       set({ isLoading: false, error: msg });
       return { success: false, error: msg };
     }
@@ -190,6 +198,7 @@ export const useAuthStore = create((set, get) => ({
 
       const meRes = await api.get('/auth/me');
       const user = meRes.data.data;
+      requirePatientAppAccount(user);
       await persistJson('user', user);
       set({
         user,
@@ -201,6 +210,10 @@ export const useAuthStore = create((set, get) => ({
       });
       return { success: true, user };
     } catch (err) {
+      if (err.code === PATIENT_APP_ONLY) {
+        await clearTokens();
+        set({ user: null, stepUpToken: null, biometricEnabled: false, biometricPending: false });
+      }
       const msg = err.response?.data?.message || err.message || 'Biometric unlock failed.';
       set({ isLoading: false, error: msg });
       return { success: false, error: msg };
@@ -253,6 +266,7 @@ export const useAuthStore = create((set, get) => ({
     try {
       const response = await api.post('/auth/oauth/complete-profile', form);
       const user = response.data.data;
+      requirePatientAppAccount(user);
       await persistJson('user', user);
       set({ user, isLoading: false });
       return { success: true };
@@ -295,7 +309,7 @@ export const useAuthStore = create((set, get) => ({
       set({ user, isLoading: false, error: null, stepUpToken: null, biometricPending: false, biometricEnabled });
       return { success: true, user };
     } catch (err) {
-      const msg = err.response?.data?.message || 'Registration failed. Please try again.';
+      const msg = err.code === PATIENT_APP_ONLY ? err.message : err.response?.data?.message || 'Registration failed. Please try again.';
       set({ isLoading: false, error: msg });
       return { success: false, error: msg };
     }

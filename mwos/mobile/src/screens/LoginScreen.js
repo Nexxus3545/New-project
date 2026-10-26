@@ -75,11 +75,11 @@ export default function LoginScreen({ navigation }) {
               <Button title="Verify and continue" loading={isLoading} disabled={isLoading || !/^\d{6}$/.test(emailCode)} onPress={() => verifyGoogleEmail(emailCode)} />
               <Button title="Cancel and restart sign-in" variant="secondary" disabled={isLoading} onPress={() => { cancelGoogleEmailVerification(); setEmailCode('') }} style={{ marginTop: spacing.sm }} />
             </> : <>
-            <Text style={styles.cardTitle}>Sign in securely</Text>
+            <Text style={styles.cardTitle}>Patient sign-in</Text>
             <Text style={styles.cardSub}>
               {biometricPending
                 ? `This saved session is locked. Use ${biometricLabel} or enter your password.`
-                : 'Use the email and password issued for your TMC Copino account.'}
+                : 'Use Google or the email and password for your TMC Copino patient account.'}
             </Text>
 
             {error && <AlertBox type="critical" message={error} />}
@@ -128,7 +128,7 @@ export default function LoginScreen({ navigation }) {
 
             <Button title="Continue with Google" variant="secondary" onPress={loginWithGoogle}
               disabled={isLoading} icon="google" style={{ marginTop: spacing.sm }} />
-            <Text style={styles.cardSub}>Google sign-in is for patient accounts. Staff use their clinic account.</Text>
+            <Text style={styles.cardSub}>This mobile app is for patients. Admin, Doctor, Midwife and Nurse accounts use the desktop clinic workspace. Patients may also use the web portal.</Text>
 
             {biometricEnabled && biometricPending ? (
               <Button

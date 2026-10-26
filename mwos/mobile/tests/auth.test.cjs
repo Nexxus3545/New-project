@@ -268,3 +268,69 @@ test('saving a contact after restoring the small cache preserves the current pro
   assert.equal(updated.body.avatarUrl, avatar);
   assert.equal(updated.body.phone, '09170000000');
 });
+
+test('mobile password and Google sign-in reject staff or unknown roles before saving any credentials', async () => {
+  for (const role of ['admin', 'doctor', 'midwife', 'nurse', 'unknown']) {
+    for (const method of ['login', 'loginWithGoogle', 'registerPatient']) {
+      const r = runtime(); r.user.role = role;
+      const store = r.load('src/hooks/useAuthStore.js').useAuthStore;
+      const result = method === 'login' ? await store.getState().login('staff@example.invalid', 'fixture')
+        : method === 'registerPatient' ? await store.getState().registerPatient({ email: 'fixture@example.invalid' })
+          : await store.getState().loginWithGoogle();
+      assert.equal(result.success, false, method + ': ' + role);
+      assert.match(result.error, /mobile.*patient|Mobile.*patient/);
+      assert.equal(store.getState().user, null);
+      for (const key of ['accessToken', 'refreshToken', 'user', 'biometricRefreshToken']) assert.equal(r.secure.has(key), false);
+    }
+  }
+});
+
+test('mobile email-code completion cannot turn a staff account into a patient session', async () => {
+  const r = runtime(); r.requireEmail();
+  const store = r.load('src/hooks/useAuthStore.js').useAuthStore;
+  await store.getState().loginWithGoogle();
+  r.user.role = 'doctor';
+  assert.equal((await store.getState().verifyGoogleEmail('123456')).success, false);
+  assert.equal(store.getState().user, null);
+  assert.equal(r.secure.has('accessToken'), false);
+});
+
+test('old mobile staff sessions are cleared locally without a clinical or account-deactivation request', async () => {
+  for (const biometric of [false, true]) {
+    const r = runtime();
+    r.secure.set('user', JSON.stringify({ ...r.user, role: 'midwife' }));
+    r.secure.set('accessToken', 'old-access');
+    r.secure.set('refreshToken', 'old-refresh');
+    if (biometric) {
+      r.secure.set('biometricEnabled', 'true'); r.secure.set('biometricVaultVersion', '1'); r.secure.set('biometricRefreshToken', 'old-vault');
+    }
+    const store = r.load('src/hooks/useAuthStore.js').useAuthStore;
+    await store.getState().initialize();
+    assert.equal(store.getState().isInitialized, true);
+    assert.equal(store.getState().user, null);
+    assert.match(store.getState().error, /desktop clinic workspace/);
+    assert.equal(r.requests.length, 0);
+    assert.equal(r.secure.has('accessToken'), false);
+    assert.equal(r.secure.has('biometricRefreshToken'), false);
+  }
+});
+
+test('biometric refresh rejects a changed staff role and removes the local refreshed tokens', async () => {
+  const r = runtime();
+  const store = r.load('src/hooks/useAuthStore.js').useAuthStore;
+  await store.getState().login('fixture@example.invalid', 'fixture');
+  await store.getState().enableBiometricUnlock();
+  await store.getState().lockForBiometric();
+  r.user.role = 'nurse';
+  assert.equal((await store.getState().loginWithBiometrics()).success, false);
+  assert.equal(store.getState().user, null);
+  for (const key of ['accessToken', 'refreshToken', 'user', 'biometricRefreshToken']) assert.equal(r.secure.has(key), false);
+});
+
+test('the mobile navigator has no staff screen imports or staff route branch', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/navigation/RootNavigator.js'), 'utf8');
+  assert.doesNotMatch(source, /screens\/staff|StaffTabs|VitalsFormScreen|EmergencyMapScreen/);
+  assert.match(source, /if \(user && !isPatient\) return <PatientAppAccessScreen/);
+  assert.match(source, /name="PatientNavigator"/);
+  assert.match(source, /user && isPatient && user.patientId/);
+});

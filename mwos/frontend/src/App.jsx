@@ -121,7 +121,7 @@ export default function App() {
           <Route path="/pediatric-monitoring" element={<ImmunizationsPage />} />
           <Route path="/medicines" element={<InventoryPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
-          <Route path="/billing" element={<BillingPage />} />
+          <Route path="/billing" element={<ProtectedRoute roles={['admin', 'doctor']}><BillingPage /></ProtectedRoute>} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/reports-analytics" element={<ReportsPage />} />
           <Route path="/education" element={<EducationPage />} />

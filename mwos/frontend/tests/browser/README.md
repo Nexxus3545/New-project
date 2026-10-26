@@ -19,6 +19,8 @@ They disable the application proxy/config, mock API traffic, and use synthetic
 identities only. The account-security suite covers verification before closure,
 wrong-code retry, truthful deletion receipts, reactivation, recovery links,
 sign-in review, default theme, restricted review queue and 320-1280px layouts.
+The account-transport suite also verifies all four staff navigation roles and
+Admin/Doctor-only Billing visibility and route access; it does not submit payments.
 The landing suite covers 320-1440px, public/expired-session entry, real assets,
 owner-confirmed hours/contact, callable/email links, mobile contact navigation,
 touch targets and SVG external-link icons without literal entity text. It also

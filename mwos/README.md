@@ -9,6 +9,7 @@ Unified multi-platform Maternal Wellness and Operation System (MWOS) for:
 All clients connect to the same backend and database.
 
 ## Quick Links
+- Approved feature/platform scope and implementation gaps: `docs/APPROVED_FEATURE_SCOPE.md`
 - Complete package documentation: `docs/COMPLETE_SYSTEM_PACKAGE.md`
 - Production-ready architecture spec: `docs/MWOS_PRODUCTION_READY_ARCHITECTURE.md`
 - Implementation backlog: `docs/MWOS_IMPLEMENTATION_BACKLOG.md`

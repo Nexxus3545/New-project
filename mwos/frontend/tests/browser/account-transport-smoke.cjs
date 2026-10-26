@@ -176,7 +176,7 @@ async function main() {
     assert.equal(recovery.threads.size, 1, 'Retry must not create a separate request');
     assert.equal(recovery.errors.length, 0, recovery.errors.join('\n'));
     await recovery.context.close();
-    for (const [role, count] of [['nurse', 15], ['admin', 18]]) {
+    for (const [role, count] of [['nurse', 15], ['midwife', 15], ['doctor', 16], ['admin', 19]]) {
       const staff = await fixture({ role });
       await staff.page.goto(origin + '/settings');
       await staff.page.getByRole('heading', { name: 'Sign-in email', exact: true }).waitFor();
@@ -189,8 +189,19 @@ async function main() {
       })), 'Module icons must stay legible and inherit active-menu colors');
       assert.equal(await navigation.getByRole('link', { name: 'Settings', exact: true }).getAttribute('aria-current'), 'page');
       assert.equal(await navigation.getByRole('link', { name: 'User Management', exact: true }).count(), role === 'admin' ? 1 : 0);
+      const billingAllowed = ['admin', 'doctor'].includes(role);
+      assert.equal(await navigation.getByRole('link', { name: 'Billing & Payments', exact: true }).count(), billingAllowed ? 1 : 0);
       await navigation.getByRole('link', { name: role === 'admin' ? 'Compliance' : 'Settings', exact: true }).scrollIntoViewIfNeeded();
       await staff.page.locator('aside').screenshot({ path: path.join(output, 'navigation-icons-' + role + '.png') });
+      await staff.page.goto(origin + '/billing');
+      if (billingAllowed) {
+        await staff.page.getByRole('heading', { name: 'Billing', exact: true }).waitFor();
+        assert.ok(staff.requests.includes('GET /billing'));
+      } else {
+        await staff.page.waitForURL(origin + '/');
+        assert.equal(staff.requests.includes('GET /billing'), false, 'Unauthorized roles never mount or request billing');
+      }
+      assert.deepEqual(staff.errors, []);
       await staff.context.close();
     }
     console.log('Browser checks passed: icons for every patient/staff/admin module, phone navigation, settings/profile, safe saves, transport receipts, and retry protection.');

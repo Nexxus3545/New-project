@@ -66,7 +66,7 @@ test('native settings are authenticated, use own activity, and never request dev
   assert.match(screen, /getPermissionsAsync/);
   assert.doesNotMatch(screen, /requestForegroundPermissionsAsync|requestPermissionsAsync|old_values|new_values/);
   assert.match(screen, /SMS ownership is not verified/);
-  assert.match(source('navigation/RootNavigator.js'), /user && \(!isPatient \|\| user.patientId\).*name="Settings"/);
+  assert.match(source('navigation/RootNavigator.js'), /user && isPatient && user.patientId.*name="Settings"/);
   const home = source('screens/patient/PatientHomeScreen.js');
   assert.match(home, /contentPreferences.showClinicMedia/);
   assert.match(home, /contentPreferences.showTips/);

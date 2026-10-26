@@ -10,22 +10,13 @@ import { LoadingScreen } from '../components/ui'
 import { MobileIcon } from '../components/Icon'
 import SettingsScreen from '../screens/SettingsScreen'
 import { useMobileSettings } from '../hooks/useMobileSettings'
+import PatientAppAccessScreen from '../screens/PatientAppAccessScreen'
 
 import OnboardingScreen from '../screens/OnboardingScreen'
 import LoginScreen from '../screens/LoginScreen'
 import RegisterScreen from '../screens/RegisterScreen'
 import CompletePatientProfileScreen from '../screens/CompletePatientProfileScreen'
 import { useQueryClient } from '@tanstack/react-query'
-
-import StaffHomeScreen from '../screens/staff/StaffHomeScreen'
-import PatientsScreen from '../screens/staff/PatientsScreen'
-import PatientDetailScreen from '../screens/staff/PatientDetailScreen'
-import AppointmentsScreen from '../screens/staff/AppointmentsScreen'
-import VitalsFormScreen from '../screens/staff/VitalsFormScreen'
-import DeliveriesScreen from '../screens/staff/DeliveriesScreen'
-import InventoryScreen from '../screens/staff/InventoryScreen'
-import StaffProfileScreen from '../screens/staff/StaffProfileScreen'
-import EmergencyMapScreen from '../screens/staff/EmergencyMapScreen'
 
 import PatientHomeScreen from '../screens/patient/PatientHomeScreen'
 import PatientAppointmentsScreen from '../screens/patient/PatientAppointmentsScreen'
@@ -94,59 +85,6 @@ const TabIcon = ({ icon, label, focused, patient }) => (
     </Text>
   </View>
 )
-
-function StaffTabs() {
-  const tabs = [
-    { name: 'Home', component: StaffHomeScreen, icon: 'view-dashboard-outline', label: 'Dashboard' },
-    { name: 'Patients', component: PatientsScreen, icon: 'account-group-outline', label: 'Patients' },
-    { name: 'Appointments', component: AppointmentsScreen, icon: 'calendar-check-outline', label: 'Appointments' },
-    { name: 'Deliveries', component: DeliveriesScreen, icon: 'baby-carriage', label: 'Delivery' },
-    { name: 'Inventory', component: InventoryScreen, icon: 'pill', label: 'Inventory' },
-  ]
-
-  return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          height: 72,
-          paddingBottom: 7,
-          paddingTop: 5,
-          marginHorizontal: 12,
-          marginBottom: 10,
-          borderTopWidth: 0,
-          borderRadius: 26,
-          backgroundColor: colors.white,
-          borderTopColor: colors.gray[200],
-          shadowColor: '#6b4450',
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.12,
-          shadowRadius: 20,
-          elevation: 12,
-        },
-        tabBarShowLabel: false,
-        tabBarHideOnKeyboard: true,
-        tabBarItemStyle: {
-          paddingTop: 2,
-          paddingBottom: 2,
-        },
-      }}
-    >
-      {tabs.map((tab) => (
-        <Tab.Screen
-          key={tab.name}
-          name={tab.name}
-          component={tab.component}
-          options={{
-            tabBarIcon: ({ focused }) => (
-              <TabIcon icon={tab.icon} label={tab.label} focused={focused} />
-            ),
-          }}
-        />
-      ))}
-    </Tab.Navigator>
-  )
-}
 
 function PatientTabs() {
   const tabs = [
@@ -277,6 +215,7 @@ export default function RootNavigator() {
   }
 
   const isPatient = user?.role === 'patient'
+  if (user && !isPatient) return <PatientAppAccessScreen />
 
   if (!user && !hasSeenOnboarding) {
     return <OnboardingScreen />
@@ -290,36 +229,12 @@ export default function RootNavigator() {
             <RootStack.Screen name="Login" component={LoginScreen} />
             <RootStack.Screen name="Register" component={RegisterScreen} />
           </>
-        ) : isPatient && !user.patientId ? (
+        ) : !user.patientId ? (
           <RootStack.Screen name="CompletePatientProfile" component={CompletePatientProfileScreen} />
-        ) : isPatient ? (
-          <RootStack.Screen name="PatientNavigator" component={PatientNavigator} />
         ) : (
-          <>
-            <RootStack.Screen name="StaffTabs" component={StaffTabs} />
-            <RootStack.Screen
-              name="PatientDetail"
-              component={PatientDetailScreen}
-              options={{ headerShown: true, title: 'Patient Record', headerTintColor: colors.teal[600] }}
-            />
-            <RootStack.Screen
-              name="VitalsForm"
-              component={VitalsFormScreen}
-              options={{ headerShown: true, title: 'Record Vitals', headerTintColor: colors.teal[600] }}
-            />
-            <RootStack.Screen
-              name="StaffProfile"
-              component={StaffProfileScreen}
-              options={{ headerShown: true, title: 'My Profile', headerTintColor: colors.teal[600] }}
-            />
-            <RootStack.Screen
-              name="EmergencyMap"
-              component={EmergencyMapScreen}
-              options={{ headerShown: false }}
-            />
-          </>
+          <RootStack.Screen name="PatientNavigator" component={PatientNavigator} />
         )}
-        {user && (!isPatient || user.patientId) ? <RootStack.Screen name="Settings" component={SettingsScreen} /> : null}
+        {user && isPatient && user.patientId ? <RootStack.Screen name="Settings" component={SettingsScreen} /> : null}
       </RootStack.Navigator>
     </NavigationContainer>
   )

@@ -5,6 +5,7 @@
   "author": "TMC Copino Birthing Home and Medical Clinic",
   "main": "main.js",
   "scripts": {
+    "test": "node --test tests/*.test.cjs",
     "build:renderer": "esbuild renderer/app.js --bundle --platform=browser --format=esm --outfile=renderer/app.bundle.js",
     "dev": "npm run build:renderer && electron .",
     "start": "npm run build:renderer && electron .",

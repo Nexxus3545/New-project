@@ -48,7 +48,7 @@ const staffNavSections = [
   { title: 'Overview', items: staffNav.slice(0, 3) },
   { title: 'Clinical Monitoring', items: staffNav.slice(3, 8) },
   { title: 'Communication', items: staffNav.slice(8, 11) },
-  { title: 'Operations', items: staffNav.slice(11, 14) },
+  { title: 'Operations', items: [...staffNav.slice(11, 14), { to: '/billing', icon: 'billing', label: 'Billing & Payments', roles: ['admin', 'doctor'] }] },
   { title: 'System', items: staffNav.slice(14) },
 ]
 
@@ -83,7 +83,7 @@ export default function AppLayout({ patient = false }) {
     : [
         ...staffNavSections,
         ...(user?.role === 'admin' ? [{ title: 'Admin', items: adminNav }] : []),
-      ]
+      ].map((section) => ({ ...section, items: section.items.filter((item) => !item.roles || item.roles.includes(user?.role)) }))
 
   const currentPage = (() => {
     const titleMap = patient
@@ -117,6 +117,7 @@ export default function AppLayout({ patient = false }) {
           ['/inventory', ['Inventory', 'Manage medicine/product images, usage guidance, stock, reorder, and expiry status.']],
           ['/health-education', ['Health Education', 'Publish pregnancy, postnatal, newborn, nutrition, and family-planning videos or images.']],
           ['/reports-analytics', ['Reports / Analytics', 'Review clinic metrics, maternal indicators, and export-ready summaries.']],
+          ['/billing', ['Billing & Payments', 'Review clinic bills and saved payment records. Online payment processing is not connected.']],
           ['/account', ['Profile', 'Your personal details and clinic credential information.']],
           ['/settings', ['Settings', 'Sign-in, contact and recovery, appearance, and account security.']],
         ]

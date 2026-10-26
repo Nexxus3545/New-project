@@ -2,6 +2,7 @@
 
 ## Implemented
 
+- The mobile app is patient-only. Staff/unknown-role login and restored sessions are rejected locally; patient access remains available in the web portal. This source change needs a new binary and does not update an installed APK through Vercel.
 - Deployed HTTPS API is the default. Use EXPO_PUBLIC_API_URL only for deliberate local testing.
 - Google opens the system browser and returns a short-lived, single-use code to tmccopinomwos://oauth.
 - The exchange is bound to an S256 verifier generated inside the app. No access/refresh token is placed in a URL.

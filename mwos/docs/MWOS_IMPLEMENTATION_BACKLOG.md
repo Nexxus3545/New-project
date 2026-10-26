@@ -2,11 +2,16 @@
 
 This backlog turns the production architecture into buildable phases for Web, Desktop, Mobile, Backend, Database, and DevOps.
 
+The updated `APPROVED_FEATURE_SCOPE.md` is authoritative for client allocation:
+staff use desktop workspaces; the mobile app is patient-only; patients may also
+use the web portal. Earlier staff-mobile and patient-Electron tasks below are
+historical and are no longer delivery requirements.
+
 ## Guiding Rule
 
 Every phase must preserve:
 
-- UI parity across web, desktop, and mobile
+- role-appropriate clients, with patient web/mobile continuity rather than all-feature parity
 - shared API contracts
 - shared validation logic
 - role-safe access rules
