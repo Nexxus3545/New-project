@@ -158,7 +158,7 @@ test('admission tokens are room-scoped, short-lived, pseudonymous and have no ad
   assert.equal(patient.expiresAt, '2026-10-28T10:10:00.000Z'); assert.equal(patient.roomExpiresAt, '2026-10-28T12:00:00.000Z');
   const props = app.calls[0].body.properties;
   assert.equal(props.room_name, name); assert.equal(props.exp, seconds + 600); assert.equal(props.nbf, seconds - 5);
-  assert.equal(props.eject_at_token_exp, false, 'Admission expiry must not interrupt an ongoing consultation');
+  assert.equal(Object.hasOwn(props, 'eject_at_token_exp'), false, 'Omit the token ejection override so the room deadline governs the call');
   assert.equal(props.is_owner, false); assert.equal(props.permissions.canAdmin, false);
   assert.equal(props.user_name, 'Patient'); assert.match(props.user_id, /^[a-f0-9]{32}$/); assert.notEqual(props.user_id, userId);
   assert.equal(props.start_cloud_recording, false); assert.equal(props.auto_start_transcription, false); assert.equal(props.enable_recording_ui, false);

@@ -147,7 +147,6 @@ const createDailyVideoService = ({ apiKey = process.env.DAILY_API_KEY, fetchImpl
       room_name: room.name,
       nbf: current - 5,
       exp,
-      eject_at_token_exp: false,
       is_owner: false,
       user_id: opaqueIdentity(sessionId, userId),
       user_name: role === 'patient' ? 'Patient' : 'Care team',
