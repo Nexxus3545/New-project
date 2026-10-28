@@ -2,6 +2,7 @@ const { getClient, query } = require('../config/database');
 const { randomUUID } = require('node:crypto');
 const { resolveStepUpContext } = require('../middleware/stepUp');
 const { buildTeleconsultMeetingDetails, prepareTeleconsultUpdate, parseSchedule } = require('../utils/teleconsult');
+const { dailyVideo, managedRoomNameForSession } = require('../utils/dailyVideo');
 const {
   getStaffSecurityContext,
   recordSecurityAudit,
@@ -613,11 +614,7 @@ const createTeleconsultSession = async (req, res, next) => {
       await client.query('ROLLBACK');
       return res.status(403).json({ success: false, message: 'Only the assigned clinician or an administrator can schedule a consultation room.' });
     }
-    const meetingDetails = buildTeleconsultMeetingDetails({ meetingUrl: patientRequest ? null : req.body?.meetingUrl });
-    if (sessionStatus === 'scheduled' && !meetingDetails.meetingUrl) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ success: false, message: 'Add a valid Google Meet room before scheduling the consultation.' });
-    }
+    const meetingDetails = buildTeleconsultMeetingDetails();
     const sessionStartAt = sessionStatus === 'scheduled' ? parseSchedule(req.body?.startAt) : null;
     const sessionEndAt = null;
     const triggeredFromMessageId = patientRequest ? null : req.body?.triggeredFromMessageId || null;
@@ -771,7 +768,7 @@ const createTeleconsultSession = async (req, res, next) => {
   }
 };
 
-// Clinic lifecycle updates do not imply that any participant has joined Google Meet.
+// Lifecycle controls remain separate from admission to the embedded call.
 const updateTeleconsultSession = async (req, res, next) => {
   let client;
   try {
@@ -798,6 +795,11 @@ const updateTeleconsultSession = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Consultation not found or access denied' });
     }
     const update = prepareTeleconsultUpdate(session, req.body);
+    if (['completed', 'cancelled'].includes(update.status) && managedRoomNameForSession(session)) {
+      // Delete first to expel active participants. A provider failure rolls back
+      // the status change, so the clinic never sees a falsely closed call.
+      await dailyVideo.closeRoom(session.id, thread.participants.map((person) => person.id));
+    }
     const saved = await client.query(
       `UPDATE tele_consult_sessions
        SET status = $2, meeting_provider = $3, meeting_url = $4, meeting_code = $5,
@@ -815,6 +817,51 @@ const updateTeleconsultSession = async (req, res, next) => {
     });
     await client.query('COMMIT');
     return res.json({ success: true, data: saved.rows[0] });
+  } catch (error) {
+    if (client) await client.query('ROLLBACK');
+    next(error);
+  } finally { client?.release(); }
+};
+
+const getTeleconsultVideoStatus = (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  return res.json({ success: true, data: { provider: 'daily', configured: dailyVideo.configured() } });
+};
+
+const joinTeleconsultVideo = async (req, res, next) => {
+  let client;
+  res.set('Cache-Control', 'no-store');
+  try {
+    if (!['patient', ...STAFF_ROLES].includes(req.user.role) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.params.id || '')) {
+      return res.status(404).json({ success: false, message: 'Consultation not found or access denied' });
+    }
+    client = await getClient();
+    await client.query('BEGIN');
+    // The lock prevents multiple participants provisioning competing rooms and
+    // serializes admission against cancellation/completion.
+    const result = await client.query('SELECT * FROM tele_consult_sessions WHERE id = $1 FOR UPDATE', [req.params.id]);
+    const session = result.rows[0];
+    const thread = session ? await fetchThreadDetail(client, session.thread_id, req.user.id) : null;
+    const patient = session && thread && req.user.role === 'patient' ? await getPatientRecordByUser(client, req.user.id) : null;
+    if (!session || !thread || (req.user.role === 'patient' && (!patient || session.patient_id !== patient.id))) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Consultation not found or access denied' });
+    }
+    if (!['scheduled', 'active'].includes(session.status)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, message: 'Video calling is available only for a scheduled or active consultation.' });
+    }
+    const room = await dailyVideo.ensureRoom(session.id);
+    const admission = await dailyVideo.mintAdmission(room, { sessionId: session.id, userId: req.user.id, role: req.user.role });
+    await client.query(
+      `UPDATE tele_consult_sessions SET meeting_provider = 'external', meeting_url = $2,
+       meeting_code = $3, updated_at = NOW() WHERE id = $1`,
+      [session.id, room.url, room.name]
+    );
+    await client.query('COMMIT');
+    // Tokens exist only in this no-store response. They are never persisted in
+    // sessions, notifications, messages or security audit records.
+    return res.json({ success: true, data: admission });
   } catch (error) {
     if (client) await client.query('ROLLBACK');
     next(error);
@@ -1256,6 +1303,8 @@ module.exports = {
   createThread,
   createTeleconsultSession,
   updateTeleconsultSession,
+  getTeleconsultVideoStatus,
+  joinTeleconsultVideo,
   addMessage,
   promoteMessageToRecord,
   getTasks,

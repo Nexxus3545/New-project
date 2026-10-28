@@ -1,5 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "express",
-  "buildCommand": "node src/utils/migratePatientCare.js"
+  "buildCommand": "node src/utils/checkDailyConfiguration.js && node src/utils/migratePatientCare.js"
 }

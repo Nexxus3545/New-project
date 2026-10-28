@@ -1,7 +1,8 @@
+const { managedRoomNameForSession } = require('./dailyVideo');
 const invalidInput = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode });
 
-// Only real, user-created Google Meet codes are accepted. Patient information is
-// never embedded in generated third-party URLs, and no remote URL is fetched here.
+// Legacy compatibility only; new consultations use provider-managed Daily rooms.
+// No remote URL is fetched here.
 const normalizeGoogleMeetUrl = (value) => {
   if (typeof value !== 'string' || value.length > 2048 || !/^https:\/\/meet\.google\.com\//i.test(value.trim())) {
     throw invalidInput('Use a valid HTTPS Google Meet link, such as https://meet.google.com/abc-defg-hij.');
@@ -14,11 +15,9 @@ const normalizeGoogleMeetUrl = (value) => {
   return `https://meet.google.com/${url.pathname.split('/')[1]}`;
 };
 
-const buildTeleconsultMeetingDetails = ({ meetingUrl = null } = {}) => {
-  if (!meetingUrl) return { meetingProvider: 'external', meetingCode: null, meetingUrl: '' };
-  const normalized = normalizeGoogleMeetUrl(meetingUrl);
-  return { meetingProvider: 'external', meetingCode: normalized.split('/').pop(), meetingUrl: normalized };
-};
+// The server provisions an embedded private room only when a participant joins.
+// Client-provided links never become the room for a new consultation.
+const buildTeleconsultMeetingDetails = () => ({ meetingProvider: 'external', meetingCode: null, meetingUrl: '' });
 
 const parseSchedule = (value) => {
   if (typeof value !== 'string') throw invalidInput('A scheduled consultation requires a date and time with a timezone.');
@@ -42,11 +41,10 @@ const transitions = {
 const prepareTeleconsultUpdate = (session, body = {}, now = new Date()) => {
   const status = body.status || session.status;
   if (!transitions[session.status]?.has(status)) throw invalidInput('This consultation status transition is not allowed.', 409);
-  const details = ['completed', 'cancelled'].includes(status)
-    ? buildTeleconsultMeetingDetails()
-    : buildTeleconsultMeetingDetails({ meetingUrl: Object.hasOwn(body, 'meetingUrl') ? body.meetingUrl : session.meeting_url });
+  const details = !['completed', 'cancelled'].includes(status) && managedRoomNameForSession(session)
+    ? { meetingProvider: 'external', meetingCode: session.meeting_code, meetingUrl: session.meeting_url }
+    : buildTeleconsultMeetingDetails();
   let startAt = status === 'scheduled' && Object.hasOwn(body, 'startAt') ? body.startAt : session.start_at;
-  if (['scheduled', 'active'].includes(status) && !details.meetingUrl) throw invalidInput('Add a valid Google Meet room before scheduling or starting the consultation.');
   if (status === 'scheduled') startAt = parseSchedule(startAt instanceof Date ? startAt.toISOString() : startAt);
   if (status === 'requested') startAt = null;
   if (status === 'active') startAt = now.toISOString();
