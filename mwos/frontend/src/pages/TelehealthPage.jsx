@@ -1,8 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
 import { useAuthStore } from '../store/authStore'
+import DeviceCheck from '../components/telehealth/DeviceCheck'
+import ConsultationVideo from '../components/telehealth/ConsultationVideo'
+import { safeGoogleMeetUrl } from '../utils/telehealthMeeting'
 
 const SESSION_FILTERS = [
   ['all', 'All sessions'],
@@ -12,7 +15,7 @@ const SESSION_FILTERS = [
   ['completed', 'Completed'],
 ]
 
-const emptyRequest = { title: '', patientId: '', clinicianId: '', reason: '', startAt: '' }
+const emptyRequest = { title: '', patientId: '', clinicianId: '', reason: '', startAt: '', meetingUrl: '' }
 
 const roleLabel = (value) => (value || 'care team').replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase())
 const formatDateTime = (value) => value
@@ -54,6 +57,9 @@ export default function TelehealthPage() {
   const [showRequest, setShowRequest] = useState(false)
   const [requestForm, setRequestForm] = useState(emptyRequest)
   const [requestError, setRequestError] = useState('')
+  const [deviceStopSignal, setDeviceStopSignal] = useState(0)
+  const deviceRef = useRef(null)
+  const stopPreview = () => { deviceRef.current?.stop(); setDeviceStopSignal((value) => value + 1) }
 
   const directoryQuery = useQuery({
     queryKey: ['telehealth-directory'],
@@ -62,6 +68,7 @@ export default function TelehealthPage() {
 
   const threadsQuery = useQuery({
     queryKey: ['telehealth-threads'],
+    refetchInterval: 15000,
     queryFn: () => api.get('/interactions/threads', { params: { threadType: 'tele_consult' } }).then((response) => response.data.data),
   })
 
@@ -76,6 +83,7 @@ export default function TelehealthPage() {
 
   const detailQuery = useQuery({
     queryKey: ['telehealth-thread', selectedThreadId],
+    refetchInterval: 10000,
     queryFn: () => api.get(`/interactions/threads/${selectedThreadId}`).then((response) => response.data.data),
     enabled: Boolean(selectedThreadId),
   })
@@ -136,14 +144,20 @@ export default function TelehealthPage() {
       return
     }
 
+    if (!patientMode && requestForm.meetingUrl && !safeGoogleMeetUrl(requestForm.meetingUrl)) {
+      setRequestError('Enter a valid Google Meet room link.'); return
+    }
+    if (!patientMode && requestForm.startAt && !safeGoogleMeetUrl(requestForm.meetingUrl)) {
+      setRequestError('Add the clinic Google Meet room link before scheduling, or leave the schedule blank for an unconfirmed request.'); return
+    }
     createMutation.mutate({
       title: requestForm.title.trim() || undefined,
       clinicianId: requestForm.clinicianId,
       reason: requestForm.reason.trim(),
       initialMessage: requestForm.reason.trim(),
       triggerSource: 'manual',
-      ...(patientMode ? {} : { patientId: requestForm.patientId }),
-      ...(requestForm.startAt ? { startAt: new Date(requestForm.startAt).toISOString(), sessionStatus: 'scheduled' } : {}),
+      ...(patientMode ? {} : { patientId: requestForm.patientId, meetingUrl: safeGoogleMeetUrl(requestForm.meetingUrl) || undefined }),
+      ...(!patientMode && requestForm.startAt ? { startAt: new Date(requestForm.startAt).toISOString(), sessionStatus: 'scheduled' } : {}),
     })
   }
 
@@ -152,7 +166,6 @@ export default function TelehealthPage() {
   const activeStatus = session?.status || selectedThread?.teleconsult_status || 'requested'
   const clinician = clinicians.find((person) => person.id === session?.clinician_id)
   const patient = (directory.patients || []).find((person) => person.id === detail?.patient_id)
-  const canJoin = ['scheduled', 'active'].includes(activeStatus) && Boolean(session?.meeting_url)
   const messagePath = patientMode ? '/my/messages' : '/messages'
 
   return (
@@ -170,6 +183,8 @@ export default function TelehealthPage() {
         <span>Telehealth is not an emergency service. For severe pain, bleeding, breathing difficulty, loss of consciousness, or another emergency, call emergency services or go to the nearest appropriate healthcare facility.</span>
       </div>
 
+      <DeviceCheck ref={deviceRef} sessionKey={selectedThreadId || "no-consultation"} stopSignal={deviceStopSignal} />
+
       <div className="grid gap-5 lg:grid-cols-[18rem,minmax(0,1fr)]">
         <aside className="card h-fit">
           <div className="flex items-start justify-between gap-3">
@@ -180,14 +195,15 @@ export default function TelehealthPage() {
             <span className="badge badge-gray">{allThreads.length}</span>
           </div>
 
-          <label className="label mt-4">Status</label>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="input">
+          <label htmlFor="telehealth-filter" className="label mt-4">Status</label>
+          <select id="telehealth-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="input">
             {SESSION_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
 
           <div className="mt-4 max-h-[32rem] space-y-2 overflow-y-auto pr-1">
             {threadsQuery.isLoading ? <div className="flex justify-center py-8"><div className="loading-spinner h-7 w-7" /></div> : null}
-            {!threadsQuery.isLoading && !threads.length ? <p className="rounded-2xl border border-dashed border-slate-200 px-3 py-6 text-center text-sm text-slate-500 dark:border-slate-700">No consultations match this filter.</p> : null}
+            {!threadsQuery.isLoading && !threadsQuery.isError && !threads.length ? <p className="rounded-2xl border border-dashed border-slate-200 px-3 py-6 text-center text-sm text-slate-500 dark:border-slate-700">No consultations match this filter.</p> : null}
+            {threadsQuery.isError ? <p role="alert" className="text-sm text-rose-700">Consultations could not be loaded. <button type="button" onClick={() => threadsQuery.refetch()} className="underline">Try again</button></p> : null}
             {threads.map((thread) => (
               <button
                 key={thread.id}
@@ -239,7 +255,7 @@ export default function TelehealthPage() {
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Schedule</p>
                   <p className="mt-2 font-semibold text-slate-900 dark:text-slate-100">{formatDateTime(session?.start_at)}</p>
-                  <p className="mt-1 text-sm text-slate-500">{session?.meeting_provider ? `${roleLabel(session.meeting_provider)} session` : 'Schedule is subject to clinic confirmation.'}</p>
+                  <p className="mt-1 text-sm text-slate-500">{safeGoogleMeetUrl(session?.meeting_url) ? 'Google Meet video call' : 'The clinic will confirm the video room.'}</p>
                 </div>
                 {!patientMode ? (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
@@ -249,26 +265,14 @@ export default function TelehealthPage() {
                   </div>
                 ) : null}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Secure room</p>
-                  <p className="mt-2 font-semibold text-slate-900 dark:text-slate-100">{session?.meeting_code || 'Available after confirmation'}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Video room</p>
+                  <p className="mt-2 font-semibold text-slate-900 dark:text-slate-100">{safeGoogleMeetUrl(session?.meeting_url) ? session.meeting_code || 'Google Meet' : 'Available after clinic confirmation'}</p>
                   <p className="mt-1 text-sm text-slate-500">Only join at the confirmed time with clinic approval.</p>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-rose-100 bg-rose-50/60 p-5 dark:border-rose-900/40 dark:bg-rose-950/20">
-                <h3 className="font-semibold text-slate-900 dark:text-slate-100">Next step</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                  {canJoin
-                    ? 'Your consultation room is ready. Check your camera, microphone, and connection before joining.'
-                    : activeStatus === 'requested'
-                      ? 'Your request has been sent. The clinic will review it and confirm a time or share next steps in the consultation messages.'
-                      : 'Use the consultation messages to review instructions, documents, and follow-up information.'}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-3">
-                  {canJoin ? <a href={session.meeting_url} target="_blank" rel="noreferrer" className="btn-primary">Join consultation</a> : null}
-                  <Link to={messagePath} state={{ threadId: detail.id }} className="btn-secondary">Open consultation messages</Link>
-                </div>
-              </div>
+              <ConsultationVideo key={session?.id + ':' + session?.updated_at + ':' + session?.status} session={session} user={user} onJoin={stopPreview} onUpdated={() => { queryClient.invalidateQueries({ queryKey: ['telehealth-thread', selectedThreadId] }); queryClient.invalidateQueries({ queryKey: ['telehealth-threads'] }) }} />
+              <Link to={messagePath} state={{ threadId: detail.id }} className="btn-secondary">Open consultation messages</Link>
 
               <div>
                 <h3 className="section-title mb-3">Consultation updates</h3>
@@ -316,7 +320,9 @@ export default function TelehealthPage() {
               <div>
                 <label className="label">Preferred schedule</label>
                 <input type="datetime-local" value={requestForm.startAt} onChange={(event) => setRequestForm((current) => ({ ...current, startAt: event.target.value }))} className="input" />
-                <p className="mt-1 text-xs text-slate-500">Leave blank to record a request that still needs scheduling.</p>
+                <p className="mt-1 text-xs text-slate-500">Leave blank for a request that still needs clinic confirmation.</p>
+                <label htmlFor="new-telehealth-meet-url" className="label mt-4">Google Meet room link (optional for requests)</label>
+                <input id="new-telehealth-meet-url" className="input" type="url" maxLength={2048} value={requestForm.meetingUrl} onChange={(event) => setRequestForm((current) => ({ ...current, meetingUrl: event.target.value }))} placeholder="https://meet.google.com/abc-defg-hij" />
               </div>
             ) : null}
             <div>

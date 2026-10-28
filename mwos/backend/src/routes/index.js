@@ -583,6 +583,7 @@ router.get('/interactions/directory', authenticate, interactionCtrl.getDirectory
 router.get('/interactions/threads', authenticate, interactionCtrl.getThreads);
 router.post('/interactions/threads', authenticate, interactionCtrl.createThread);
 router.post('/interactions/teleconsults', authenticate, authorize('admin','doctor','midwife','nurse','patient'), interactionCtrl.createTeleconsultSession);
+router.patch('/interactions/teleconsults/:id', authenticate, authorize('admin','doctor','midwife'), interactionCtrl.updateTeleconsultSession);
 router.get('/interactions/threads/:id', authenticate, interactionCtrl.getThreadById);
 router.post('/interactions/threads/:id/messages', authenticate, interactionCtrl.addMessage);
 router.post('/interactions/messages/:id/promote', authenticate, authorize('admin','doctor','midwife','nurse'), requireStepUp('clinical-note'), interactionCtrl.promoteMessageToRecord);
