@@ -103,6 +103,40 @@ test('explicit empty admin capability arrays grant no powers but missing permiss
   }
 });
 
+test('an omitted room storage flag requires authenticated verification of the documented disabled domain default', async () => {
+  for (const config of [{ enable_transcription_storage: false }, {}]) {
+    const omitted = room(); delete omitted.config.enable_transcription_storage;
+    const app = harness([reply(200, omitted), reply(200, { config })]);
+    assert.equal((await app.service.ensureRoom(sessionId)).url, url);
+    assert.equal(app.calls[1].target, 'https://api.daily.co/v1/');
+    assert.equal(app.calls[1].headers.Authorization, 'Bearer test-only-key');
+  }
+});
+
+test('enabled or malformed domain storage settings and missing domain configuration fail closed', async () => {
+  for (const config of [{ enable_transcription_storage: true }, { enable_transcription_storage: null }, { enable_transcription_storage: 'false' }, undefined, null, []]) {
+    const omitted = room(); delete omitted.config.enable_transcription_storage;
+    const app = harness([reply(200, omitted), reply(200, { config })]);
+    await assert.rejects(app.service.ensureRoom(sessionId), (error) => {
+      assert.match(safeDiagnostic(error), /room-config-check \[domain\.config/);
+      return true;
+    });
+  }
+});
+
+test('the domain fallback cannot excuse a present unsafe room storage value or another missing room setting', async () => {
+  for (const config of [
+    { ...room().config, enable_transcription_storage: true },
+    { ...room().config, enable_transcription_storage: null },
+  ]) {
+    const app = harness([reply(200, { ...room(), config })]);
+    await assert.rejects(app.service.ensureRoom(sessionId)); assert.equal(app.calls.length, 1);
+  }
+  const omitted = room(); delete omitted.config.enable_transcription_storage; delete omitted.config.enable_screenshare;
+  const app = harness([reply(200, omitted)]);
+  await assert.rejects(app.service.ensureRoom(sessionId)); assert.equal(app.calls.length, 1);
+});
+
 test('strict room URL validation rejects credentials, alternate hosts, ports and token parameters', () => {
   for (const value of [
     `http://mwos-test.daily.co/${name}`, `https://user:secret@mwos-test.daily.co/${name}`,

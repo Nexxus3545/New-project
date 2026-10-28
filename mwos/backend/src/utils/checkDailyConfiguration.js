@@ -32,7 +32,7 @@ const checkDailyConfiguration = async (service = createDailyVideoService()) => {
 };
 
 const safeDiagnostic = (error) => {
-  const allowed = ['configuration', 'get-room', 'create-room', 'mint-token', 'eject-participants', 'delete-room', 'room-url-check', 'room-config-check', 'token-response-check'];
+  const allowed = ['configuration', 'get-room', 'get-domain-config', 'create-room', 'mint-token', 'eject-participants', 'delete-room', 'room-url-check', 'room-config-check', 'token-response-check'];
   const category = allowed.includes(error?.videoOperation) ? error.videoOperation : 'configuration-check';
   const http = Number.isInteger(error?.providerStatus) && error.providerStatus >= 100 && error.providerStatus <= 599 ? ` HTTP ${error.providerStatus}` : '';
   const checks = category === 'room-config-check' && Array.isArray(error?.videoChecks)

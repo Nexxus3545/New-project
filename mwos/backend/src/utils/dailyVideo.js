@@ -10,6 +10,7 @@ const ROOM_CHECK_FIELDS = Object.freeze([
   'room.name', 'room.privacy', 'room.config', 'config.exp', 'config.eject_at_room_exp',
   'config.max_participants', 'config.enable_knocking', 'config.enable_chat', 'config.enable_screenshare',
   'config.enable_transcription_storage', 'config.permissions.canAdmin', 'config.permissions.canSend',
+  'domain.config', 'domain.config.enable_transcription_storage',
 ]);
 
 // URLs come only from the authenticated provider response. Neither a client URL
@@ -46,7 +47,7 @@ const roomProperties = (now) => ({
   permissions: { hasPresence: true, canSend: ['audio', 'video'], canAdmin: false },
 });
 
-const validatePrivateRoom = (room, expectedName, now) => {
+const validatePrivateRoom = (room, expectedName, now, { verifiedDomainStorageDisabled = false } = {}) => {
   const config = room?.config;
   const admin = config?.permissions?.canAdmin;
   const media = config?.permissions?.canSend;
@@ -63,11 +64,12 @@ const validatePrivateRoom = (room, expectedName, now) => {
     'config.enable_knocking': config?.enable_knocking === false,
     'config.enable_chat': config?.enable_chat === false,
     'config.enable_screenshare': config?.enable_screenshare === false,
-    'config.enable_transcription_storage': config?.enable_transcription_storage === false,
+    'config.enable_transcription_storage': config?.enable_transcription_storage === false ||
+      (verifiedDomainStorageDisabled && config && !Object.hasOwn(config, 'enable_transcription_storage')),
     'config.permissions.canAdmin': adminDisabled,
     'config.permissions.canSend': Array.isArray(media) && media.length === 2 && media.includes('audio') && media.includes('video'),
   };
-  const videoChecks = ROOM_CHECK_FIELDS.filter((field) => !checks[field]);
+  const videoChecks = Object.keys(checks).filter((field) => !checks[field]);
   if (videoChecks.length) {
     throw videoError('The private video room could not be verified.', 503, { videoOperation: 'room-config-check', videoChecks });
   }
@@ -81,7 +83,7 @@ const createDailyVideoService = ({ apiKey = process.env.DAILY_API_KEY, fetchImpl
     return createHmac('sha256', apiKey).update(`${sessionId}:${userId}`).digest('hex').slice(0, 32);
   };
   const request = async (path, method = 'GET', body, accepted = []) => {
-    const videoOperation = method === 'DELETE' ? 'delete-room' : path === '/meeting-tokens' ? 'mint-token' : path.endsWith('/eject') ? 'eject-participants' : method === 'POST' ? 'create-room' : 'get-room';
+    const videoOperation = method === 'DELETE' ? 'delete-room' : path === '/' ? 'get-domain-config' : path === '/meeting-tokens' ? 'mint-token' : path.endsWith('/eject') ? 'eject-participants' : method === 'POST' ? 'create-room' : 'get-room';
     if (!configured()) throw videoError('Video calling has not been configured yet.', 503, { videoOperation: 'configuration' });
     let response;
     try {
@@ -116,7 +118,26 @@ const createDailyVideoService = ({ apiKey = process.env.DAILY_API_KEY, fetchImpl
         if (result.status === 404) throw videoError(undefined, 503, { videoOperation: 'create-room', providerStatus: createStatus });
       }
     }
-    return validatePrivateRoom(result.data, name, current);
+    try { return validatePrivateRoom(result.data, name, current); } catch (error) {
+      // Daily may omit this false-default field in room responses. Verify the
+      // domain inheritance before accepting that one omission; no other missing
+      // room safety setting receives a default here.
+      if (error.videoOperation !== 'room-config-check' || error.videoChecks?.length !== 1 ||
+          error.videoChecks[0] !== 'config.enable_transcription_storage' ||
+          !result.data?.config || Object.hasOwn(result.data.config, 'enable_transcription_storage')) throw error;
+      const domain = await request('/');
+      const config = domain.data?.config;
+      const isConfig = config && typeof config === 'object' && !Array.isArray(config);
+      // Primary Daily documentation: transcripts are ephemeral by default, and
+      // the domain OpenAPI gives enable_transcription_storage default:false.
+      // https://docs.daily.co/docs/guides/features/transcription#storage
+      // https://docs.daily.co/reference/rest-api/domain/set-domain-config
+      const disabled = isConfig && (!Object.hasOwn(config, 'enable_transcription_storage') || config.enable_transcription_storage === false);
+      if (!disabled) throw videoError('The private video room could not be verified.', 503, {
+        videoOperation: 'room-config-check', videoChecks: [isConfig ? 'domain.config.enable_transcription_storage' : 'domain.config'],
+      });
+      return validatePrivateRoom(result.data, name, current, { verifiedDomainStorageDisabled: true });
+    }
   };
   const mintAdmission = async (room, { sessionId, userId, role }) => {
     const current = Math.floor(now() / 1000);
