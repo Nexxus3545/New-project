@@ -53,7 +53,7 @@ const DeviceCheck = forwardRef(function DeviceCheck({ sessionKey, stopSignal = 0
         </>}
         {ready || pending ? <button type="button" className="btn-secondary" onClick={() => controllerRef.current?.stop()}>{pending ? 'Cancel device check' : 'Stop devices'}</button> : null}
       </div>
-      <p className="text-xs leading-5 text-slate-500">This check stays on your device. MWOS does not record or upload this preview. Joining Google Meet opens the actual call separately.</p>
+      <p className="text-xs leading-5 text-slate-500">This check stays on your device. MWOS does not record or upload this preview. Your video consultation opens here in MWOS when you join.</p>
     </div>
   </section>
 })

@@ -5,7 +5,6 @@ import api from '../utils/api'
 import { useAuthStore } from '../store/authStore'
 import DeviceCheck from '../components/telehealth/DeviceCheck'
 import ConsultationVideo from '../components/telehealth/ConsultationVideo'
-import { safeGoogleMeetUrl } from '../utils/telehealthMeeting'
 
 const SESSION_FILTERS = [
   ['all', 'All sessions'],
@@ -15,7 +14,7 @@ const SESSION_FILTERS = [
   ['completed', 'Completed'],
 ]
 
-const emptyRequest = { title: '', patientId: '', clinicianId: '', reason: '', startAt: '', meetingUrl: '' }
+const emptyRequest = { title: '', patientId: '', clinicianId: '', reason: '', startAt: '' }
 
 const roleLabel = (value) => (value || 'care team').replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase())
 const formatDateTime = (value) => value
@@ -58,6 +57,7 @@ export default function TelehealthPage() {
   const [requestForm, setRequestForm] = useState(emptyRequest)
   const [requestError, setRequestError] = useState('')
   const [deviceStopSignal, setDeviceStopSignal] = useState(0)
+  const [videoActive, setVideoActive] = useState(false)
   const deviceRef = useRef(null)
   const stopPreview = () => { deviceRef.current?.stop(); setDeviceStopSignal((value) => value + 1) }
 
@@ -144,11 +144,8 @@ export default function TelehealthPage() {
       return
     }
 
-    if (!patientMode && requestForm.meetingUrl && !safeGoogleMeetUrl(requestForm.meetingUrl)) {
-      setRequestError('Enter a valid Google Meet room link.'); return
-    }
-    if (!patientMode && requestForm.startAt && !safeGoogleMeetUrl(requestForm.meetingUrl)) {
-      setRequestError('Add the clinic Google Meet room link before scheduling, or leave the schedule blank for an unconfirmed request.'); return
+    if (!patientMode && requestForm.startAt && !Number.isFinite(new Date(requestForm.startAt).getTime())) {
+      setRequestError('Choose a valid consultation date and time.'); return
     }
     createMutation.mutate({
       title: requestForm.title.trim() || undefined,
@@ -156,7 +153,7 @@ export default function TelehealthPage() {
       reason: requestForm.reason.trim(),
       initialMessage: requestForm.reason.trim(),
       triggerSource: 'manual',
-      ...(patientMode ? {} : { patientId: requestForm.patientId, meetingUrl: safeGoogleMeetUrl(requestForm.meetingUrl) || undefined }),
+      ...(patientMode ? {} : { patientId: requestForm.patientId }),
       ...(!patientMode && requestForm.startAt ? { startAt: new Date(requestForm.startAt).toISOString(), sessionStatus: 'scheduled' } : {}),
     })
   }
@@ -183,7 +180,7 @@ export default function TelehealthPage() {
         <span>Telehealth is not an emergency service. For severe pain, bleeding, breathing difficulty, loss of consciousness, or another emergency, call emergency services or go to the nearest appropriate healthcare facility.</span>
       </div>
 
-      <DeviceCheck ref={deviceRef} sessionKey={selectedThreadId || "no-consultation"} stopSignal={deviceStopSignal} />
+      {!videoActive ? <DeviceCheck ref={deviceRef} sessionKey={selectedThreadId || "no-consultation"} stopSignal={deviceStopSignal} /> : null}
 
       <div className="grid gap-5 lg:grid-cols-[18rem,minmax(0,1fr)]">
         <aside className="card h-fit">
@@ -231,10 +228,11 @@ export default function TelehealthPage() {
             </div>
           ) : detailQuery.isLoading ? (
             <div className="flex min-h-[32rem] items-center justify-center"><div className="loading-spinner h-9 w-9" /></div>
-          ) : detailQuery.isError ? (
+          ) : detailQuery.isError && !detailQuery.data ? (
             <div className="alert-critical"><span>{detailQuery.error.response?.data?.message || 'We could not load this consultation.'}</span></div>
           ) : (
             <div className="space-y-6">
+              {detailQuery.isError ? <p role="alert" className="alert-warning">Consultation updates could not refresh. Your video call can continue; try refreshing the updates when your connection is stable.</p> : null}
               <div className="border-b border-slate-100 pb-5 dark:border-slate-800">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -255,7 +253,7 @@ export default function TelehealthPage() {
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Schedule</p>
                   <p className="mt-2 font-semibold text-slate-900 dark:text-slate-100">{formatDateTime(session?.start_at)}</p>
-                  <p className="mt-1 text-sm text-slate-500">{safeGoogleMeetUrl(session?.meeting_url) ? 'Google Meet video call' : 'The clinic will confirm the video room.'}</p>
+                  <p className="mt-1 text-sm text-slate-500">Private video consultation inside MWOS.</p>
                 </div>
                 {!patientMode ? (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
@@ -266,12 +264,12 @@ export default function TelehealthPage() {
                 ) : null}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Video room</p>
-                  <p className="mt-2 font-semibold text-slate-900 dark:text-slate-100">{safeGoogleMeetUrl(session?.meeting_url) ? session.meeting_code || 'Google Meet' : 'Available after clinic confirmation'}</p>
-                  <p className="mt-1 text-sm text-slate-500">Only join at the confirmed time with clinic approval.</p>
+                  <p className="mt-2 font-semibold text-slate-900 dark:text-slate-100">MWOS video room</p>
+                  <p className="mt-1 text-sm text-slate-500">A private room is prepared when you join your confirmed consultation.</p>
                 </div>
               </div>
 
-              <ConsultationVideo key={session?.id + ':' + session?.updated_at + ':' + session?.status} session={session} user={user} onJoin={stopPreview} onUpdated={() => { queryClient.invalidateQueries({ queryKey: ['telehealth-thread', selectedThreadId] }); queryClient.invalidateQueries({ queryKey: ['telehealth-threads'] }) }} />
+              <ConsultationVideo key={session?.id} session={session} user={user} onJoin={stopPreview} onActiveChange={setVideoActive} onUpdated={() => { queryClient.invalidateQueries({ queryKey: ['telehealth-thread', selectedThreadId] }); queryClient.invalidateQueries({ queryKey: ['telehealth-threads'] }) }} />
               <Link to={messagePath} state={{ threadId: detail.id }} className="btn-secondary">Open consultation messages</Link>
 
               <div>
@@ -321,8 +319,6 @@ export default function TelehealthPage() {
                 <label className="label">Preferred schedule</label>
                 <input type="datetime-local" value={requestForm.startAt} onChange={(event) => setRequestForm((current) => ({ ...current, startAt: event.target.value }))} className="input" />
                 <p className="mt-1 text-xs text-slate-500">Leave blank for a request that still needs clinic confirmation.</p>
-                <label htmlFor="new-telehealth-meet-url" className="label mt-4">Google Meet room link (optional for requests)</label>
-                <input id="new-telehealth-meet-url" className="input" type="url" maxLength={2048} value={requestForm.meetingUrl} onChange={(event) => setRequestForm((current) => ({ ...current, meetingUrl: event.target.value }))} placeholder="https://meet.google.com/abc-defg-hij" />
               </div>
             ) : null}
             <div>
