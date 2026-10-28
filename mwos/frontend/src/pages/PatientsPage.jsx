@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import api from '../utils/api'
 import CoverCard from '../components/common/CoverCard'
+import { clinicFacilities } from '../utils/clinicFacilities'
 import PatientCareFields from '../components/patient/PatientCareFields'
 import { hasMaternalCare, genderOptions } from '../utils/patientCare'
 
@@ -191,10 +192,10 @@ export default function PatientsPage() {
         </div>
 
         <CoverCard
-          image="/reference/patient-intake.jpg"
-          label="Patient intake"
+          image={clinicFacilities.reception.src}
+          label="Reception & patient intake"
           title="A guided registration flow that feels clear and welcoming."
-          description="The intake layout follows the reference style with a calm visual cover and a practical, multi-step form experience."
+          description="Welcome patients at the clinic reception and keep registration details, emergency contacts, and medical history together."
           chips={['Identity', 'Emergency contact', 'Medical history']}
           tone="rose"
           className="h-full min-h-[22rem]"

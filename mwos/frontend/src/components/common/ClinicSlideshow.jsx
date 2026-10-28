@@ -1,12 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import AppIcon from './AppIcon'
+import { clinicTourFacilities } from '../../utils/clinicFacilities'
 
-const spaces = [
-  { src: '/clinic/maternal-reception.jpg', title: 'A familiar welcome', label: 'Reception', description: 'A first look at the clinic reception and information area.', alt: 'TMC Copino reception and information area' },
-  { src: '/clinic/maternal-consultation-room.jpg', title: 'Room for your questions', label: 'Consultation', description: 'Get familiar with the space for your clinic conversations and visits.', alt: 'Clinic consultation room with an examination bed and care equipment' },
-  { src: '/clinic/maternal-birthing-room.jpg', title: 'A look inside the birthing room', label: 'Birthing room', description: 'A real view of the birthing room and newborn bassinet.', alt: 'TMC Copino birthing room with a delivery bed and newborn bassinet' },
-  { src: '/clinic/maternal-recovery-room.jpg', title: 'A place to rest', label: 'Recovery', description: 'A closer look at the clinic recovery room and patient beds.', alt: 'Clinic recovery room with two patient beds' },
-]
+const spaces = clinicTourFacilities
 const rotationDelay = 7000
 
 export default function ClinicSlideshow() {

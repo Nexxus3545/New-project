@@ -103,7 +103,7 @@
 .clinic-landing .clinic-tour-arrows { position: absolute; z-index: 3; right: 25px; bottom: 24px; display: flex; gap: 8px; }
 .clinic-landing .clinic-tour-arrows button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 10px; border-radius: 50%; border: 1px solid #fff8; color: #fff; background: #38232fd9; cursor: pointer; }
 .clinic-landing .clinic-tour-arrows button:hover { color: #552a3b; background: #fff7fa; }
-.clinic-landing .clinic-tour-index { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-top: 16px; }
+.clinic-landing .clinic-tour-index { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; margin-top: 16px; }
 .clinic-landing .clinic-tour-index button { display: block; min-width: 0; padding: 3px 3px 9px; border: 1px solid transparent; border-radius: 9px; background: transparent; text-align: left; cursor: pointer; }
 .clinic-landing .clinic-tour-index button[aria-pressed='true'] { border-color: #d6a3b8; background: #f9e8ef; }
 .clinic-landing .clinic-tour-index button:disabled { opacity: .55; cursor: default; }
@@ -388,5 +388,6 @@
 .clinic-landing .clinic-platform-card svg { flex-shrink: 0; }
 .clinic-landing .clinic-platforms > .clinic-platform-card:hover { background: #fffaf7; border-color: #9b6559; }
 .clinic-landing .clinic-platform-card:focus-visible { outline: 3px solid #9b6559; outline-offset: 3px; }
+@media (max-width: 360px) { .clinic-landing .clinic-tour-stage { min-height: 420px; } }
 @media (min-width: 641px) and (max-width: 1000px) { .clinic-landing .clinic-platforms > .clinic-platform-card { flex-direction: column; justify-content: center; } }
 @media (max-width: 380px) { .clinic-landing .clinic-platforms > .clinic-platform-card { padding: 16px 12px; gap: 8px; font-size: 20px; } }

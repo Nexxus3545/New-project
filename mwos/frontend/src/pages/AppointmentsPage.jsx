@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
 import CoverCard from '../components/common/CoverCard'
+import { clinicFacilities } from '../utils/clinicFacilities'
 
 const APPOINTMENT_TYPES = {
   prenatal: 'Prenatal',
@@ -212,10 +213,10 @@ export default function AppointmentsPage() {
         </div>
 
         <CoverCard
-          image="/reference/appointments-hero.jpg"
-          label="Visit planning"
+          image={clinicFacilities.reception.src}
+          label="Reception & visit planning"
           title="A schedule that feels organized, readable, and calm."
-          description="Warm image-led scheduling helps staff quickly scan prenatal, postnatal, consultation, and delivery bookings."
+          description="Coordinate visit requests and arrival details with the clinic reception and care team."
           chips={['Calendar', 'Bookings', 'Follow-up']}
           tone="lavender"
           className="h-full min-h-[22rem]"

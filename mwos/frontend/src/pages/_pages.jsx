@@ -2,6 +2,9 @@ import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
 import api from '../utils/api'
+import { useLocation } from 'react-router-dom'
+import FacilityPhoto from '../components/common/FacilityPhoto'
+import { getDeliveryFacility } from '../utils/clinicFacilities'
 import { useAuthStore } from '../store/authStore'
 import CoverCard from '../components/common/CoverCard'
 
@@ -17,6 +20,7 @@ export function VitalsPage() {
 
 // ── DELIVERIES PAGE ───────────────────────────────────────────
 export function DeliveriesPage() {
+  const { pathname } = useLocation()
   const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ patientId: '', pregnancyId: '', deliveryDate: new Date().toISOString().split('T')[0], deliveryType: 'NSD', newbornSex: '', birthWeightKg: '', apgar1min: '', apgar5min: '', notes: '' })
@@ -36,6 +40,7 @@ export function DeliveriesPage() {
         <div><h1 className="page-title">Deliveries</h1><p className="page-sub">Labor & delivery records</p></div>
         <button onClick={() => setShowForm(true)} className="btn-primary">+ Record Delivery</button>
       </div>
+      <FacilityPhoto facility={getDeliveryFacility(pathname)} />
       <div className="card"><p className="text-gray-500 text-sm">View delivery records per patient via <strong>Patients → Select Patient → Deliveries tab</strong>.</p></div>
 
       {showForm && (

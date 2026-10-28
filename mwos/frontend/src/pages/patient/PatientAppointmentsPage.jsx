@@ -1,3 +1,5 @@
+import FacilityPhoto from '../../components/common/FacilityPhoto'
+import { clinicFacilities } from '../../utils/clinicFacilities'
 import React, { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../utils/api'
@@ -33,6 +35,7 @@ export default function PatientAppointmentsPage() {
 
   return <div className="space-y-6">
     <div className="page-header"><div><h1 className="page-title">My appointments</h1><p className="page-sub">Choose a general checkup or pregnancy-related visit. The clinic will confirm provider availability.</p></div></div>
+      <FacilityPhoto facility={clinicFacilities.reception} />
     <section className="card" aria-label="Request a clinic appointment">
       <h2 className="section-title flex items-center gap-2"><AppIcon name="calendar" />Request a clinic appointment</h2>
       {patient.isLoading ? <p role="status">Loading your patient record...</p> : patient.isError ? <div role="alert" className="alert-critical">Your patient record could not be loaded. Please refresh before booking.</div> : receipt ? (

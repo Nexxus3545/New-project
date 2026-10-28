@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Area, AreaChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import api from '../utils/api'
 import CoverCard from '../components/common/CoverCard'
+import { clinicFacilities } from '../utils/clinicFacilities'
 
 const today = new Date().toISOString().slice(0, 10)
 
@@ -139,8 +140,8 @@ export default function VitalsPage() {
       </div>
 
       <CoverCard
-        image="/clinic/prenatal-exam-room.jpg"
-        label="Prenatal examination room"
+        image={clinicFacilities.consultation.src}
+        label="Consultation & examination room"
         title="Clinical monitoring starts with the patient visit."
         description="Use this screen after selecting a patient to record vitals, review trends, identify risk flags, and update the maternal timeline."
         chips={['Vitals', 'Gestational age', 'Provider notes']}

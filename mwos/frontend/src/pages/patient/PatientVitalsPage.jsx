@@ -1,3 +1,5 @@
+import FacilityPhoto from '../../components/common/FacilityPhoto'
+import { clinicFacilities } from '../../utils/clinicFacilities'
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import api from '../../utils/api'
@@ -22,6 +24,7 @@ export default function PatientVitalsPage() {
   return (
     <div className="space-y-6">
       <div className="page-header"><div><h1 className="page-title">My clinic readings</h1><p className="page-sub">Measurements saved by your care team during clinic visits. No body sensor is connected.</p></div></div>
+      <FacilityPhoto facility={clinicFacilities.consultation} />
       <RecordedVitalsCard latestVitals={vitals[0]} showHistoryLink={false} includeMaternal={maternal} />
       <section className="card" aria-label="Recorded visit history">
         <h2 className="section-title">Recorded visit history</h2>

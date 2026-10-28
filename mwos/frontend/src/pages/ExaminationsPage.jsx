@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
 import CoverCard from '../components/common/CoverCard'
+import { clinicFacilities } from '../utils/clinicFacilities'
 
 const STATUS_BADGES = {
   normal: 'badge-success',
@@ -165,8 +166,8 @@ export default function ExaminationsPage() {
         </div>
 
         <CoverCard
-          image="/reference/reports-hero.jpg"
-          label="Image-led review"
+          image={clinicFacilities.consultation.src}
+          label="Consultation & examination room"
           title="Labs, scans, and maternal follow-up in one place."
           description="Keep every examination readable for staff while the patient history stays simple to scan."
           chips={['Labs', 'Ultrasound', 'Follow-up']}

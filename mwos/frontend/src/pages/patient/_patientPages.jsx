@@ -1,3 +1,5 @@
+import FacilityPhoto from '../../components/common/FacilityPhoto'
+import { clinicFacilities } from '../../utils/clinicFacilities'
 import React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
@@ -257,6 +259,7 @@ export function PatientRecordsPage() {
   return (
     <div>
       <div className="page-header"><h1 className="page-title">My Records</h1></div>
+      <FacilityPhoto facility={clinicFacilities.recovery} />
       <div className="space-y-6">
         <div className="card">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">

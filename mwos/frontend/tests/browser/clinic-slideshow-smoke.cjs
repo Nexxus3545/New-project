@@ -62,10 +62,12 @@ async function main() {
     await tour.getByRole('button', { name: 'Previous clinic photo', exact: true }).press('ArrowRight');
     assert.equal(await selected(tour), '4');
     await tour.getByRole('button', { name: 'Next clinic photo', exact: true }).click();
+    assert.equal(await selected(tour), '5', 'The additional ward photo is reachable');
+    await tour.getByRole('button', { name: 'Next clinic photo', exact: true }).click();
     assert.equal(await selected(tour), '1', 'Manual navigation wraps without moving keyboard focus');
-    await tour.getByRole('button', { name: 'Show room for your questions', exact: true }).click();
+    await tour.getByRole('button', { name: 'Show consultation & examination room', exact: true }).click();
     assert.equal(await selected(tour), '2');
-    assert.equal(await tour.getByRole('button', { name: 'Show room for your questions', exact: true }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await tour.getByRole('button', { name: 'Show consultation & examination room', exact: true }).getAttribute('aria-pressed'), 'true');
     await tour.getByRole('button', { name: 'Play clinic slideshow', exact: true }).click();
     await page.mouse.move(10, 10);
     await running(page, true);
