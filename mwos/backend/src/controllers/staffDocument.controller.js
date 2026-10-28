@@ -1,4 +1,12 @@
 const { query } = require('../config/database');
+const { uploadsRoot } = require('../middleware/uploads');
+const { isIdentityDocumentType, removeRejectedIdentityFile, privateCredentialUploadError } = require('../utils/identityDocumentTypes');
+
+const rejectIdentityUpload = async (req) => {
+  if (!isIdentityDocumentType(req.body?.documentType)) return;
+  await removeRejectedIdentityFile(req.file?.path, uploadsRoot);
+  throw privateCredentialUploadError();
+};
 
 const allowedReviewStatuses = new Set(['pending_review', 'approved', 'rejected', 'archived']);
 
@@ -15,7 +23,8 @@ const mapDocument = (req, row) => ({
   documentType: row.document_type,
   credentialTitle: row.credential_title || null,
   originalName: row.original_name || null,
-  fileUrl: toAssetUrl(req, row.file_url),
+  fileUrl: isIdentityDocumentType(row.document_type) ? null : toAssetUrl(req, row.file_url),
+  credentialUploadRequired: isIdentityDocumentType(row.document_type),
   verificationStatus: row.verification_status,
   verificationNotes: row.verification_notes || null,
   uploadedByName: row.uploaded_by_name || null,
@@ -124,6 +133,7 @@ const listForStaff = async (req, res, next) => {
 };
 
 const createDocumentRecord = async ({ req, staffId }) => {
+  await rejectIdentityUpload(req);
   const { documentType, credentialTitle, expiresAt } = req.body;
 
   if (!documentType || !req.file) {
@@ -170,6 +180,7 @@ const createDocumentRecord = async ({ req, staffId }) => {
 
 const uploadMine = async (req, res, next) => {
   try {
+    await rejectIdentityUpload(req);
     const staffId = await fetchStaffIdForUser(req.user.id);
     if (!staffId) {
       return res.status(404).json({ success: false, message: 'Staff profile not found' });

@@ -1,5 +1,7 @@
 const { query } = require('../config/database');
 const { extractDocumentInsights } = require('../utils/ocr');
+const { uploadsRoot } = require('../middleware/uploads');
+const { isIdentityDocumentType, removeRejectedIdentityFile, PRIVATE_CREDENTIAL_UPLOAD_MESSAGE, PRIVATE_CREDENTIAL_UPLOAD_CODE } = require('../utils/identityDocumentTypes');
 
 const toAssetUrl = (req, storedPath) => {
   if (!storedPath) return null;
@@ -9,7 +11,8 @@ const toAssetUrl = (req, storedPath) => {
 
 const mapDocument = (req, row) => ({
   ...row,
-  file_url: toAssetUrl(req, row.file_url),
+  file_url: isIdentityDocumentType(row.document_type) ? null : toAssetUrl(req, row.file_url),
+  ...(isIdentityDocumentType(row.document_type) ? { ocr_text: null, ocr_extracted_data: {}, credential_upload_required: true } : {}),
 });
 
 const applyExtractedFieldsToPatient = async (patientId, documentType, extractedData) => {
@@ -72,6 +75,10 @@ const getMine = async (req, res, next) => {
 const uploadMine = async (req, res, next) => {
   try {
     const { documentType } = req.body;
+    if (isIdentityDocumentType(documentType)) {
+      await removeRejectedIdentityFile(req.file?.path, uploadsRoot);
+      return res.status(400).json({ success: false, code: PRIVATE_CREDENTIAL_UPLOAD_CODE, message: PRIVATE_CREDENTIAL_UPLOAD_MESSAGE });
+    }
     if (!documentType || !req.file) {
       return res.status(400).json({ success: false, message: 'documentType and file are required' });
     }

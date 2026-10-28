@@ -1,4 +1,5 @@
 const { query } = require('../config/database');
+const { PROFESSIONAL_CREDENTIAL_COLUMNS, isCurrentProfessionalCredential } = require('../middleware/professionalCredential');
 
 const normalizeLicenseStatus = (value) => {
   const allowed = new Set(['pending', 'verified', 'suspended', 'expired']);
@@ -11,6 +12,7 @@ const publicStaffProfile = (row) => {
   return {
     staffId: row.staff_id || row.id || null,
     userId: row.user_id || null,
+    role: row.credential_role || row.role || null,
     professionalTitle: row.professional_title || null,
     department: row.department || null,
     licenseNumber: row.license_number || null,
@@ -32,7 +34,7 @@ const publicStaffProfile = (row) => {
     lastReviewedAt: row.last_reviewed_at || null,
     createdAt: row.created_at || null,
     updatedAt: row.updated_at || null,
-    isVerified: row.license_status === 'verified',
+    isVerified: isCurrentProfessionalCredential(row),
   };
 };
 
@@ -41,8 +43,11 @@ const fetchStaffProfileByUserId = async (userId, client) => {
   const result = await executor.query(
     `SELECT
        sr.*,
+       ${PROFESSIONAL_CREDENTIAL_COLUMNS},
        verifier.first_name || ' ' || verifier.last_name AS verified_by_name
      FROM staff_registry sr
+     INNER JOIN users u ON u.id = sr.user_id
+     LEFT JOIN account_credentials ac ON ac.user_id = sr.user_id
      LEFT JOIN users verifier ON verifier.id = sr.verified_by
      WHERE sr.user_id = $1
      LIMIT 1`,

@@ -5,6 +5,7 @@ const {
   normalizePermissionRows,
 } = require('../config/permissions');
 const { resolveStepUpContext } = require('./stepUp');
+const { PROFESSIONAL_ROLES, loadProfessionalCredential, isCurrentProfessionalCredential } = require('./professionalCredential');
 
 const loadRolePermissions = async (role) => {
   const result = await query(
@@ -30,15 +31,6 @@ const loadPermissionOverrides = async (userId) => {
   );
 
   return result.rows;
-};
-
-const loadStaffCredentialStatus = async (userId) => {
-  const result = await query(
-    'SELECT license_status FROM staff_registry WHERE user_id = $1',
-    [userId]
-  );
-
-  return result.rows[0]?.license_status || null;
 };
 
 const authorizePermission = (permissionKey, options = {}) => {
@@ -67,12 +59,13 @@ const authorizePermission = (permissionKey, options = {}) => {
       }
 
       const enforceCredentialCheck = options.requireVerifiedStaff ?? SENSITIVE_PERMISSIONS.has(permissionKey);
-      if (enforceCredentialCheck && req.user.role !== 'patient') {
-        const licenseStatus = await loadStaffCredentialStatus(req.user.id);
-        if (licenseStatus !== 'verified') {
+      if (enforceCredentialCheck && PROFESSIONAL_ROLES.has(req.user.role)) {
+        const credential = await loadProfessionalCredential(req.user.id);
+        if (!isCurrentProfessionalCredential(credential)) {
           return res.status(403).json({
             success: false,
-            message: 'Staff credential verification is required for this action',
+            message: 'A current professional license reviewed by the clinic is required for this action',
+            code: 'PROFESSIONAL_CREDENTIAL_REQUIRED',
             requestId: req.requestId || null,
           });
         }

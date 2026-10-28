@@ -15,6 +15,7 @@ import PatientCareFields from '../components/patient/PatientCareFields'
 import { hasMaternalCare } from '../utils/patientCare'
 import { settingsSections, useSettingsStore } from '../store/settingsStore'
 import SettingsPanel from '../components/common/SettingsPanel'
+import AccountCredentials from '../components/credentials/AccountCredentials'
 
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -147,7 +148,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
     challengeId: '',
   })
   const [documentForm, setDocumentForm] = useState({
-    documentType: 'PhilHealth ID',
+    documentType: 'Medical Document',
     file: null,
   })
   const [profileNotice, setProfileNotice] = useState('')
@@ -164,7 +165,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
     initialData: user,
   })
   useEffect(() => {
-    if (isSettings && isAccount && location.hash === '#change-password' && !isLoading) document.getElementById('change-password')?.scrollIntoView({ block: 'start' })
+    if (isSettings && isAccount && ['#change-password', '#account-credentials'].includes(location.hash) && !isLoading) document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: 'start' })
   }, [isSettings, isAccount, isLoading, location.hash])
 
   const { data: patientProfile } = useQuery({
@@ -366,7 +367,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['patient-documents'] })
-      setDocumentForm({ documentType: 'PhilHealth ID', file: null })
+      setDocumentForm({ documentType: 'Medical Document', file: null })
       setDocumentNotice('Document uploaded successfully and queued for verification.')
       setDocumentUploadState({ progress: 0, status: '' })
       setLocalError('')
@@ -734,14 +735,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
                     <label className="label">PhilHealth type</label>
                     <input className="input" value={patientForm.philhealthType} onChange={(event) => updatePatientField('philhealthType', event.target.value)} placeholder="Member, Dependent, Sponsored..." />
                   </div>
-                  <div>
-                    <label className="label">Valid ID type</label>
-                    <input className="input" value={patientForm.validIdType} onChange={(event) => updatePatientField('validIdType', event.target.value)} placeholder="PhilSys, Passport, Driver License..." />
-                  </div>
-                  <div>
-                    <label className="label">Valid ID number</label>
-                    <input className="input" value={patientForm.validIdNumber} onChange={(event) => updatePatientField('validIdNumber', event.target.value)} />
-                  </div>
+                  <div className="md:col-span-2 rounded-2xl border border-slate-200 p-4 dark:border-slate-700"><h4 className="font-semibold">Patient identity verification</h4><p className="mt-2 text-sm text-slate-500">Submit one government-issued ID privately in Settings. The clinic reviews it separately from your care and billing information.</p><Link to="/my/settings#account-credentials" className="btn-secondary mt-3">Manage patient credentials</Link></div>
                   {hasMaternalCare({ ...patientProfile, careType: patientForm.careType, care_type: patientForm.careType }) ? <div>
                     <label className="label">Pregnancy booklet number</label>
                     <input className="input" value={patientForm.pregnancyBookletNumber} onChange={(event) => updatePatientField('pregnancyBookletNumber', event.target.value)} />
@@ -797,8 +791,8 @@ export default function AccountCenterPage({ section = 'profile' }) {
               <div className="rounded-3xl border border-white/50 bg-white/60 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Secure Document Uploads</h3>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Upload valid identification and relevant medical documents requested by your clinic.</p>
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Medical Document Uploads</h3>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Upload medical documents requested by your clinic. Government IDs belong in the private credentials section in Settings.</p>
                   </div>
                   {documentNotice ? <span className="badge badge-success">{documentNotice}</span> : null}
                 </div>
@@ -807,7 +801,6 @@ export default function AccountCenterPage({ section = 'profile' }) {
                   <div>
                     <label className="label">Document type</label>
                     <select className="input" value={documentForm.documentType} onChange={(event) => setDocumentForm((current) => ({ ...current, documentType: event.target.value }))}>
-                      <option>PhilHealth ID</option>
                       <option>Birthing ID</option>
                       <option>Medical Document</option>
                       <option>Lab Result</option>
@@ -860,7 +853,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
                           <span className={`badge ${document.verification_status === 'verified' ? 'badge-success' : document.verification_status === 'rejected' ? 'badge-danger' : 'badge-warning'}`}>
                             {document.verification_status}
                           </span>
-                          <a href={document.file_url} target="_blank" rel="noreferrer" className="text-sm font-medium text-[var(--accent)]">Open</a>
+                          {document.file_url ? <a href={document.file_url} target="_blank" rel="noreferrer" className="text-sm font-medium text-[var(--accent)]">Open</a> : <Link to="/my/settings#account-credentials" className="text-sm font-medium text-[var(--accent)]">Submit private ID</Link>}
                         </div>
                       </div>
                     ))
@@ -1053,6 +1046,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
               </button>
             </div>
           </form>
+          <AccountCredentials key={account?.id} targetUser={account} />
           <AccountManagement account={account} />
           </>}
         </div> : null}

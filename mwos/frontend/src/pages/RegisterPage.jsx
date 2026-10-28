@@ -85,6 +85,7 @@ export default function RegisterPage() {
         <p>
           Complete the short form to manage clinic follow-ups, records, and care-team communication securely.
         </p>
+        <p className="mt-3 text-sm">After signing in, open Settings to submit one government-issued ID for clinic review. You may use a PhilHealth ID, National ID, or another valid government ID.</p>
       </div>
 
       <nav className="auth-step-nav" aria-label="Account creation progress">

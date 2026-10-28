@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { query } = require('../config/database');
 const { sendMail } = require('./mailer');
 const { fetchStaffProfileByUserId } = require('./staff');
+const { PROFESSIONAL_ROLES, credentialDateKey, manilaDateKey } = require('../middleware/professionalCredential');
 
 const OTP_LENGTH = 6;
 const OTP_EXPIRY_MINUTES = Number(process.env.OTP_EXPIRY_MINUTES || 10);
@@ -357,8 +358,9 @@ const signClinicalRecord = async ({
   }
 
   const licenseId = profile.licenseNumber || profile.license_number || profile.licenseId || null;
-  if (!licenseId) {
-    throw new Error('Licensed staff credential is required to sign chart entries');
+  const expiry = credentialDateKey(profile.credentialExpiresAt);
+  if (!licenseId || !PROFESSIONAL_ROLES.has(profile.role) || profile.isVerified !== true || !expiry || expiry < manilaDateKey()) {
+    throw Object.assign(new Error('A current professional license reviewed by the clinic is required to sign chart entries'), { statusCode: 403, code: 'PROFESSIONAL_CREDENTIAL_REQUIRED' });
   }
 
   const signedAtIso = signedAt instanceof Date ? signedAt.toISOString() : new Date(signedAt || Date.now()).toISOString();

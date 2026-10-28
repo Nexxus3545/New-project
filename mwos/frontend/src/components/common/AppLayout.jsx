@@ -68,6 +68,7 @@ export default function AppLayout({ patient = false }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const maternal = hasMaternalCare(user || {})
+  const needsProfessionalCredential = !patient && ['doctor', 'nurse', 'midwife'].includes(user?.role) && user?.staffProfile?.isVerified === false
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -257,6 +258,7 @@ export default function AppLayout({ patient = false }) {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          {needsProfessionalCredential ? <aside role="status" aria-label="Professional credentials required" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100"><h2 className="font-semibold">Professional credentials required</h2><p className="mt-2 leading-6">Submit a current professional ID, license number, and expiry date in Settings. Clinical workspace access awaits clinic approval. Your account and credential settings remain available.</p><Link to="/settings#account-credentials" className="btn-secondary mt-3">Submit professional ID</Link></aside> : null}
           {!hasFocusedWorkspaceHeader ? (
             <div className="mb-5 rounded-[28px] border border-rose-100 bg-white px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">

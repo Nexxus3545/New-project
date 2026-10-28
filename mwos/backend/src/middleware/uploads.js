@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const { isIdentityDocumentType, privateCredentialUploadError } = require('../utils/identityDocumentTypes');
 
 const uploadsRoot = path.resolve(process.cwd(), 'uploads');
 
@@ -25,7 +26,10 @@ const createStorage = (subdir) => multer.diskStorage({
 const createUploader = (subdir, allowedMimeTypes, sizeLimitMb) => multer({
   storage: createStorage(subdir),
   limits: { fileSize: sizeLimitMb * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
+  fileFilter: (req, file, cb) => {
+    if (subdir === 'documents' && isIdentityDocumentType(req.body?.documentType)) {
+      return cb(privateCredentialUploadError());
+    }
     if (!allowedMimeTypes.some((prefix) => file.mimetype.startsWith(prefix))) {
       const error = new Error(`Unsupported file type for ${subdir}`);
       error.statusCode = 400;

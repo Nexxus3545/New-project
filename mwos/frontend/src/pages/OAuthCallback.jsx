@@ -121,6 +121,7 @@ export default function OAuthCallback() {
           <p className="auth-kicker">Patient profile</p>
           <h2>Complete your record</h2>
           <p>{notice}</p>
+          <p className="mt-3 text-sm">After signing in, open Settings to submit one valid government-issued ID for private clinic review.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-login-form">

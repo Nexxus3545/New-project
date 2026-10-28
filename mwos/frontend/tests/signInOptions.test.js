@@ -98,7 +98,9 @@ test('patient profile contains care details without settings or password control
   const html = await renderAccount('profile')
   assert.match(html, /Your profile/)
   assert.match(html, /Personal, Biometrics &amp; Credentials/)
-  assert.match(html, /Secure Document Uploads/)
+  assert.match(html, /Medical Document Uploads/)
+  assert.match(html, /Manage patient credentials/)
+  assert.doesNotMatch(html, /Valid ID number/)
   assert.doesNotMatch(html, /Theme mode|Current password|Save login email|contact-recovery-phone/)
   assert.match(html, /href="\/my\/settings"/)
 })
@@ -111,7 +113,7 @@ test('patient settings keeps account and security separate from appearance', asy
   assert.doesNotMatch(html, /Theme mode|Save appearance/)
   assert.match(html, /Current password/)
   assert.match(html, /contact-recovery-phone/)
-  assert.doesNotMatch(html, /Date of birth|Secure Document Uploads|Save patient record|Send OTP/)
+  assert.doesNotMatch(html, /Date of birth|Medical Document Uploads|Save patient record|Send OTP/)
 })
 
 test('appearance has its own settings view for patients and staff without account controls', async () => {
@@ -200,6 +202,21 @@ test('general-care navigation does not label a patient as pregnant', async () =>
     const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: '/my/dashboard' }, React.createElement(Layout, { patient: true })))
     assert.match(html, /Clinic Readings/)
     assert.doesNotMatch(html, /My Pregnancy|Baby \/ Newborn|Your pregnancy status/)
+  } finally { snapshot.user = originalUser }
+})
+
+test('only clinical staff with an explicitly unverified profile see the professional-ID settings notice', async () => {
+  const { useAuthStore } = await server.ssrLoadModule('/src/store/authStore.js')
+  const { default: Layout } = await server.ssrLoadModule('/src/components/common/AppLayout.jsx')
+  const snapshot = useAuthStore.getInitialState()
+  const originalUser = snapshot.user
+  try {
+    for (const [role, verified, shown] of [['doctor', false, true], ['nurse', false, true], ['midwife', false, true], ['admin', false, false], ['patient', false, false], ['doctor', true, false], ['nurse', undefined, false]]) {
+      snapshot.user = { role, firstName: 'Test', lastName: 'User', staffProfile: verified === undefined ? null : { isVerified: verified } }
+      const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: role === 'patient' ? '/my/dashboard' : '/dashboard' }, React.createElement(Layout, { patient: role === 'patient' })))
+      assert.equal(html.includes('Professional credentials required'), shown)
+      if (shown) assert.match(html, /href="\/settings#account-credentials"/)
+    }
   } finally { snapshot.user = originalUser }
 })
 

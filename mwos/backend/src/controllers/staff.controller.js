@@ -1,5 +1,6 @@
 const { getClient, query } = require('../config/database');
-const { publicStaffProfile, recordLicenseEvent, upsertStaffRegistry, normalizeLicenseStatus } = require('../utils/staff');
+const { publicStaffProfile, recordLicenseEvent, upsertStaffRegistry, normalizeLicenseStatus, fetchStaffProfileByUserId } = require('../utils/staff');
+const { PROFESSIONAL_CREDENTIAL_COLUMNS, PROFESSIONAL_ROLES, credentialDateKey, manilaDateKey } = require('../middleware/professionalCredential');
 const { recordSecurityAudit } = require('../utils/security');
 
 const listRegistry = async (_req, res, next) => {
@@ -33,9 +34,11 @@ const listRegistry = async (_req, res, next) => {
          sr.last_reviewed_at,
          sr.created_at,
          sr.updated_at,
+         ${PROFESSIONAL_CREDENTIAL_COLUMNS},
          verifier.first_name || ' ' || verifier.last_name AS verified_by_name
        FROM users u
        LEFT JOIN staff_registry sr ON sr.user_id = u.id
+       LEFT JOIN account_credentials ac ON ac.user_id = u.id
        LEFT JOIN users verifier ON verifier.id = sr.verified_by
        WHERE u.role IN ('admin', 'doctor', 'midwife', 'nurse')
        ORDER BY u.role, u.last_name, u.first_name`
@@ -67,8 +70,11 @@ const getMine = async (req, res, next) => {
     const result = await query(
       `SELECT
          sr.*,
+         ${PROFESSIONAL_CREDENTIAL_COLUMNS},
          verifier.first_name || ' ' || verifier.last_name AS verified_by_name
        FROM staff_registry sr
+       INNER JOIN users u ON u.id = sr.user_id
+       LEFT JOIN account_credentials ac ON ac.user_id = sr.user_id
        LEFT JOIN users verifier ON verifier.id = sr.verified_by
        WHERE sr.user_id = $1
        LIMIT 1`,
@@ -86,6 +92,7 @@ const getMine = async (req, res, next) => {
 
 const updateLicense = async (req, res, next) => {
   const client = await getClient();
+  let transactionOpen = false;
 
   try {
     const { userId } = req.params;
@@ -115,8 +122,10 @@ const updateLicense = async (req, res, next) => {
       });
     }
 
+    await client.query('BEGIN');
+    transactionOpen = true;
     const targetUser = await client.query(
-      'SELECT id, role, first_name, last_name FROM users WHERE id = $1',
+      'SELECT id, role, first_name, last_name FROM users WHERE id = $1 FOR UPDATE',
       [userId]
     );
 
@@ -136,7 +145,13 @@ const updateLicense = async (req, res, next) => {
       });
     }
 
-    await client.query('BEGIN');
+    // A status toggle cannot replace the private evidence review workflow.
+    // Lock in the same user -> credential -> staff order as submission/review.
+    let evidence;
+    if (PROFESSIONAL_ROLES.has(targetUser.rows[0].role)) {
+      const proof = await client.query('SELECT status, license_number, expires_at FROM account_credentials WHERE user_id = $1 FOR SHARE', [userId]);
+      evidence = proof.rows[0];
+    }
 
     const existing = await client.query(
       `SELECT sr.*, verifier.first_name || ' ' || verifier.last_name AS verified_by_name
@@ -144,11 +159,21 @@ const updateLicense = async (req, res, next) => {
        LEFT JOIN users verifier ON verifier.id = sr.verified_by
        WHERE sr.user_id = $1
        LIMIT 1
-       FOR UPDATE`,
+       FOR UPDATE OF sr`,
       [userId]
     );
 
     const previousStatus = existing.rows[0]?.license_status || null;
+    if (status === 'verified' && PROFESSIONAL_ROLES.has(targetUser.rows[0].role)) {
+      const number = licenseNumber ?? existing.rows[0]?.license_number;
+      const expiry = credentialDateKey(credentialExpiresAt ?? existing.rows[0]?.credential_expires_at);
+      if (!evidence || evidence.status !== 'verified' || typeof number !== 'string' || !number.trim() || number.trim() !== evidence.license_number
+          || !expiry || expiry < manilaDateKey() || expiry !== credentialDateKey(evidence.expires_at)) {
+        await client.query('ROLLBACK');
+        transactionOpen = false;
+        return res.status(409).json({ success: false, code: 'CREDENTIAL_REVIEW_REQUIRED', message: 'Submit and review the professional ID in User Management before verifying this license.' });
+      }
+    }
     const verifiedAt = status === 'verified' ? new Date() : null;
     const verifiedBy = status === 'verified' ? req.user.id : existing.rows[0]?.verified_by || null;
     const lastReviewedAt = new Date();
@@ -210,17 +235,22 @@ const updateLicense = async (req, res, next) => {
       },
     });
 
+    const savedProfile = await fetchStaffProfileByUserId(userId, client);
     await client.query('COMMIT');
+    transactionOpen = false;
 
     res.json({
       success: true,
       message: 'License status updated successfully',
-      data: staffProfile,
+      data: savedProfile,
     });
   } catch (err) {
-    await client.query('ROLLBACK');
+    if (transactionOpen) await client.query('ROLLBACK');
+    transactionOpen = false;
     next(err);
   } finally {
+    // Handles early validation returns after the transaction was opened.
+    if (transactionOpen) await client.query('ROLLBACK').catch(() => {});
     client.release();
   }
 };

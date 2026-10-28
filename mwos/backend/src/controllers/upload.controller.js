@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { query } = require('../config/database');
 const { uploadsRoot } = require('../middleware/uploads');
 const { extractDocumentInsights } = require('../utils/ocr');
+const { isIdentityDocumentType, PRIVATE_CREDENTIAL_UPLOAD_MESSAGE, PRIVATE_CREDENTIAL_UPLOAD_CODE } = require('../utils/identityDocumentTypes');
 
 const tempUploadsRoot = path.join(uploadsRoot, '_chunk-sessions');
 
@@ -91,6 +92,9 @@ const getSessionById = async (sessionId) => {
   const result = await query('SELECT * FROM upload_sessions WHERE id = $1', [sessionId]);
   return result.rows[0] || null;
 };
+
+const isPrivateCredentialSession = (session) => session.target_type === 'patient_document' && isIdentityDocumentType(session.metadata?.documentType);
+const rejectPrivateCredentialSession = (res) => res.status(400).json({ success: false, code: PRIVATE_CREDENTIAL_UPLOAD_CODE, message: PRIVATE_CREDENTIAL_UPLOAD_MESSAGE });
 
 const ensureSessionAccess = (req, session) => {
   if (!session) {
@@ -282,6 +286,10 @@ const validateSessionRequest = (req) => {
     return { status: 403, message: 'You do not have permission to upload for this target' };
   }
 
+  if (targetType === 'patient_document' && isIdentityDocumentType(req.body.documentType)) {
+    return { status: 400, code: PRIVATE_CREDENTIAL_UPLOAD_CODE, message: PRIVATE_CREDENTIAL_UPLOAD_MESSAGE };
+  }
+
   const originalName = sanitizeFileName(req.body.fileName || '');
   const mimeType = String(req.body.mimeType || '').trim();
   const totalSize = Number(req.body.totalSize);
@@ -341,7 +349,7 @@ const createSession = async (req, res, next) => {
   try {
     const validation = validateSessionRequest(req);
     if (validation.status !== 200) {
-      return res.status(validation.status).json({ success: false, message: validation.message });
+      return res.status(validation.status).json({ success: false, ...(validation.code ? { code: validation.code } : {}), message: validation.message });
     }
 
     const { targetType, originalName, mimeType, totalSize, totalChunks, chunkSize, metadata } = validation.value;
@@ -384,6 +392,8 @@ const getSession = async (req, res, next) => {
       return res.status(access.status).json({ success: false, message: access.message });
     }
 
+    if (isPrivateCredentialSession(session)) return rejectPrivateCredentialSession(res);
+
     res.json({ success: true, data: formatSession(req, session) });
   } catch (err) {
     next(err);
@@ -398,6 +408,8 @@ const uploadChunk = async (req, res, next) => {
     if (!access.ok) {
       return res.status(access.status).json({ success: false, message: access.message });
     }
+
+    if (isPrivateCredentialSession(session)) return rejectPrivateCredentialSession(res);
 
     if (session.status !== 'pending' && session.status !== 'failed') {
       return res.status(409).json({ success: false, message: 'Upload session is not accepting new chunks' });
@@ -446,6 +458,8 @@ const completeSession = async (req, res, next) => {
     if (!access.ok) {
       return res.status(access.status).json({ success: false, message: access.message });
     }
+
+    if (isPrivateCredentialSession(session)) return rejectPrivateCredentialSession(res);
 
     const receivedChunks = uniqueSortedChunks(session.received_chunks);
     if (receivedChunks.length !== session.total_chunks) {

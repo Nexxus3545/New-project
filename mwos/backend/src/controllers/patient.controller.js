@@ -29,8 +29,6 @@ const PATIENT_FIELD_MAP = {
   emergencyContactRelation: 'emergency_contact_relation',
   philhealthId: 'philhealth_id',
   philhealthType: 'philhealth_type',
-  validIdType: 'valid_id_type',
-  validIdNumber: 'valid_id_number',
   pregnancyBookletNumber: 'pregnancy_booklet_number',
   credentialNotes: 'credential_notes',
   bloodType: 'blood_type',

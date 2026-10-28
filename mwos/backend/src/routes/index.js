@@ -4,11 +4,13 @@ const { authenticate, authorize, requireOwnPatient } = require('../middleware/au
 const { activityLogger } = require('../middleware/activityLogger');
 const { authorizePermission } = require('../middleware/permissions');
 const { requireStepUp } = require('../middleware/stepUp');
+const { requireCurrentProfessionalCredential, isCredentialSelfServiceRoute } = require('../middleware/professionalCredential');
 
 // Controllers
 const authCtrl = require('../controllers/auth.controller');
 const accountCtrl = require('../controllers/account.controller');
 const accountSecurity = require('../controllers/accountSecurity.controller');
+const credentialCtrl = require('../controllers/credential.controller');
 const patientCtrl = require('../controllers/patient.controller');
 const vitalsCtrl = require('../controllers/vitals.controller');
 const apptCtrl = require('../controllers/appointment.controller');
@@ -72,6 +74,19 @@ router.post('/reviews', reviewCtrl.create);
 
 // Audit/activity logging for state-changing authenticated actions
 router.use(authenticate, activityLogger);
+
+// Onboarding remains accessible while clinical credentials await review.
+router.get('/credentials/mine', credentialCtrl.getMine);
+router.post('/credentials/mine', credentialCtrl.submitMine);
+router.get('/credentials/mine/document', credentialCtrl.downloadMine);
+router.get('/credentials/users/:userId', authorize('admin'), credentialCtrl.getForUser);
+router.post('/credentials/users/:userId', authorize('admin'), requireStepUp('license-change'), credentialCtrl.submitForUser);
+router.get('/credentials/users/:userId/document', authorize('admin'), credentialCtrl.downloadForUser);
+router.patch('/credentials/users/:userId/review', authorize('admin'), requireStepUp('license-change'), credentialCtrl.reviewForUser);
+router.use((req, res, next) => {
+  if (isCredentialSelfServiceRoute(req)) return next();
+  return requireCurrentProfessionalCredential(req, res, next);
+});
 
 router.get('/account/activity', accountCtrl.getActivity);
 router.get('/account/security', accountSecurity.status);
@@ -504,6 +519,12 @@ router.get('/users', authenticate, authorize('admin'), async (req, res, next) =>
          u.created_at,
          u.last_login_at,
          u.last_seen_at,
+         ac.status AS credential_status,
+         ac.kind AS credential_kind,
+         ac.document_type AS credential_document_type,
+         ac.expires_at::text AS credential_expires_at,
+         ac.revision AS credential_revision,
+         (octet_length(ac.document_bytes) > 0) AS credential_has_document,
          sr.id AS staff_registry_id,
          sr.professional_title AS staff_professional_title,
          sr.department AS staff_department,
@@ -531,6 +552,7 @@ router.get('/users', authenticate, authorize('admin'), async (req, res, next) =>
          END AS activity_status
        FROM users u
        LEFT JOIN staff_registry sr ON sr.user_id = u.id
+       LEFT JOIN account_credentials ac ON ac.user_id = u.id
        LEFT JOIN users verifier ON verifier.id = sr.verified_by
        ${whereClause}
        ORDER BY

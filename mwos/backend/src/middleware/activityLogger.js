@@ -22,6 +22,11 @@ const normalizeBodyForAudit = (body) => {
 };
 
 const auditValuesForRequest = (req) => {
+  // Identity evidence, license numbers and review notes remain in their private
+  // record. Never duplicate a base64 ID file into the generic activity log.
+  if (/\/credentials(?:\/|$)/.test(req.originalUrl)) {
+    return { credentialAction: req.method === 'PATCH' ? 'reviewed' : 'submitted' };
+  }
   // Emergency GPS coordinates are operationally sensitive and must not be copied into audit payloads.
   if (req.originalUrl.includes('/emergency/location')) {
     return { locationShare: req.method === 'DELETE' ? 'stopped' : 'updated' };
