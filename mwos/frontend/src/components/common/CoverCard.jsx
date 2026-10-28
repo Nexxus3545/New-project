@@ -7,6 +7,7 @@ const toneClasses = {
 }
 
 export default function CoverCard({
+  image,
   label,
   title,
   description,
@@ -20,11 +21,13 @@ export default function CoverCard({
 
   return (
     <div className={`relative overflow-hidden rounded-[32px] border border-white/80 bg-white/90 shadow-[0_26px_60px_rgba(214,92,138,0.16)] ${className}`}>
+      {image ? <img src={image} alt="" aria-hidden="true" className={`absolute inset-0 h-full w-full object-cover ${imageClassName}`} /> : null}
       <div className={`absolute inset-0 bg-gradient-to-br ${overlay}`} />
+      {image ? <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" /> : null}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.28),transparent_24%),radial-gradient(circle_at_80%_15%,rgba(255,255,255,0.16),transparent_18%)]" />
       <div className="absolute -right-16 top-0 h-56 w-56 rounded-full bg-white/16 blur-3xl" />
       <div className="absolute -left-20 bottom-0 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-      <div className={`absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.15),transparent_28%,transparent_72%,rgba(255,255,255,0.14))] ${imageClassName}`} />
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.15),transparent_28%,transparent_72%,rgba(255,255,255,0.14))]" />
 
       <div className="relative flex h-full min-h-[24rem] flex-col justify-end p-5 sm:p-6">
         {(label || title || description || chips.length > 0) && (
