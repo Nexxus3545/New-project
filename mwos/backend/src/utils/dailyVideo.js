@@ -6,6 +6,11 @@ const ADMISSION_SECONDS = 10 * 60;
 const videoError = (message = 'Video service is temporarily unavailable. Please try again.', statusCode = 503, diagnostics = {}) => Object.assign(new Error(message), { statusCode, ...diagnostics });
 const roomUrlError = () => videoError('The video room could not be verified.', 503, { videoOperation: 'room-url-check' });
 const roomNameForSession = (sessionId) => `mwos-${createHash('sha256').update(String(sessionId)).digest('hex').slice(0, 32)}`;
+const ROOM_CHECK_FIELDS = Object.freeze([
+  'room.name', 'room.privacy', 'room.config', 'config.exp', 'config.eject_at_room_exp',
+  'config.max_participants', 'config.enable_knocking', 'config.enable_chat', 'config.enable_screenshare',
+  'config.enable_transcription_storage', 'config.permissions.canAdmin', 'config.permissions.canSend',
+]);
 
 // URLs come only from the authenticated provider response. Neither a client URL
 // nor a stored URL is ever used as a server-side fetch destination.
@@ -43,13 +48,28 @@ const roomProperties = (now) => ({
 
 const validatePrivateRoom = (room, expectedName, now) => {
   const config = room?.config;
-  if (room?.name !== expectedName || room?.privacy !== 'private' || !config ||
-      !Number.isInteger(config.exp) || config.exp <= now || config.exp > now + ROOM_SECONDS + 60 ||
-      config.eject_at_room_exp !== true || !Number.isInteger(config.max_participants) || config.max_participants < 1 || config.max_participants > 4 ||
-      config.enable_knocking !== false || config.enable_chat !== false || config.enable_screenshare !== false ||
-      config.enable_transcription_storage !== false || config.permissions?.canAdmin !== false ||
-      !Array.isArray(config.permissions?.canSend) || config.permissions.canSend.some((kind) => !['audio', 'video'].includes(kind))) {
-    throw videoError('The private video room could not be verified.', 503, { videoOperation: 'room-config-check' });
+  const admin = config?.permissions?.canAdmin;
+  const media = config?.permissions?.canSend;
+  // Daily documents admin permissions as false or an array/set of capabilities.
+  // An explicit empty array grants none; an omitted value is not accepted.
+  const adminDisabled = admin === false || (Array.isArray(admin) && admin.length === 0);
+  const checks = {
+    'room.name': room?.name === expectedName,
+    'room.privacy': room?.privacy === 'private',
+    'room.config': Boolean(config && typeof config === 'object' && !Array.isArray(config)),
+    'config.exp': Number.isInteger(config?.exp) && config.exp > now && config.exp <= now + ROOM_SECONDS + 60,
+    'config.eject_at_room_exp': config?.eject_at_room_exp === true,
+    'config.max_participants': Number.isInteger(config?.max_participants) && config.max_participants >= 1 && config.max_participants <= 4,
+    'config.enable_knocking': config?.enable_knocking === false,
+    'config.enable_chat': config?.enable_chat === false,
+    'config.enable_screenshare': config?.enable_screenshare === false,
+    'config.enable_transcription_storage': config?.enable_transcription_storage === false,
+    'config.permissions.canAdmin': adminDisabled,
+    'config.permissions.canSend': Array.isArray(media) && media.length === 2 && media.includes('audio') && media.includes('video'),
+  };
+  const videoChecks = ROOM_CHECK_FIELDS.filter((field) => !checks[field]);
+  if (videoChecks.length) {
+    throw videoError('The private video room could not be verified.', 503, { videoOperation: 'room-config-check', videoChecks });
   }
   return { name: expectedName, url: normalizeDailyRoomUrl(room.url, expectedName), expiresAt: config.exp };
 };
@@ -152,4 +172,4 @@ const dailyVideo = {
   closeRoom: (...args) => createDailyVideoService().closeRoom(...args),
 };
 
-module.exports = { dailyVideo, createDailyVideoService, roomNameForSession, normalizeDailyRoomUrl, managedRoomNameForSession, validatePrivateRoom, roomProperties };
+module.exports = { dailyVideo, createDailyVideoService, roomNameForSession, normalizeDailyRoomUrl, managedRoomNameForSession, validatePrivateRoom, roomProperties, ROOM_CHECK_FIELDS };

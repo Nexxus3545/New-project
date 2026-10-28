@@ -79,6 +79,30 @@ test('public collisions, unsafe URLs, expired rooms and permissive configuration
   }
 });
 
+test('room-check diagnostics contain only fixed field identifiers and never provider values', async () => {
+  const returned = room();
+  delete returned.config.enable_transcription_storage;
+  returned.config.permissions.canAdmin = ['transcription'];
+  returned.config.extra = 'secret-provider-payload';
+  const app = harness([reply(200, returned)]);
+  await assert.rejects(app.service.ensureRoom(sessionId), (error) => {
+    assert.deepEqual(error.videoChecks, ['config.enable_transcription_storage', 'config.permissions.canAdmin']);
+    assert.equal(safeDiagnostic(error), 'room-config-check [config.enable_transcription_storage,config.permissions.canAdmin]');
+    assert.equal(JSON.stringify(error).includes('secret-provider-payload'), false);
+    return true;
+  });
+  assert.equal(safeDiagnostic({ videoOperation: 'room-config-check', videoChecks: ['secret-key', url, 'config.exp'] }), 'room-config-check [config.exp]');
+});
+
+test('explicit empty admin capability arrays grant no powers but missing permissions still fail closed', async () => {
+  const safe = room(); safe.config.permissions.canAdmin = [];
+  assert.equal((await harness([reply(200, safe)]).service.ensureRoom(sessionId)).url, url);
+  for (const permissions of [{ canSend: ['audio', 'video'] }, { canAdmin: false, canSend: [] }]) {
+    const unsafe = room(); unsafe.config.permissions = permissions;
+    await assert.rejects(harness([reply(200, unsafe)]).service.ensureRoom(sessionId), /could not be verified/);
+  }
+});
+
 test('strict room URL validation rejects credentials, alternate hosts, ports and token parameters', () => {
   for (const value of [
     `http://mwos-test.daily.co/${name}`, `https://user:secret@mwos-test.daily.co/${name}`,

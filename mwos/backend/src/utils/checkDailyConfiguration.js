@@ -1,7 +1,7 @@
 // Explicit operational smoke check, independent of builds/migrations. It uses
 // synthetic opaque identifiers and never creates a clinical record or call.
 const { randomUUID } = require('node:crypto');
-const { createDailyVideoService } = require('./dailyVideo');
+const { createDailyVideoService, ROOM_CHECK_FIELDS } = require('./dailyVideo');
 
 const checkDailyConfiguration = async (service = createDailyVideoService()) => {
   if (!service.configured()) throw Object.assign(new Error('Daily video is not configured.'), { videoOperation: 'configuration' });
@@ -35,10 +35,12 @@ const safeDiagnostic = (error) => {
   const allowed = ['configuration', 'get-room', 'create-room', 'mint-token', 'eject-participants', 'delete-room', 'room-url-check', 'room-config-check', 'token-response-check'];
   const category = allowed.includes(error?.videoOperation) ? error.videoOperation : 'configuration-check';
   const http = Number.isInteger(error?.providerStatus) && error.providerStatus >= 100 && error.providerStatus <= 599 ? ` HTTP ${error.providerStatus}` : '';
+  const checks = category === 'room-config-check' && Array.isArray(error?.videoChecks)
+    ? ROOM_CHECK_FIELDS.filter((field) => error.videoChecks.includes(field)) : [];
   const cleanup = allowed.includes(error?.videoCleanupOperation)
     ? `; cleanup ${error.videoCleanupOperation}${Number.isInteger(error.videoCleanupStatus) && error.videoCleanupStatus >= 100 && error.videoCleanupStatus <= 599 ? ` HTTP ${error.videoCleanupStatus}` : ''}`
     : '';
-  return `${category}${http}${cleanup}`;
+  return `${category}${http}${checks.length ? ` [${checks.join(',')}]` : ''}${cleanup}`;
 };
 
 if (require.main === module) {
