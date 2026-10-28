@@ -1,7 +1,10 @@
-MWOS Windows Desktop Guide
+MWOS Windows Access Guide
 
-1. Install Node.js LTS.
-2. Open the MWOS project folder.
-3. Run the desktop package build or development script.
-4. Connect to the shared backend API.
-5. Sign in with your assigned clinic account.
+Use the web portal
+1. Open https://tmc-copino-mwos.vercel.app/portal in your browser.
+2. Sign in with your clinic account or create a patient account.
+3. No installation is needed for the web portal.
+
+Native app availability
+A reviewed Windows installer is not included in this download center.
+This guide is not an app installer. Native releases require a platform build and testing; Apple platforms also require Apple signing for distribution.

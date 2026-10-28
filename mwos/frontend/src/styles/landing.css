@@ -197,9 +197,9 @@
 .clinic-landing .clinic-download-section h2 { font-size: clamp(32px, 3.5vw, 45px); font-weight: 500; line-height: 1.2; margin-top: 15px; }
 .clinic-landing .clinic-download-section > div > p:not(.clinic-eyebrow) { max-width: 440px; color: #675d5e; font-size: 12px; line-height: 1.9; margin-top: 20px; }
 .clinic-landing .clinic-platforms { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.clinic-landing .clinic-platforms > span { background: #fffaf7a3; border: 1px solid #e2cfc8; border-radius: 6px; padding: 20px 18px; font-family: 'Fraunces', Georgia, serif; font-size: 24px; }
-.clinic-landing .clinic-platforms > p, .clinic-landing .clinic-platforms > a { grid-column: 1 / -1; }
-.clinic-landing .clinic-platforms > a { font-size: 11px; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+.clinic-landing .clinic-platforms > .clinic-platform-card { background: #fffaf7a3; border: 1px solid #e2cfc8; border-radius: 6px; padding: 20px 18px; font-family: 'Fraunces', Georgia, serif; font-size: 24px; }
+.clinic-landing .clinic-platforms > p, .clinic-landing .clinic-platforms > a:not(.clinic-platform-card) { grid-column: 1 / -1; }
+.clinic-landing .clinic-platforms > a:not(.clinic-platform-card) { font-size: 11px; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
 .clinic-landing .clinic-footer { display: grid; grid-template-columns: 1fr auto; padding-top: 58px; padding-bottom: 30px; gap: 30px; }
 .clinic-landing .clinic-footer > div > p { color: var(--clinic-muted); font-size: 11px; margin-top: 15px; }
 .clinic-landing .clinic-footer > div:nth-child(2) { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; font-size: 11px; }
@@ -262,7 +262,7 @@
   .clinic-landing .clinic-contact-layout, .clinic-landing .clinic-team-section, .clinic-landing .clinic-faq-section { grid-template-columns: minmax(0, 1fr); gap: 36px; }
   .clinic-landing .clinic-download-section { grid-template-columns: 1fr; }
   .clinic-landing .clinic-platforms { grid-template-columns: repeat(4, 1fr); }
-  .clinic-landing .clinic-platforms > span { font-size: 20px; text-align: center; }
+  .clinic-landing .clinic-platforms > .clinic-platform-card { font-size: 20px; text-align: center; }
 }
 @media (max-width: 620px) {
   .clinic-landing .clinic-container { width: calc(100% - 48px); }
@@ -327,7 +327,7 @@
   .clinic-landing .clinic-download-section { width: calc(100% - 24px); padding: 32px 23px; gap: 32px; }
   .clinic-landing .clinic-download-section h2 { font-size: 36px; }
   .clinic-landing .clinic-platforms { grid-template-columns: 1fr 1fr; }
-  .clinic-landing .clinic-platforms > span { font-size: 23px; }
+  .clinic-landing .clinic-platforms > .clinic-platform-card { font-size: 23px; }
   .clinic-landing .clinic-footer { grid-template-columns: 1fr; padding-top: 38px; gap: 25px; }
   .clinic-landing .clinic-footer > div:nth-child(2) { align-items: flex-start; }
 }
@@ -383,3 +383,10 @@
   .clinic-landing .clinic-tour-slide[data-active='true'] > img { animation: clinic-photo-drift 8s linear both !important; animation-play-state: paused !important; }
   .clinic-landing .clinic-slideshow[data-running='true'] .clinic-tour-slide[data-active='true'] > img { animation-play-state: running !important; }
 }
+
+.clinic-landing .clinic-platforms > .clinic-platform-card { display: flex; align-items: center; justify-content: flex-start; gap: 14px; min-width: 0; text-decoration: none; transition: background .15s, border-color .15s; }
+.clinic-landing .clinic-platform-card svg { flex-shrink: 0; }
+.clinic-landing .clinic-platforms > .clinic-platform-card:hover { background: #fffaf7; border-color: #9b6559; }
+.clinic-landing .clinic-platform-card:focus-visible { outline: 3px solid #9b6559; outline-offset: 3px; }
+@media (min-width: 641px) and (max-width: 1000px) { .clinic-landing .clinic-platforms > .clinic-platform-card { flex-direction: column; justify-content: center; } }
+@media (max-width: 380px) { .clinic-landing .clinic-platforms > .clinic-platform-card { padding: 16px 12px; gap: 8px; font-size: 20px; } }

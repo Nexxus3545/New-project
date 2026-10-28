@@ -1,18 +1,24 @@
-import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import React, { useEffect, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { publicApi } from '../utils/api'
 import BrandMark from '../components/common/BrandMark'
+import PlatformLogo from '../components/common/PlatformLogo'
+import '../styles/download.css'
 import { useAuthStore } from '../store/authStore'
 
 const downloadCards = [
-  { title: 'Desktop app', subtitle: 'Windows portable app', description: 'Read the Windows setup guide. A reviewed release file is not published here yet.', href: '/downloads/mwos-windows-guide.txt' },
-  { title: 'Desktop app', subtitle: 'macOS app', description: 'A signed and notarized macOS release is not published yet.', href: '/downloads/mwos-macos-guide.txt' },
-  { title: 'Mobile app', subtitle: 'Android app', description: 'Internal preview testing is ongoing. A public-release APK is not published here yet.', href: '/downloads/mwos-android-guide.txt' },
-  { title: 'Mobile app', subtitle: 'iOS app', description: 'An Apple-signed iOS release is not published yet.', href: '/downloads/mwos-ios-guide.txt' },
+  { title: 'Desktop app', platform: 'windows', subtitle: 'Windows portable app', description: 'Read the Windows setup guide. A reviewed release file is not published here yet.', href: '/downloads/mwos-windows-guide.txt' },
+  { title: 'Desktop app', platform: 'macos', subtitle: 'macOS app', description: 'A signed and notarized macOS release is not published yet.', href: '/downloads/mwos-macos-guide.txt' },
+  { title: 'Mobile app', platform: 'android', subtitle: 'Android app', description: 'Internal preview testing is ongoing. A public-release APK is not published here yet.', href: '/downloads/mwos-android-guide.txt' },
+  { title: 'Mobile app', platform: 'ios', subtitle: 'iOS app', description: 'An Apple-signed iOS release is not published yet.', href: '/downloads/mwos-ios-guide.txt' },
 ]
 
 export default function DownloadPage() {
+  const { hash } = useLocation()
+  useEffect(() => {
+    if (hash) document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'center' })
+  }, [hash])
   const [form, setForm] = useState({ displayName: '', roleLabel: 'Guest', rating: 5, comment: '' })
   const [notice, setNotice] = useState('')
   const sessionKey = useAuthStore((state) => `${state.user?.id || 'guest'}:${state.user?.role || ''}`)
@@ -32,44 +38,44 @@ export default function DownloadPage() {
   })
 
   return (
-    <main className="min-h-screen bg-[#fff8fb] px-4 py-8 text-slate-900">
-      <div className="mx-auto max-w-7xl space-y-8">
-        <Link to="/" className="inline-block text-sm font-semibold text-rose-700 underline underline-offset-4">Back to the clinic homepage</Link>
-        <div className="rounded-[36px] border border-white/70 bg-white/90 p-6 shadow-2xl backdrop-blur lg:p-10">
-          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
-            <div className="space-y-6">
-              <BrandMark sublabel="Maternal Wellness and Operations System" />
-              <div>
-                <p className="text-sm uppercase tracking-[0.3em] text-rose-500">Download center</p>
-                <h1 className="mt-3 text-4xl font-semibold leading-tight sm:text-5xl">Install MWOS on your device.</h1>
-                <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-                  Use the secure web portal, or explore the setup guides for desktop and mobile. Release availability is shown honestly; a setup guide is not an app installer.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <Link to="/portal" className="btn-primary">Open Web Version</Link>
-                <Link to="/register" className="btn-secondary">Create Account</Link>
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2" aria-label="Application downloads">
-              {downloadCards.map((card) => (
-                <article
-                  key={card.href}
-                  className="flex min-h-64 flex-col rounded-[28px] border border-rose-100 bg-white p-5 shadow-sm"
-                >
-                  <p className="text-sm uppercase tracking-[0.24em] text-rose-500">{card.title}</p>
-                  <h2 className="mt-3 text-xl font-semibold text-slate-900">{card.subtitle}</h2>
-                  <p className="mt-4 text-sm leading-6 text-slate-500">{card.description}</p>
-                  <a href={card.href} className="btn-secondary mt-auto justify-center pt-3">View setup guide</a>
-                </article>
-              ))}
-            </div>
+    <main className="download-page">
+      <div className="download-shell">
+        <header className="download-header">
+          <Link to="/" aria-label="TMC Copino homepage"><BrandMark sublabel="Birthing Home & Medical Clinic" /></Link>
+          <Link to="/" className="download-back" aria-label="Back to clinic homepage">← <span>Clinic homepage</span></Link>
+        </header>
+        <section className="download-hero" aria-labelledby="download-title">
+          <div className="download-intro">
+            <p className="download-eyebrow">THE MWOS DOWNLOAD CENTER</p>
+            <h1 id="download-title">Your care.<br />Your device.<br /><em>Always connected.</em></h1>
+            <p className="download-description">One place for your appointments, care updates, and clinic conversations. Choose how you connect with TMC Copino.</p>
+            <a className="download-text-link" href="#platforms">Explore your options <span aria-hidden="true">↓</span></a>
           </div>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-          <div className="rounded-[32px] border border-white/70 bg-white/90 p-6 shadow-xl">
+          <div className="download-web-panel">
+            <div className="download-web-top"><span className="download-browser-icon" aria-hidden="true">▤</span><span className="download-live"><i /> Available now</span></div>
+            <div><p className="download-eyebrow">START HERE · WEB PORTAL</p><h2>Care is just<br />a click away.</h2><p>Open MWOS in your browser. No download or installation needed.</p></div>
+            <Link to="/portal" className="download-primary">Open Web Version <span aria-hidden="true">↗</span></Link>
+            <div className="download-web-foot"><span>New to MWOS?</span><Link to="/register">Create an account →</Link></div>
+          </div>
+        </section>
+        <section id="platforms" className="download-platform-section" aria-labelledby="platform-title">
+          <div className="download-section-heading"><div><p className="download-eyebrow">FIND YOUR PLATFORM</p><h2 id="platform-title">A familiar home, on every screen.</h2></div><p>Explore desktop and mobile options.<br />The web portal is available while native apps are being prepared.</p></div>
+          <div className="download-platform-grid" aria-label="Application downloads">
+            {downloadCards.map((card, index) => (
+              <article key={card.platform} id={card.platform} className="download-platform-card">
+                <div className="download-card-top"><span className={'download-logo download-logo-' + card.platform}><PlatformLogo platform={card.platform} /></span><span className="download-card-number">0{index + 1}</span></div>
+                <p className="download-eyebrow">{card.title}</p>
+                <h3>{({ windows: 'Windows', macos: 'macOS', android: 'Android', ios: 'iOS' })[card.platform]}</h3>
+                <p className="download-card-description">{card.description}</p>
+                <div className="download-card-bottom"><span className="download-release"><i /> App coming soon</span><a href={card.href}>View setup guide <span aria-hidden="true">↗</span></a></div>
+              </article>
+            ))}
+          </div>
+          <div className="download-note"><span aria-hidden="true">ⓘ</span><p><strong>Ready to get started?</strong> Use the web portal today. Native app installers will appear here once released.</p><Link to="/portal">Open portal →</Link></div>
+        </section>
+        <div className="download-feedback-heading"><p className="download-eyebrow">BETTER CARE, TOGETHER</p><h2>Your experience matters.</h2><p>Read community feedback or share a thought about MWOS.</p></div>
+        <div className="download-feedback-grid">
+          <div className="download-feedback-panel">
             <h2 className="text-2xl font-semibold">What users are saying</h2>
             <div className="mt-4 flex items-end gap-4">
               <div className="text-5xl font-semibold text-rose-500">{reviewSummary?.averageRating?.toFixed?.(2) || '0.00'}</div>
@@ -91,13 +97,13 @@ export default function DownloadPage() {
             </div>
           </div>
 
-          <div id="review" className="rounded-[32px] border border-white/70 bg-white/90 p-6 shadow-xl">
+          <div id="review" className="download-feedback-panel">
             <h2 className="text-2xl font-semibold">Leave a review</h2>
             <p className="mt-2 text-sm text-slate-500">Share feedback about the portal, downloads, care visibility, or clinic workflow.</p>
             {notice ? <div className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{notice}</div> : null}
             <div className="mt-5 space-y-4">
-              <div><label className="label">Display name</label><input className="input" value={form.displayName} onChange={(e) => setForm((current) => ({ ...current, displayName: e.target.value }))} /></div>
-              <div><label className="label">Role</label><input className="input" value={form.roleLabel} onChange={(e) => setForm((current) => ({ ...current, roleLabel: e.target.value }))} /></div>
+              <div><label htmlFor="review-name" className="label">Display name</label><input id="review-name" className="input" value={form.displayName} onChange={(e) => setForm((current) => ({ ...current, displayName: e.target.value }))} /></div>
+              <div><label htmlFor="review-role" className="label">Role</label><input id="review-role" className="input" value={form.roleLabel} onChange={(e) => setForm((current) => ({ ...current, roleLabel: e.target.value }))} /></div>
               <div>
                 <label className="label">Rating</label>
                 <div className="flex gap-2">
@@ -113,7 +119,7 @@ export default function DownloadPage() {
                   ))}
                 </div>
               </div>
-              <div><label className="label">Feedback</label><textarea className="input" rows={4} value={form.comment} onChange={(e) => setForm((current) => ({ ...current, comment: e.target.value }))} /></div>
+              <div><label htmlFor="review-feedback" className="label">Feedback</label><textarea id="review-feedback" className="input" rows={4} value={form.comment} onChange={(e) => setForm((current) => ({ ...current, comment: e.target.value }))} /></div>
               <button className="btn-primary" onClick={() => reviewMutation.mutate()} disabled={reviewMutation.isPending}>
                 {reviewMutation.isPending ? 'Submitting...' : 'Submit Review'}
               </button>
@@ -124,3 +130,5 @@ export default function DownloadPage() {
     </main>
   )
 }
+
+

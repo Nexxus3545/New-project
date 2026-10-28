@@ -1,0 +1,54 @@
+.download-page { background: #fbf6f3; color: #302a2c; min-height: 100vh; font-family: 'Manrope', sans-serif; padding: 0 40px 64px; }
+.download-page * { box-sizing: border-box; }
+.download-shell { max-width: 1240px; margin: auto; }
+.download-page a { text-decoration: none; }
+.download-page :is(a,button,input,textarea):focus-visible { outline: 3px solid #aa647d; outline-offset: 4px; }
+.download-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 25px 0; border-bottom: 1px solid #e7dcd7; }
+.download-header .brand-mark-label { color: #302a2c; }
+.download-header .brand-mark-sublabel { font-size: 9px; letter-spacing: .14em; }
+.download-back { color: #75676a; font-size: 12px; display: flex; gap: 10px; align-items: center; }
+.download-hero { display: grid; grid-template-columns: 1.15fr 1fr; gap: 80px; padding: 65px 0; align-items: center; }
+.download-eyebrow { font-size: 10px; font-weight: 800; letter-spacing: .19em; color: #85425a; line-height: 1.8; }
+.download-intro h1 { font-family: 'Fraunces', Georgia, serif; font-size: clamp(42px, 4.6vw, 64px); font-weight: 500; line-height: 1.12; letter-spacing: -.035em; margin: 18px 0 22px; }
+.download-intro h1 em { color: #85425a; font-weight: 400; }
+.download-description { color: #74696b; font-size: 14px; line-height: 1.9; max-width: 420px; }
+.download-text-link { display: inline-flex; gap: 30px; margin-top: 26px; color: #85425a; font-size: 12px; font-weight: 700; padding-bottom: 8px; border-bottom: 1px solid #c6a2ae; }
+.download-web-panel { padding: 30px 34px; background: #73364d; border-radius: 18px; color: #fff7f5; position: relative; overflow: hidden; box-shadow: 0 18px 40px #73364d1c; }
+.download-web-panel::before { content: ''; position: absolute; width: 250px; height: 250px; border: 1px solid #ffffff12; border-radius: 50%; right: -130px; top: 30px; pointer-events: none; }
+.download-web-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+.download-browser-icon { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #ffffff40; border-radius: 12px; font-size: 30px; }
+.download-live { font-size: 10px; background: #ffffff12; border: 1px solid #ffffff25; border-radius: 30px; padding: 7px 12px; display: inline-flex; align-items: center; gap: 7px; }
+.download-live i { width: 6px; height: 6px; border-radius: 50%; background: #c5dfb9; }
+.download-web-panel .download-eyebrow { color: #e8c8d1; font-size: 9px; }
+.download-web-panel h2 { font-family: 'Fraunces', Georgia, serif; font-weight: 400; font-size: 42px; line-height: 1.1; margin: 12px 0 16px; }
+.download-web-panel p:not(.download-eyebrow) { color: #ecd8df; font-size: 13px; max-width: 290px; line-height: 1.8; }
+.download-primary { display: flex; justify-content: space-between; align-items: center; background: #fff7f2; color: #73364d; font-weight: 800; font-size: 12px; padding: 17px 20px; border-radius: 7px; margin-top: 26px; transition: background .2s; }
+.download-primary:hover { background: #f2dfe6; }
+.download-web-foot { display: flex; justify-content: space-between; gap: 12px; font-size: 10px; margin-top: 18px; color: #e4c9d2; }
+.download-web-foot a { color: white; }
+.download-platform-section { border-top: 1px solid #e7dcd7; padding-top: 36px; scroll-margin-top: 25px; }
+.download-section-heading { display: flex; justify-content: space-between; align-items: end; gap: 30px; margin-bottom: 26px; }
+.download-section-heading h2, .download-feedback-heading h2 { font-family: 'Fraunces', Georgia, serif; font-size: 30px; font-weight: 400; line-height: 1.3; margin-top: 8px; }
+.download-section-heading > p { color: #786b6f; font-size: 11px; line-height: 1.9; max-width: 320px; }
+.download-platform-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+.download-platform-card { background: #fffdfb; border: 1px solid #e6d9d3; padding: 24px; border-radius: 12px; display: flex; flex-direction: column; min-width: 0; scroll-margin-top: 25px; transition: border-color .2s, box-shadow .2s; }
+.download-platform-card:hover, .download-platform-card:target { border-color: #b07e8e; box-shadow: 0 8px 22px #73364d0b; }
+.download-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.download-logo { width: 52px; height: 52px; display: grid; place-items: center; background: #f2eeeb; border-radius: 14px; }
+.download-logo-windows { background: #eaf3fa; }.download-logo-android { background: #edf4e9; }
+.download-card-number { color: #c1b3ae; font-size: 11px; }
+.download-platform-card .download-eyebrow { font-size: 8px; color: #89767d; }
+.download-platform-card h3 { font-family: 'Fraunces', Georgia, serif; font-size: 27px; font-weight: 400; margin: 5px 0 12px; }
+.download-card-description { font-size: 11px; color: #7b6f73; line-height: 1.85; margin-bottom: 24px; }
+.download-card-bottom { margin-top: auto; }
+.download-release { display: flex; align-items: center; gap: 6px; font-size: 9px; color: #7c706c; padding-bottom: 18px; }
+.download-release i { width: 5px; height: 5px; background: #b29b81; border-radius: 50%; }
+.download-card-bottom a { display: flex; justify-content: space-between; color: #85425a; font-weight: 700; font-size: 11px; border-top: 1px solid #eee3df; padding-top: 16px; }
+.download-note { display: flex; gap: 14px; align-items: center; background: #f0e6e1; padding: 18px 22px; border-radius: 8px; margin-top: 20px; color: #79646b; }
+.download-note p { font-size: 11px; line-height: 1.8; flex: 1; }.download-note strong { color: #64404e; }.download-note a { font-size: 11px; font-weight: 800; white-space: nowrap; color: #85425a; }
+.download-feedback-heading { text-align: center; margin: 64px 0 28px; }.download-feedback-heading > p:last-child { font-size: 12px; color: #7b6f73; margin-top: 10px; }
+.download-feedback-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }.download-feedback-panel { background: #fffdfb; padding: 30px; border: 1px solid #e6d9d3; border-radius: 12px; }.download-feedback-panel h2 { font-family: 'Fraunces', Georgia, serif; font-size: 25px; font-weight: 400; }
+.download-feedback-panel article { background: #faf5f2; border-color: #eee3df; border-radius: 10px; }.download-feedback-panel .input { background: #fff; }.download-feedback-panel .label { color: #67555d; }
+@media (max-width: 1050px) { .download-hero { gap: 40px; }.download-platform-grid { grid-template-columns: repeat(2,1fr); }.download-card-description { min-height: 42px; } }
+@media (max-width: 640px) { .download-page { padding: 0 20px 36px; }.download-header { padding: 18px 0; }.download-header .brand-mark-sublabel { max-width: 170px; font-size: 7px; }.download-header .brand-mark-label { font-size: 19px; }.download-back span { display: none; }.download-hero { grid-template-columns: 1fr; padding: 36px 0; gap: 30px; }.download-intro h1 { font-size: 44px; }.download-description { font-size: 13px; }.download-web-panel { padding: 26px; }.download-section-heading { display: block; }.download-section-heading > p { margin-top: 14px; }.download-section-heading h2 { font-size: 28px; }.download-platform-grid { gap: 12px; }.download-platform-card { padding: 18px 15px; }.download-platform-card h3 { font-size: 25px; }.download-card-description { font-size: 11px; }.download-card-top { margin-bottom: 20px; }.download-note { flex-wrap: wrap; padding: 16px; }.download-note p { flex-basis: 80%; }.download-note a { margin-left: 29px; }.download-feedback-grid { grid-template-columns: 1fr; }.download-feedback-panel { padding: 22px; }.download-feedback-heading { margin-top: 44px; } }
+@media (prefers-reduced-motion: reduce) { .download-page * { transition: none; } }

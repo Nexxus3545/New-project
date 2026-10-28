@@ -1,6 +1,10 @@
-MWOS iOS Mobile Guide
+MWOS iOS Access Guide
 
-1. Install the Expo client or iOS build package.
-2. Open the MWOS mobile workspace.
-3. Start the mobile app and connect to the shared backend API.
-4. Sign in with your assigned clinic or patient account.
+Use the web portal
+1. Open https://tmc-copino-mwos.vercel.app/portal in your browser.
+2. Sign in with your clinic account or create a patient account.
+3. No installation is needed for the web portal.
+
+Native app availability
+A reviewed iOS installer is not included in this download center.
+This guide is not an app installer. Native releases require a platform build and testing; Apple platforms also require Apple signing for distribution.
