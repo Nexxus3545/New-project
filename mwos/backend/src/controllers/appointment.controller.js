@@ -1,6 +1,7 @@
 const { query, getClient } = require('../config/database');
 const { APPOINTMENT_TYPES, MATERNAL_APPOINTMENTS } = require('../utils/patientCare');
 const { queueAppointmentNotification, deliverNotification } = require('../utils/notificationEvents');
+const { appointmentStartAt, lockScheduling, assertSchedulingAvailable, sendSchedulingConflict } = require('../utils/teleconsultScheduling');
 
 const getAll = async (req, res, next) => {
   try {
@@ -92,6 +93,7 @@ const create = async (req, res, next) => {
     }
     client = await getClient();
     await client.query('BEGIN');
+    await lockScheduling(client);
     if (req.user.role === 'patient') {
       const ownPatient = await client.query('SELECT id FROM patients WHERE user_id = $1', [req.user.id]);
       if (ownPatient.rows[0]?.id !== patientId) {
@@ -108,15 +110,8 @@ const create = async (req, res, next) => {
       }
     }
 
-    // Check for conflicts
-    const conflict = await client.query(
-      `SELECT id FROM appointments
-       WHERE assigned_to = $1 AND scheduled_date = $2 AND scheduled_time = $3 AND status NOT IN ('cancelled','no_show')`,
-      [assignedTo, scheduledDate, scheduledTime]
-    );
-    if (conflict.rows.length > 0) {
-      return res.status(409).json({ success: false, message: 'Time slot already booked for this provider' });
-    }
+    await assertSchedulingAvailable(client, { clinicianId: assignedTo || null, patientId,
+      startAt: appointmentStartAt(scheduledDate, scheduledTime), durationMinutes: 30 });
 
     const result = await client.query(
       `INSERT INTO appointments (patient_id, pregnancy_id, assigned_to, appointment_type, scheduled_date, scheduled_time, notes, created_by)
@@ -129,6 +124,7 @@ const create = async (req, res, next) => {
     await client.query('COMMIT');
     committed = true;
   } catch (err) {
+    if (err.code === 'SCHEDULE_CONFLICT') return sendSchedulingConflict(res, err);
     return next(err);
   } finally {
     if (client && !committed) await client.query('ROLLBACK').catch(() => {});
@@ -152,6 +148,7 @@ const update = async (req, res, next) => {
     }
     client = await getClient();
     await client.query('BEGIN');
+    await lockScheduling(client);
     const existing = await client.query('SELECT * FROM appointments WHERE id = $1 FOR UPDATE', [id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Appointment not found' });
@@ -167,6 +164,12 @@ const update = async (req, res, next) => {
       }
     }
 
+    const previousAppointment = existing.rows[0];
+    if (['scheduled', 'confirmed'].includes(status || previousAppointment.status)) {
+      await assertSchedulingAvailable(client, { clinicianId: previousAppointment.assigned_to, patientId: previousAppointment.patient_id,
+        startAt: appointmentStartAt(scheduledDate || previousAppointment.scheduled_date, scheduledTime || previousAppointment.scheduled_time),
+        durationMinutes: 30, excludeAppointmentId: id });
+    }
     const result = await client.query(
       `UPDATE appointments SET
         status = COALESCE($1, status),
@@ -187,6 +190,7 @@ const update = async (req, res, next) => {
     await client.query('COMMIT');
     committed = true;
   } catch (err) {
+    if (err.code === 'SCHEDULE_CONFLICT') return sendSchedulingConflict(res, err);
     return next(err);
   } finally {
     if (client && !committed) await client.query('ROLLBACK').catch(() => {});

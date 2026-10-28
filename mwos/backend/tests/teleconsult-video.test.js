@@ -5,6 +5,21 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 const helpers = require('../src/utils/teleconsult');
 const videoHelpers = require('../src/utils/dailyVideo');
+const scheduling = require('../src/utils/teleconsultScheduling');
+
+test('appointment DATE values preserve their Manila calendar day before timezone conversion', () => {
+  const { execFileSync } = require('node:child_process');
+  const modulePath = require.resolve('../src/utils/teleconsultScheduling');
+  const output = execFileSync(process.execPath, ['-e', `
+    const { appointmentStartAt } = require(${JSON.stringify(modulePath)});
+    const date = new Date(2030, 5, 14);
+    process.stdout.write(JSON.stringify([
+      appointmentStartAt(date, '10:00:00'),
+      appointmentStartAt('2030-06-14', '10:00')
+    ]));
+  `], { env: { ...process.env, TZ: 'Asia/Manila' }, encoding: 'utf8' });
+  assert.deepEqual(JSON.parse(output), ['2030-06-14T02:00:00.000Z', '2030-06-14T02:00:00.000Z']);
+});
 
 const patientUser = '11111111-1111-4111-8111-111111111111';
 const clinician = '22222222-2222-4222-8222-222222222222';
@@ -29,7 +44,7 @@ function harness(options = {}) {
   const queries = [];
   const session = { id: sessionId, thread_id: threadId, patient_id: patientId, clinician_id: clinician,
     status: options.status || 'requested', meeting_provider: 'external', meeting_url: options.meetingUrl ?? '', meeting_code: null,
-    start_at: options.startAt || null, end_at: null,
+    start_at: options.startAt || null, end_at: null, preferred_start_at: options.preferredStartAt || null, duration_minutes: options.durationMinutes || 30,
     ...(options.dailyRoom ? { meeting_url: dailyUrl, meeting_code: roomName } : {}) };
   if (options.otherPatient) session.patient_id = outsider;
   const participants = [patientUser, clinician, ...(options.adminParticipant ? [outsider] : [])];
@@ -40,9 +55,15 @@ function harness(options = {}) {
     if (text === 'BEGIN') return { rows: [] };
     if (text === 'COMMIT') { committed = true; if (candidate) Object.assign(session, candidate); return { rows: [] }; }
     if (text === 'ROLLBACK') { rolledBack = true; candidate = null; return { rows: [] }; }
-    if (text.startsWith('SELECT id, first_name, last_name, role, is_active FROM users')) return { rows: [{ id: clinician, role: 'doctor', is_active: true, first_name: 'Synthetic', last_name: 'Clinician' }] };
+    if (text.startsWith('SELECT pg_advisory_xact_lock')) return { rows: [] };
+    if (text.startsWith('WITH scheduling_bookings')) return { rows: options.conflicts || [] };
+    if (text.startsWith('SELECT tcs.id, tcs.thread_id')) {
+      const row = candidate || session;
+      return { rows: [{ id: row.id, thread_id: row.thread_id, patient_name: 'Synthetic Patient', clinician_id: row.clinician_id, clinician_name: 'Synthetic Clinician', reason: 'Sensitive reason', status: row.status, preferred_start_at: row.preferred_start_at, start_at: row.start_at, duration_minutes: row.duration_minutes, created_at: '2026-10-28T00:00:00Z' }] };
+    }
+    if (text.startsWith('SELECT id, first_name, last_name, role, is_active FROM users')) return { rows: options.missingClinician ? [] : [{ id: clinician, role: options.clinicianRole || 'doctor', is_active: !options.inactiveClinician, first_name: 'Synthetic', last_name: 'Clinician' }] };
     if (text.startsWith('SELECT id, first_name, last_name, user_id FROM patients WHERE user_id')) return { rows: options.noOwnPatient ? [] : [own] };
-    if (text.startsWith('SELECT id, first_name, last_name, user_id FROM patients WHERE id')) return { rows: [own] };
+    if (text.startsWith('SELECT id, first_name, last_name, user_id FROM patients WHERE id')) return { rows: options.missingPatient ? [] : [own] };
     if (text.startsWith('SELECT id FROM conversation_threads')) return { rows: [{ id: threadId }] };
     if (text.startsWith('SELECT id FROM tele_consult_sessions WHERE thread_id')) return { rows: options.existingSession ? [{ id: sessionId }] : [] };
     if (text.startsWith('SELECT * FROM tele_consult_sessions WHERE id')) return { rows: options.missingSession ? [] : [session] };
@@ -57,11 +78,15 @@ function harness(options = {}) {
     if (text.startsWith('SELECT id FROM users WHERE id')) return { rows: params[0].map((id) => ({ id })) };
     if (text.startsWith('INSERT INTO conversation_participants')) return { rows: [] };
     if (text.startsWith('INSERT INTO tele_consult_sessions')) {
-      candidate = { ...session, patient_id: params[1], requested_by: params[2], clinician_id: params[3], meeting_provider: params[7], meeting_url: params[8], meeting_code: params[9], status: params[10], start_at: params[11], end_at: params[12] };
+      candidate = { ...session, patient_id: params[1], requested_by: params[2], clinician_id: params[3], meeting_provider: params[7], meeting_url: params[8], meeting_code: params[9], status: params[10], start_at: params[11], end_at: params[12], preferred_start_at: params[14], duration_minutes: params[15] };
+      return { rows: [candidate] };
+    }
+    if (text.startsWith("UPDATE tele_consult_sessions SET status = 'scheduled'")) {
+      candidate = { ...session, status: 'scheduled', start_at: params[1], duration_minutes: params[2], end_at: null };
       return { rows: [candidate] };
     }
     if (text.startsWith('UPDATE tele_consult_sessions SET status')) {
-      candidate = { ...session, status: params[1], meeting_provider: params[2], meeting_url: params[3], meeting_code: params[4], start_at: params[5], end_at: params[6] };
+      candidate = { ...session, status: params[1], meeting_provider: params[2], meeting_url: params[3], meeting_code: params[4], start_at: params[5], end_at: params[6], duration_minutes: params[7] };
       return { rows: [candidate] };
     }
     if (text.startsWith("UPDATE tele_consult_sessions SET meeting_provider")) {
@@ -69,6 +94,7 @@ function harness(options = {}) {
       return { rows: [candidate] };
     }
     if (text.startsWith('INSERT INTO conversation_messages')) return { rows: [{ id: 'synthetic-message' }] };
+    if (text.startsWith('INSERT INTO security_audit')) { if (options.failAudit) throw Error('Synthetic audit failure'); audits++; return { rows: [] }; }
     if (text.startsWith('UPDATE conversation_threads SET last_message_at')) return { rows: [] };
     if (text.startsWith('INSERT INTO notifications')) {
       if (options.failNotification) throw Error('Synthetic notification failure');
@@ -83,9 +109,10 @@ function harness(options = {}) {
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/controllers/interaction.controller.js'), 'utf8'), {
     module, exports: module.exports, Date, Set, JSON, console,
     require: (name) => {
-      if (name === '../config/database') return { query: async () => { throw Error('No nested pool query'); }, getClient: async () => { acquired = true; return { query, release: () => { released = true; } }; } };
+      if (name === '../config/database') return { query: async (...args) => { assert.equal(acquired, false, 'No nested pool query'); return query(...args); }, getClient: async () => { acquired = true; return { query, release: () => { released = true; } }; } };
       if (name === 'node:crypto') return require(name);
       if (name === '../utils/teleconsult') return helpers;
+      if (name === '../utils/teleconsultScheduling') return scheduling;
       if (name === '../utils/dailyVideo') return {
         managedRoomNameForSession: videoHelpers.managedRoomNameForSession,
         dailyVideo: {
@@ -106,8 +133,8 @@ function harness(options = {}) {
       actor = user; let status = 200, payload, failure;
       const responseHeaders = {};
       const res = { set: (key, value) => { responseHeaders[key] = value; return res; }, status: (code) => { status = code; return res; }, json: (data) => { payload = data; return res; } };
-      const handler = { create: 'createTeleconsultSession', update: 'updateTeleconsultSession', join: 'joinTeleconsultVideo', videoStatus: 'getTeleconsultVideoStatus' }[action];
-      await module.exports[handler]({ user, params: { id: sessionId }, body, headers: {}, ip: '127.0.0.1' }, res, (err) => { failure = err; });
+      const handler = { create: 'createTeleconsultSession', update: 'updateTeleconsultSession', join: 'joinTeleconsultVideo', videoStatus: 'getTeleconsultVideoStatus', review: 'getTeleconsultReview', availability: 'getTeleconsultAvailability', accept: 'acceptTeleconsultSession' }[action];
+      await module.exports[handler]({ user, params: { id: sessionId }, query: body, body, headers: {}, ip: '127.0.0.1' }, res, (err) => { failure = err; });
       return { status, payload, failure, responseHeaders };
     },
     state: () => ({ acquired, committed, rolledBack, released, session, candidate, queries, notifications, audits, videoCalls }),
@@ -193,10 +220,10 @@ test('notification failure rolls back a session update rather than reporting suc
   assert.ok(result.failure); assert.equal(app.state().committed, false); assert.equal(app.state().session.status, 'requested'); assert.equal(app.state().rolledBack, true);
 });
 
-test('active and completed times are set by the server, not supplied client end times', async () => {
+test('activation preserves the confirmed schedule and completion uses the server end time', async () => {
   const now = new Date('2026-10-28T10:00:00Z');
   const active = helpers.prepareTeleconsultUpdate({ status: 'scheduled', meeting_url: meet, start_at: '2026-10-29T10:00:00Z' }, { status: 'active', endAt: '2040-01-01T00:00:00Z' }, now);
-  assert.equal(active.startAt, now.toISOString()); assert.equal(active.endAt, null);
+  assert.equal(active.startAt, '2026-10-29T10:00:00.000Z'); assert.equal(active.endAt, null);
   const completed = helpers.prepareTeleconsultUpdate({ status: 'active', meeting_url: meet, start_at: now.toISOString() }, { status: 'completed', endAt: '2040-01-01T00:00:00Z', startAt: '2040-01-01T00:00:00Z', meetingUrl: 'https://meet.google.com/xyz-abcd-efg' }, now);
   assert.equal(completed.endAt, now.toISOString());
   assert.equal(completed.startAt, now.toISOString());
@@ -299,4 +326,90 @@ test('authenticated video status reveals only provider availability and is not c
   const app = harness(); const result = await app.invoke('videoStatus');
   assert.deepEqual(JSON.parse(JSON.stringify(result.payload.data)), { provider: 'daily', configured: true });
   assert.equal(result.responseHeaders['Cache-Control'], 'no-store'); assert.equal(app.state().acquired, false);
+});
+
+test('patient preferences save a future requested time and allowed duration without confirming the slot', async () => {
+  const preferredStartAt = new Date(Date.now() + 86400000).toISOString();
+  const app = harness();
+  const result = await app.invoke('create', { clinicianId: clinician, reason: 'Sensitive reason', preferredStartAt, durationMinutes: 45, sessionStatus: 'scheduled', startAt: preferredStartAt }, { id: patientUser, role: 'patient' });
+  assert.equal(result.failure, undefined); assert.equal(result.status, 201);
+  assert.equal(app.state().session.status, 'requested'); assert.equal(app.state().session.start_at, null);
+  assert.equal(app.state().session.preferred_start_at, preferredStartAt); assert.equal(app.state().session.duration_minutes, 45);
+  assert.equal(app.state().queries.some((q) => q.sql.startsWith('WITH scheduling_bookings')), false);
+  for (const invalid of [{ preferredStartAt: '2000-01-01T00:00:00Z' }, { preferredStartAt: '2026-02-30T10:00:00Z' }, { preferredStartAt: false }, { durationMinutes: 90 }]) {
+    const invalidApp = harness();
+    const rejected = await invalidApp.invoke('create', { clinicianId: clinician, reason: 'Sensitive reason', ...invalid }, { id: patientUser, role: 'patient' });
+    assert.equal(rejected.failure?.statusCode, 400); assert.equal(invalidApp.state().committed, false);
+  }
+});
+
+test('only administrators can review the bounded scheduling DTO queue without private-thread membership', async () => {
+  for (const role of ['patient', 'doctor', 'midwife', 'nurse']) {
+    const app = harness(); assert.equal((await app.invoke('review', {}, { id: outsider, role })).status, 403);
+    assert.equal(app.state().queries.length, 0);
+  }
+  const app = harness();
+  const result = await app.invoke('review', {}, { id: outsider, role: 'admin' });
+  assert.equal(result.failure, undefined); assert.equal(result.payload.data.length, 1);
+  const fields = Object.keys(result.payload.data[0]);
+  for (const field of ['meeting_url', 'meeting_code', 'messages', 'participants', 'token']) assert.equal(fields.includes(field), false);
+  assert.ok(app.state().queries[0].sql.endsWith('LIMIT 100'));
+  assert.equal(app.state().queries.some((q) => q.sql.startsWith('SELECT ct.*')), false);
+});
+
+test('availability is advisory and never discloses the conflicting patient or booking identifier', async () => {
+  const startAt = new Date(Date.now() + 86400000).toISOString();
+  const app = harness({ conflicts: [{ kind: 'appointment', startAt, endAt: new Date(Date.parse(startAt) + 1800000).toISOString(), patient_name: 'PRIVATE', id: 'PRIVATE-ID' }] });
+  const result = await app.invoke('availability', { startAt, durationMinutes: '30' }, { id: outsider, role: 'admin' });
+  assert.equal(result.failure, undefined); assert.equal(result.payload.data.available, false);
+  assert.equal(result.payload.data.startAt, startAt); assert.equal(result.payload.data.durationMinutes, 30);
+  assert.deepEqual(Object.keys(result.payload.data.conflicts[0]), ['kind', 'startAt', 'endAt']);
+  assert.equal(JSON.stringify(result.payload).includes('PRIVATE'), false); assert.equal(app.state().committed, false);
+});
+
+test('admin acceptance requires step-up but no clinical license or conversation membership', async () => {
+  const startAt = new Date(Date.now() + 86400000).toISOString();
+  const app = harness({ preferredStartAt: startAt, durationMinutes: 45, unverified: true });
+  const admin = { id: outsider, role: 'admin' };
+  const result = await app.invoke('accept', { participantIds: [outsider] }, admin);
+  assert.equal(result.failure, undefined); assert.equal(result.payload.data.status, 'scheduled');
+  const state = app.state(); assert.equal(state.session.start_at, startAt); assert.equal(state.session.duration_minutes, 45);
+  assert.equal(state.committed, true); assert.equal(state.audits, 1); assert.equal(state.notifications, 1);
+  assert.equal(state.queries.some((q) => q.sql.startsWith('INSERT INTO conversation_participants') || q.sql.startsWith('SELECT ct.*')), false);
+  const lock = state.queries.findIndex((q) => q.sql.startsWith('SELECT pg_advisory_xact_lock'));
+  const row = state.queries.findIndex((q) => q.sql.endsWith('FOR UPDATE'));
+  assert.ok(lock >= 0 && lock < row);
+  assert.equal((await app.invoke('accept', { startAt }, admin)).payload.code, 'CONSULTATION_ALREADY_REVIEWED');
+  const noStepUp = harness({ noStepUp: true, preferredStartAt: startAt });
+  assert.equal((await noStepUp.invoke('accept', {}, admin)).status, 403); assert.equal(noStepUp.state().acquired, false);
+  const wrongRole = harness(); assert.equal((await wrongRole.invoke('accept', { startAt })).status, 403); assert.equal(wrongRole.state().acquired, false);
+});
+
+test('acceptance rechecks availability under the lock and rejects changed or overlapping slots atomically', async () => {
+  const startAt = new Date(Date.now() + 86400000).toISOString();
+  const admin = { id: outsider, role: 'admin' };
+  const conflicts = [{ kind: 'teleconsult', startAt, endAt: new Date(Date.parse(startAt) + 1800000).toISOString() }];
+  for (const action of ['accept', 'update', 'create']) {
+    const app = harness({ conflicts, preferredStartAt: startAt });
+    const result = await app.invoke(action, { startAt, status: 'scheduled', sessionStatus: 'scheduled', clinicianId: clinician, patientId, reason: 'Sensitive reason' }, action === 'accept' ? admin : { id: clinician, role: 'doctor' });
+    assert.equal(result.status, 409); assert.equal(result.payload.code, 'SCHEDULE_CONFLICT');
+    assert.equal(app.state().committed, false); assert.equal(app.state().session.status, 'requested'); assert.equal(app.state().notifications, 0);
+  }
+  for (const failure of [{ failAudit: true }, { failNotification: true }]) {
+    const app = harness({ preferredStartAt: startAt, ...failure });
+    const result = await app.invoke('accept', {}, admin);
+    assert.ok(result.failure); assert.equal(app.state().session.status, 'requested'); assert.equal(app.state().committed, false);
+  }
+});
+
+test('admin acceptance rejects a removed patient or unavailable clinical assignment without booking', async () => {
+  for (const options of [{ missingPatient: true }, { missingClinician: true }, { inactiveClinician: true }, { clinicianRole: 'nurse' }]) {
+    const app = harness({ preferredStartAt: new Date(Date.now() + 86400000).toISOString(), ...options });
+    const result = await app.invoke('accept', {}, { id: outsider, role: 'admin' });
+    assert.equal(result.status, 409);
+    assert.equal(result.payload.code, 'CONSULTATION_ASSIGNMENT_UNAVAILABLE');
+    assert.equal(app.state().committed, false);
+    assert.equal(app.state().notifications, 0);
+    assert.equal(app.state().queries.some((entry) => entry.sql.startsWith('WITH scheduling_bookings')), false);
+  }
 });

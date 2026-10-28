@@ -21,6 +21,7 @@ const execute = async (sql, params = []) => {
   if (text === 'BEGIN') return { rows: [] };
   if (text === 'COMMIT') { committed = true; return { rows: [] }; }
   if (text === 'ROLLBACK') return { rows: [] };
+  if (text.startsWith('SELECT pg_advisory_xact_lock') || text.startsWith('WITH scheduling_bookings')) return { rows: [] };
   if (text.startsWith('SELECT id FROM patients')) return { rows: [{ id: 'patient-1' }] };
   if (text.startsWith('SELECT id FROM appointments')) return { rows: [] };
   if (text.startsWith('SELECT * FROM appointments')) return { rows: appointment ? [{ ...appointment }] : [] };

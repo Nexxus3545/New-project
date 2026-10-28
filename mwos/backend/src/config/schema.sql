@@ -831,6 +831,8 @@ CREATE TABLE IF NOT EXISTS tele_consult_sessions (
   meeting_url TEXT NOT NULL,
   meeting_code VARCHAR(120),
   status VARCHAR(20) NOT NULL DEFAULT 'requested' CHECK (status IN ('requested','scheduled','active','completed','cancelled')),
+  preferred_start_at TIMESTAMPTZ,
+  duration_minutes INTEGER NOT NULL DEFAULT 30 CONSTRAINT tele_consult_sessions_duration_minutes_check CHECK (duration_minutes IN (15,30,45,60)),
   start_at TIMESTAMPTZ,
   end_at TIMESTAMPTZ,
   triggered_from_message_id UUID,
@@ -993,6 +995,9 @@ CREATE INDEX IF NOT EXISTS idx_tele_consult_sessions_patient_id ON tele_consult_
 CREATE INDEX IF NOT EXISTS idx_tele_consult_sessions_clinician_id ON tele_consult_sessions(clinician_id);
 CREATE INDEX IF NOT EXISTS idx_tele_consult_sessions_status ON tele_consult_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_tele_consult_sessions_created_at ON tele_consult_sessions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_teleconsult_clinician_booking ON tele_consult_sessions(clinician_id, start_at) WHERE status IN ('scheduled','active');
+CREATE INDEX IF NOT EXISTS idx_teleconsult_patient_booking ON tele_consult_sessions(patient_id, start_at) WHERE status IN ('scheduled','active');
+CREATE INDEX IF NOT EXISTS idx_teleconsult_pending_review ON tele_consult_sessions(preferred_start_at, created_at) WHERE status = 'requested';
 CREATE INDEX IF NOT EXISTS idx_care_tasks_assigned_to ON care_tasks(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_care_tasks_patient_id ON care_tasks(patient_id);
 CREATE INDEX IF NOT EXISTS idx_care_tasks_status ON care_tasks(status);

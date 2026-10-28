@@ -3,6 +3,7 @@ const { randomUUID } = require('node:crypto');
 const { resolveStepUpContext } = require('../middleware/stepUp');
 const { buildTeleconsultMeetingDetails, prepareTeleconsultUpdate, parseSchedule } = require('../utils/teleconsult');
 const { dailyVideo, managedRoomNameForSession } = require('../utils/dailyVideo');
+const { parseDuration, futureSchedule, lockScheduling, findSchedulingConflicts, assertSchedulingAvailable, sendSchedulingConflict } = require('../utils/teleconsultScheduling');
 const {
   getStaffSecurityContext,
   recordSecurityAudit,
@@ -73,6 +74,8 @@ const fetchThreadDetail = async (client, threadId, userId) => {
         tcs.reason AS teleconsult_reason,
         tcs.clinical_trigger AS teleconsult_clinical_trigger,
         tcs.start_at AS teleconsult_start_at,
+        tcs.preferred_start_at AS teleconsult_preferred_start_at,
+        tcs.duration_minutes AS teleconsult_duration_minutes,
         tcs.end_at AS teleconsult_end_at,
         tcs.requested_by AS teleconsult_requested_by,
         tcs.clinician_id AS teleconsult_clinician_id
@@ -132,6 +135,8 @@ const fetchThreadDetail = async (client, threadId, userId) => {
       reason: threadResult.rows[0].teleconsult_reason,
       clinical_trigger: threadResult.rows[0].teleconsult_clinical_trigger,
       start_at: threadResult.rows[0].teleconsult_start_at,
+      preferred_start_at: threadResult.rows[0].teleconsult_preferred_start_at,
+      duration_minutes: threadResult.rows[0].teleconsult_duration_minutes ?? 30,
       end_at: threadResult.rows[0].teleconsult_end_at,
       requested_by: threadResult.rows[0].teleconsult_requested_by,
       clinician_id: threadResult.rows[0].teleconsult_clinician_id,
@@ -496,7 +501,7 @@ const createTeleconsultSession = async (req, res, next) => {
 
     client = await getClient();
     await client.query('BEGIN');
-
+    await lockScheduling(client);
     const requestedClinicianId = req.body?.clinicianId || (['doctor', 'midwife'].includes(req.user.role) ? req.user.id : null);
     if (!requestedClinicianId) {
       await client.query('ROLLBACK');
@@ -615,7 +620,11 @@ const createTeleconsultSession = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Only the assigned clinician or an administrator can schedule a consultation room.' });
     }
     const meetingDetails = buildTeleconsultMeetingDetails();
-    const sessionStartAt = sessionStatus === 'scheduled' ? parseSchedule(req.body?.startAt) : null;
+    const sessionStartAt = sessionStatus === 'scheduled' ? futureSchedule(req.body?.startAt) : null;
+    const preference = req.body?.preferredStartAt;
+    const preferredStartAt = preference === undefined || preference === null || preference === '' ? null : futureSchedule(preference);
+    const durationMinutes = parseDuration(req.body?.durationMinutes);
+    if (sessionStatus === 'scheduled') await assertSchedulingAvailable(client, { clinicianId: clinician.id, patientId: patientRecord.id, startAt: sessionStartAt, durationMinutes });
     const sessionEndAt = null;
     const triggeredFromMessageId = patientRequest ? null : req.body?.triggeredFromMessageId || null;
     const additionalParticipants = patientRequest ? [] : Array.isArray(req.body?.participantIds) ? req.body.participantIds : [];
@@ -671,9 +680,9 @@ const createTeleconsultSession = async (req, res, next) => {
         `INSERT INTO tele_consult_sessions (
            thread_id, patient_id, requested_by, clinician_id, trigger_source,
            clinical_trigger, reason, meeting_provider, meeting_url, meeting_code,
-           status, start_at, end_at, triggered_from_message_id
+           status, start_at, end_at, triggered_from_message_id, preferred_start_at, duration_minutes
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          RETURNING *`,
         [
           thread.id,
@@ -690,6 +699,8 @@ const createTeleconsultSession = async (req, res, next) => {
           sessionStartAt,
           sessionEndAt,
           triggeredFromMessageId,
+          preferredStartAt,
+          durationMinutes,
         ]
       );
     const teleconsultSession = sessionResult.rows[0];
@@ -762,6 +773,7 @@ const createTeleconsultSession = async (req, res, next) => {
     });
   } catch (err) {
     if (client) await client.query('ROLLBACK');
+    if (err.code === 'SCHEDULE_CONFLICT') return sendSchedulingConflict(res, err);
     next(err);
   } finally {
     client?.release();
@@ -787,6 +799,7 @@ const updateTeleconsultSession = async (req, res, next) => {
     }
     client = await getClient();
     await client.query('BEGIN');
+    await lockScheduling(client);
     const result = await client.query('SELECT * FROM tele_consult_sessions WHERE id = $1 FOR UPDATE', [req.params.id]);
     const session = result.rows[0];
     const thread = session ? await fetchThreadDetail(client, session.thread_id, req.user.id) : null;
@@ -795,6 +808,11 @@ const updateTeleconsultSession = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Consultation not found or access denied' });
     }
     const update = prepareTeleconsultUpdate(session, req.body);
+    if (['scheduled', 'active'].includes(update.status)) {
+      const changedSchedule = session.status === 'requested' || (req.body?.startAt !== undefined && Date.parse(update.startAt) !== new Date(session.start_at).getTime()) || update.durationMinutes !== (session.duration_minutes ?? 30);
+      if (update.status === 'scheduled' && changedSchedule) futureSchedule(update.startAt);
+      await assertSchedulingAvailable(client, { clinicianId: session.clinician_id, patientId: session.patient_id, startAt: update.startAt, durationMinutes: update.durationMinutes, excludeTeleconsultId: session.id });
+    }
     if (['completed', 'cancelled'].includes(update.status) && managedRoomNameForSession(session)) {
       // Delete first to expel active participants. A provider failure rolls back
       // the status change, so the clinic never sees a falsely closed call.
@@ -803,9 +821,9 @@ const updateTeleconsultSession = async (req, res, next) => {
     const saved = await client.query(
       `UPDATE tele_consult_sessions
        SET status = $2, meeting_provider = $3, meeting_url = $4, meeting_code = $5,
-           start_at = $6, end_at = $7, updated_at = NOW()
+           start_at = $6, end_at = $7, duration_minutes = $8, updated_at = NOW()
        WHERE id = $1 RETURNING *`,
-      [session.id, update.status, update.meetingProvider, update.meetingUrl, update.meetingCode, update.startAt, update.endAt]
+      [session.id, update.status, update.meetingProvider, update.meetingUrl, update.meetingCode, update.startAt, update.endAt, update.durationMinutes]
     );
     await recordSecurityAudit({ client, staffId: staffProfile.staffId, actionPerformed: 'TELECONSULT_UPDATED', entityType: 'tele_consult_session', entityId: session.id, deviceIp: req.ip, authMethod: req.stepUp?.authMethod || 'Password', credentialStrength: req.stepUp?.credentialStrength || 'Step_Up', requestId: req.requestId || null, details: { previousStatus: session.status, status: update.status, provider: update.meetingProvider } });
     await createNotifications(client, {
@@ -819,6 +837,103 @@ const updateTeleconsultSession = async (req, res, next) => {
     return res.json({ success: true, data: saved.rows[0] });
   } catch (error) {
     if (client) await client.query('ROLLBACK');
+    if (error.code === 'SCHEDULE_CONFLICT') return sendSchedulingConflict(res, error);
+    next(error);
+  } finally { client?.release(); }
+};
+
+const REVIEW_FIELDS = `tcs.id, tcs.thread_id, CONCAT_WS(' ', p.first_name, p.last_name) AS patient_name,
+  tcs.clinician_id, CONCAT_WS(' ', u.first_name, u.last_name) AS clinician_name,
+  tcs.reason, tcs.status, tcs.preferred_start_at, tcs.start_at, tcs.duration_minutes, tcs.created_at`;
+const REVIEW_JOINS = 'FROM tele_consult_sessions tcs LEFT JOIN patients p ON p.id = tcs.patient_id LEFT JOIN users u ON u.id = tcs.clinician_id';
+const validSessionId = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || '');
+
+const getTeleconsultReview = async (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  if (req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Administrator access is required to review consultation requests.' });
+  try {
+    const status = req.query?.status;
+    if (status && !['requested', 'scheduled', 'active'].includes(status)) return res.status(400).json({ success: false, message: 'Select requested, scheduled, or active consultations.' });
+    const statuses = status ? [status] : ['requested', 'scheduled', 'active'];
+    const result = await query(`SELECT ${REVIEW_FIELDS} ${REVIEW_JOINS}
+      WHERE tcs.status = ANY($1::text[]) ORDER BY CASE WHEN tcs.status = 'requested' THEN 0 ELSE 1 END,
+      COALESCE(tcs.preferred_start_at, tcs.start_at, tcs.created_at), tcs.id LIMIT 100`, [statuses]);
+    return res.json({ success: true, data: result.rows });
+  } catch (error) { next(error); }
+};
+
+const getTeleconsultAvailability = async (req, res, next) => {
+  let client;
+  res.set('Cache-Control', 'no-store');
+  if (req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Administrator access is required to review consultation availability.' });
+  if (!validSessionId(req.params.id)) return res.status(404).json({ success: false, message: 'Consultation not found' });
+  try {
+    client = await getClient();
+    const result = await client.query('SELECT * FROM tele_consult_sessions WHERE id = $1', [req.params.id]);
+    const session = result.rows[0];
+    if (!session) return res.status(404).json({ success: false, message: 'Consultation not found' });
+    const startAt = futureSchedule(req.query?.startAt || session.preferred_start_at || session.start_at);
+    const durationMinutes = parseDuration(req.query?.durationMinutes ?? session.duration_minutes ?? 30);
+    const conflicts = await findSchedulingConflicts(client, { clinicianId: session.clinician_id, patientId: session.patient_id, startAt, durationMinutes, excludeTeleconsultId: session.id });
+    return res.json({ success: true, data: { available: conflicts.length === 0, conflicts, startAt, durationMinutes } });
+  } catch (error) { next(error); } finally { client?.release(); }
+};
+
+const acceptTeleconsultSession = async (req, res, next) => {
+  let client;
+  res.set('Cache-Control', 'no-store');
+  if (req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Only an administrator can accept consultation requests.' });
+  if (!validSessionId(req.params.id)) return res.status(404).json({ success: false, message: 'Consultation not found' });
+  try {
+    // This is administrative booking. It needs step-up authentication, but
+    // neither a professional clinical license nor private-thread participation.
+    try { resolveStepUpContext(req, 'teleconsult'); } catch (error) {
+      return res.status(403).json({ success: false, message: error.message || 'Step-up authentication required', code: error.message?.includes('purpose') ? 'STEP_UP_PURPOSE_MISMATCH' : 'STEP_UP_REQUIRED' });
+    }
+    client = await getClient();
+    await client.query('BEGIN');
+    await lockScheduling(client);
+    const result = await client.query('SELECT * FROM tele_consult_sessions WHERE id = $1 FOR UPDATE', [req.params.id]);
+    const session = result.rows[0];
+    if (!session) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, message: 'Consultation not found' }); }
+    if (session.status !== 'requested') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, code: 'CONSULTATION_ALREADY_REVIEWED', message: 'This consultation has already been reviewed. Refresh the queue.' });
+    }
+    const patient = await getPatientRecordById(client, session.patient_id);
+    const clinicianResult = await client.query(
+      'SELECT id, first_name, last_name, role, is_active FROM users WHERE id = $1 FOR SHARE',
+      [session.clinician_id]
+    );
+    const clinician = clinicianResult.rows[0];
+    if (!patient || !clinician?.is_active || !['doctor', 'midwife'].includes(clinician.role)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, code: 'CONSULTATION_ASSIGNMENT_UNAVAILABLE', message: 'The patient or assigned care provider is no longer available. Review the consultation assignment before accepting.' });
+    }
+    const startAt = futureSchedule(req.body?.startAt || session.preferred_start_at);
+    const durationMinutes = parseDuration(req.body?.durationMinutes ?? session.duration_minutes ?? 30);
+    await assertSchedulingAvailable(client, { clinicianId: session.clinician_id, patientId: session.patient_id, startAt, durationMinutes, excludeTeleconsultId: session.id });
+    await client.query(`UPDATE tele_consult_sessions SET status = 'scheduled', start_at = $2,
+      duration_minutes = $3, end_at = NULL, updated_at = NOW() WHERE id = $1`, [session.id, startAt, durationMinutes]);
+    await createNotifications(client, {
+      userIds: [patient?.user_id, session.clinician_id], title: 'Telehealth consultation scheduled',
+      body: 'The clinic confirmed a consultation. Open Telehealth to view the schedule.', createdBy: req.user.id,
+      metadata: { threadId: session.thread_id, teleconsultSessionId: session.id, category: 'teleconsult' },
+    });
+    // Booking and its audit receipt must commit together. The generic audit
+    // helper is best effort, so this administrative acceptance uses a strict
+    // transaction write instead.
+    await client.query(`INSERT INTO security_audit (staff_id, action_performed, entity_type, entity_id,
+      device_ip, auth_method, credential_strength, request_id, details)
+      VALUES (NULL, 'TELECONSULT_ACCEPTED', 'tele_consult_session', $1, $2, $3, $4, $5, $6)`,
+    [session.id, req.ip, req.stepUp?.authMethod || 'Password', req.stepUp?.credentialStrength || 'Step_Up', req.requestId || null,
+      { reviewedBy: req.user.id, startAt, durationMinutes }]);
+    const dto = await client.query(`SELECT ${REVIEW_FIELDS} ${REVIEW_JOINS} WHERE tcs.id = $1`, [session.id]);
+    await client.query('COMMIT');
+    return res.json({ success: true, data: dto.rows[0] });
+  } catch (error) {
+    if (client) await client.query('ROLLBACK');
+    if (error.code === 'SCHEDULE_CONFLICT') return sendSchedulingConflict(res, error);
     next(error);
   } finally { client?.release(); }
 };
@@ -1303,6 +1418,9 @@ module.exports = {
   createThread,
   createTeleconsultSession,
   updateTeleconsultSession,
+  getTeleconsultReview,
+  getTeleconsultAvailability,
+  acceptTeleconsultSession,
   getTeleconsultVideoStatus,
   joinTeleconsultVideo,
   addMessage,

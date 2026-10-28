@@ -36,6 +36,7 @@ let pregnancyMatches;
 let hasProfile;
 database.query = async (sql, params = []) => {
   statements.push({ sql, params });
+  if (sql.startsWith('SELECT pg_advisory_xact_lock') || sql.startsWith('WITH scheduling_bookings')) return { rows: [] };
   if (sql.startsWith('SELECT id FROM patients')) return { rows: hasProfile ? [{ id: ownsPatient ? 'patient-1' : 'other-patient' }] : [] };
   if (sql.startsWith('SELECT id FROM pregnancies')) return { rows: pregnancyMatches ? [{ id: 'pregnancy-1' }] : [] };
   if (sql.startsWith('SELECT id FROM appointments')) return { rows: [] };

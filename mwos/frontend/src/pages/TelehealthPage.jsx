@@ -5,6 +5,7 @@ import api from '../utils/api'
 import { useAuthStore } from '../store/authStore'
 import DeviceCheck from '../components/telehealth/DeviceCheck'
 import ConsultationVideo from '../components/telehealth/ConsultationVideo'
+import ConsultationReview from '../components/telehealth/ConsultationReview'
 
 const SESSION_FILTERS = [
   ['all', 'All sessions'],
@@ -14,11 +15,11 @@ const SESSION_FILTERS = [
   ['completed', 'Completed'],
 ]
 
-const emptyRequest = { title: '', patientId: '', clinicianId: '', reason: '', startAt: '' }
+const emptyRequest = { title: '', patientId: '', clinicianId: '', reason: '', startAt: '', preferredStartAt: '', durationMinutes: '30' }
 
 const roleLabel = (value) => (value || 'care team').replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase())
 const formatDateTime = (value) => value
-  ? new Date(value).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+  ? `${new Date(value).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })} PHT`
   : 'To be confirmed by the clinic'
 const statusClass = (value) => {
   if (value === 'completed') return 'badge-success'
@@ -147,13 +148,18 @@ export default function TelehealthPage() {
     if (!patientMode && requestForm.startAt && !Number.isFinite(new Date(requestForm.startAt).getTime())) {
       setRequestError('Choose a valid consultation date and time.'); return
     }
+    if (patientMode && requestForm.preferredStartAt && (!Number.isFinite(new Date(requestForm.preferredStartAt).getTime()) || new Date(requestForm.preferredStartAt).getTime() <= Date.now())) {
+      setRequestError('Choose a future preferred date and time.'); return
+    }
     createMutation.mutate({
       title: requestForm.title.trim() || undefined,
       clinicianId: requestForm.clinicianId,
       reason: requestForm.reason.trim(),
       initialMessage: requestForm.reason.trim(),
       triggerSource: 'manual',
+      durationMinutes: Number(requestForm.durationMinutes),
       ...(patientMode ? {} : { patientId: requestForm.patientId }),
+      ...(patientMode && requestForm.preferredStartAt ? { preferredStartAt: new Date(requestForm.preferredStartAt).toISOString() } : {}),
       ...(!patientMode && requestForm.startAt ? { startAt: new Date(requestForm.startAt).toISOString(), sessionStatus: 'scheduled' } : {}),
     })
   }
@@ -179,6 +185,12 @@ export default function TelehealthPage() {
       <div className="alert-warning">
         <span>Telehealth is not an emergency service. For severe pain, bleeding, breathing difficulty, loss of consciousness, or another emergency, call emergency services or go to the nearest appropriate healthcare facility.</span>
       </div>
+
+      {user?.role === 'admin' ? <div id="telehealth-consultation-review"><ConsultationReview onAccepted={() => {
+        queryClient.invalidateQueries({ queryKey: ['telehealth-threads'] })
+        queryClient.invalidateQueries({ queryKey: ['telehealth-thread'] })
+        queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      }} /></div> : null}
 
       {!videoActive ? <DeviceCheck ref={deviceRef} sessionKey={selectedThreadId || "no-consultation"} stopSignal={deviceStopSignal} /> : null}
 
@@ -251,9 +263,9 @@ export default function TelehealthPage() {
                   <p className="mt-1 text-sm text-slate-500">{clinician ? roleLabel(clinician.role) : 'The clinic will assign a provider.'}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Schedule</p>
-                  <p className="mt-2 font-semibold text-slate-900 dark:text-slate-100">{formatDateTime(session?.start_at)}</p>
-                  <p className="mt-1 text-sm text-slate-500">Private video consultation inside MWOS.</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{activeStatus === 'requested' ? 'Preferred schedule' : 'Confirmed schedule'}</p>
+                  <p className="mt-2 font-semibold text-slate-900 dark:text-slate-100">{formatDateTime(activeStatus === 'requested' ? session?.preferred_start_at : session?.start_at)}</p>
+                  <p className="mt-1 text-sm text-slate-500">{session?.duration_minutes || 30} minutes · {activeStatus === 'requested' ? 'Awaiting clinic review and acceptance.' : 'Private video consultation inside MWOS.'}</p>
                 </div>
                 {!patientMode ? (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
@@ -296,34 +308,45 @@ export default function TelehealthPage() {
           <form onSubmit={submitRequest} className="space-y-4">
             {!patientMode ? (
               <div>
-                <label className="label">Patient</label>
-                <select value={requestForm.patientId} onChange={(event) => setRequestForm((current) => ({ ...current, patientId: event.target.value }))} className="input">
+                <label htmlFor="telehealth-request-patient" className="label">Patient</label>
+                <select id="telehealth-request-patient" value={requestForm.patientId} onChange={(event) => setRequestForm((current) => ({ ...current, patientId: event.target.value }))} className="input">
                   <option value="">Choose patient</option>
                   {(directory.patients || []).map((person) => <option key={person.id} value={person.id}>{person.first_name} {person.last_name}</option>)}
                 </select>
               </div>
             ) : null}
             <div>
-              <label className="label">Doctor or midwife</label>
-              <select value={requestForm.clinicianId} onChange={(event) => setRequestForm((current) => ({ ...current, clinicianId: event.target.value }))} className="input">
+              <label htmlFor="telehealth-request-clinician" className="label">Doctor or midwife</label>
+              <select id="telehealth-request-clinician" value={requestForm.clinicianId} onChange={(event) => setRequestForm((current) => ({ ...current, clinicianId: event.target.value }))} className="input">
                 <option value="">Choose provider</option>
                 {clinicians.map((person) => <option key={person.id} value={person.id}>{staffName(person)} · {roleLabel(person.role)}</option>)}
               </select>
             </div>
             <div>
-              <label className="label">Consultation title</label>
-              <input value={requestForm.title} onChange={(event) => setRequestForm((current) => ({ ...current, title: event.target.value }))} className="input" placeholder="Example: Prenatal follow-up" />
+              <label htmlFor="telehealth-request-title" className="label">Consultation title</label>
+              <input id="telehealth-request-title" value={requestForm.title} onChange={(event) => setRequestForm((current) => ({ ...current, title: event.target.value }))} className="input" placeholder="Example: Prenatal follow-up" />
             </div>
             {!patientMode ? (
               <div>
-                <label className="label">Preferred schedule</label>
-                <input type="datetime-local" value={requestForm.startAt} onChange={(event) => setRequestForm((current) => ({ ...current, startAt: event.target.value }))} className="input" />
+                <label htmlFor="telehealth-request-schedule" className="label">Confirmed schedule (optional)</label>
+                <input id="telehealth-request-schedule" type="datetime-local" value={requestForm.startAt} onChange={(event) => setRequestForm((current) => ({ ...current, startAt: event.target.value }))} className="input" />
                 <p className="mt-1 text-xs text-slate-500">Leave blank for a request that still needs clinic confirmation.</p>
               </div>
-            ) : null}
+            ) : <div>
+              <label htmlFor="telehealth-request-preferred" className="label">Preferred date and time (optional)</label>
+              <input id="telehealth-request-preferred" type="datetime-local" value={requestForm.preferredStartAt} onChange={(event) => setRequestForm((current) => ({ ...current, preferredStartAt: event.target.value }))} className="input" />
+              <p className="mt-1 text-xs leading-5 text-slate-500">Entered in your device's local time. The clinic will review existing bookings before accepting. This is a request, not a confirmed appointment.</p>
+            </div>}
             <div>
-              <label className="label">Reason for consultation</label>
-              <textarea value={requestForm.reason} onChange={(event) => setRequestForm((current) => ({ ...current, reason: event.target.value }))} className="input min-h-[8rem] resize-y" placeholder="Briefly describe the concern, symptoms, or follow-up needed." />
+              <label htmlFor="telehealth-request-duration" className="label">Consultation duration</label>
+              <select id="telehealth-request-duration" className="input" value={requestForm.durationMinutes} onChange={(event) => setRequestForm((current) => ({ ...current, durationMinutes: event.target.value }))}>
+                {[15, 30, 45, 60].map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}
+              </select>
+              {patientMode ? <p className="mt-1 text-xs text-slate-500">The clinic may adjust the duration during review.</p> : null}
+            </div>
+            <div>
+              <label htmlFor="telehealth-request-reason" className="label">Reason for consultation</label>
+              <textarea id="telehealth-request-reason" value={requestForm.reason} onChange={(event) => setRequestForm((current) => ({ ...current, reason: event.target.value }))} className="input min-h-[8rem] resize-y" placeholder="Briefly describe the concern, symptoms, or follow-up needed." />
             </div>
             {requestError ? <div className="alert-critical"><span>{requestError}</span></div> : null}
             <div className="flex justify-end gap-3">

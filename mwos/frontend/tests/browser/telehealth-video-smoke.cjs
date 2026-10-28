@@ -138,7 +138,7 @@ async function main() {
   };
 
   try {
-    const app = await fixture();
+    const app = await fixture({ role: 'doctor' });
     const { page } = app;
     assert.equal(await page.evaluate(() => window.__deviceFixture.calls), 0, 'Devices stay off on load');
     assert.equal(await join(page).isDisabled(), true, 'Requested sessions cannot join');
@@ -236,7 +236,7 @@ async function main() {
     assert.equal(await cancelled.page.evaluate(() => window.__dailyFixture.created), 0, 'Late SDK load cannot create cancelled call');
     await cancelled.context.close();
 
-    const failure = await fixture({ failPatch: true });
+    const failure = await fixture({ role: 'doctor', failPatch: true });
     await failure.page.getByLabel('Confirmed date and time', { exact: true }).fill('2026-10-29T10:00');
     await failure.page.getByRole('button', { name: 'Confirm consultation', exact: true }).click();
     await failure.page.getByText('Additional verification required by this test fixture.', { exact: true }).waitFor();

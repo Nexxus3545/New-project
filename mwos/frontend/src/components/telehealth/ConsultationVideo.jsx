@@ -12,7 +12,8 @@ function localDateTime(value) {
 }
 
 export default function ConsultationVideo({ session, user, onUpdated, onJoin, onActiveChange }) {
-  const [startAt, setStartAt] = useState(localDateTime(session?.start_at))
+  const [startAt, setStartAt] = useState(localDateTime(session?.start_at || session?.preferred_start_at))
+  const [durationMinutes, setDurationMinutes] = useState(session?.duration_minutes || 30)
   const [formError, setFormError] = useState('')
   const [notice, setNotice] = useState('')
   const status = session?.status || 'requested'
@@ -28,6 +29,7 @@ export default function ConsultationVideo({ session, user, onUpdated, onJoin, on
       const date = new Date(startAt)
       if (!startAt || !Number.isFinite(date.getTime())) { setFormError('Choose the consultation date and time.'); return }
       payload.startAt = date.toISOString()
+      payload.durationMinutes = Number(durationMinutes)
     }
     update.mutate(payload)
   }
@@ -39,8 +41,10 @@ export default function ConsultationVideo({ session, user, onUpdated, onJoin, on
     {manageable && !['completed', 'cancelled'].includes(status) ? <div className="mt-5 border-t border-rose-100 pt-5 dark:border-rose-900/40">
       <h4 className="text-sm font-semibold">Clinic meeting controls</h4>
       <p className="mt-2 text-xs leading-5 text-slate-500">Requires verified staff credentials and additional sign-in verification in Account settings. Only the assigned patient and care team can enter the private room.</p>
-      {['requested', 'scheduled'].includes(status) ? <form className="mt-4 space-y-3" onSubmit={(event) => { event.preventDefault(); changeStatus('scheduled') }}>
+      {user?.role === 'admin' && status === 'requested' ? <p className="mt-4 text-sm leading-6">Review the patient's preferred time and existing bookings before accepting. <a href="#telehealth-consultation-review" className="font-semibold underline">Review consultation request</a></p> : null}
+      {['requested', 'scheduled'].includes(status) && !(user?.role === 'admin' && status === 'requested') ? <form className="mt-4 space-y-3" onSubmit={(event) => { event.preventDefault(); changeStatus('scheduled') }}>
         <div><label htmlFor="consultation-schedule" className="label">Confirmed date and time</label><input id="consultation-schedule" type="datetime-local" className="input" value={startAt} onChange={(event) => setStartAt(event.target.value)} required /><p className="mt-1 text-xs text-slate-500">Shown in your device's local time.</p></div>
+        <div><label htmlFor="consultation-duration" className="label">Confirmed duration</label><select id="consultation-duration" className="input" value={durationMinutes} onChange={(event) => setDurationMinutes(event.target.value)}>{[15, 30, 45, 60].map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}</select></div>
         <button type="submit" className="btn-primary" disabled={update.isPending}>{update.isPending ? 'Saving...' : status === 'scheduled' ? 'Save meeting details' : 'Confirm consultation'}</button>
       </form> : null}
       <div className="mt-4 flex flex-wrap gap-3">
