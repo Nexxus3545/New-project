@@ -5,6 +5,7 @@ const migrationSql = fs.readFileSync(path.join(__dirname, '../config/migrations/
 const notificationMigrationSql = fs.readFileSync(path.join(__dirname, '../config/migrations/20261024-login-email-notifications.sql'), 'utf8');
 const teleconsultSchedulingMigrationSql = fs.readFileSync(path.join(__dirname, '../../supabase/migrations/20261028153742_teleconsult_scheduling.sql'), 'utf8');
 const accountCredentialsMigrationSql = fs.readFileSync(path.join(__dirname, '../../supabase/migrations/20261028181230_account_credentials.sql'), 'utf8');
+const credentialScanningMigrationSql = fs.readFileSync(path.join(__dirname, '../../supabase/migrations/20261028233717_credential_scanning.sql'), 'utf8');
 
 async function migratePatientCare(client) {
   await client.query('BEGIN');
@@ -15,6 +16,7 @@ async function migratePatientCare(client) {
     await client.query(notificationMigrationSql);
     await client.query(teleconsultSchedulingMigrationSql);
     await client.query(accountCredentialsMigrationSql);
+    await client.query(credentialScanningMigrationSql);
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
@@ -50,4 +52,4 @@ if (require.main === module) main().catch((error) => {
   process.exitCode = 1;
 });
 
-module.exports = { migratePatientCare, migrationSql, notificationMigrationSql, teleconsultSchedulingMigrationSql, accountCredentialsMigrationSql };
+module.exports = { migratePatientCare, migrationSql, notificationMigrationSql, teleconsultSchedulingMigrationSql, accountCredentialsMigrationSql, credentialScanningMigrationSql };

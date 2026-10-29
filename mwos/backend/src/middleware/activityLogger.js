@@ -2,7 +2,8 @@ const { query } = require('../config/database');
 
 const ACTION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-const normalizeBodyForAudit = (body) => {
+const normalizeBodyForAudit = (body, depth = 0) => {
+  if (depth > 6) return '[truncated]';
   if (Buffer.isBuffer(body)) {
     return {
       bodyType: 'binary',
@@ -11,14 +12,17 @@ const normalizeBodyForAudit = (body) => {
   }
 
   if (Array.isArray(body)) {
-    return body.slice(0, 50);
+    return body.slice(0, 50).map((value) => normalizeBodyForAudit(value, depth + 1));
   }
 
   if (body && typeof body === 'object') {
-    return body;
+    return Object.fromEntries(Object.entries(body).slice(0, 100).map(([key, value]) => [
+      key,
+      /password|token|secret|authorization/i.test(key) ? '[redacted]' : normalizeBodyForAudit(value, depth + 1),
+    ]));
   }
 
-  return body || {};
+  return depth === 0 ? body || {} : body;
 };
 
 const auditValuesForRequest = (req) => {

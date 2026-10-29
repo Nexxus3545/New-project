@@ -64,6 +64,26 @@ function validateSubmission(role, body, now = new Date()) {
   const licenseNumber = shortText(body.licenseNumber, 120, 'professional license number', true);
   return { ...document, kind, documentType: 'professional_license', documentLabel: 'PRC / professional license', licenseNumber, idLast4: null, expiresAt: futureExpiry(body.expiresAt, true, now) };
 }
+const SCAN_LABELS = {
+  ocr_readability: 'Text readability', account_role: 'Account role', submitted_expiry: 'Submitted expiry',
+  document_type: 'Document type', account_name: 'Account name', printed_expiry: 'Printed expiry',
+  date_of_birth: 'Date of birth', license_number: 'License number', professional_role: 'Professional role',
+  duplicate_document: 'Exact-file duplicate check', issuer_authentication: 'Issuing-authority authentication',
+  complete_document: 'Complete document coverage',
+};
+function safeScanAnalysis(value) {
+  if (!value || value.version !== 1 || !['ready_for_review', 'needs_attention', 'manual_review'].includes(value.outcome)
+      || value.authenticity !== 'not_verified' || value.source !== 'local_ocr' || !Array.isArray(value.checks)) return null;
+  return { version: 1, outcome: value.outcome, authenticity: 'not_verified', source: 'local_ocr',
+    confidence: typeof value.confidence === 'number' && Number.isFinite(value.confidence) ? Math.max(0, Math.min(100, value.confidence)) : null,
+    pagesScanned: Number.isInteger(value.pagesScanned) ? Math.max(0, Math.min(2, value.pagesScanned)) : 0,
+    checks: value.checks.filter((check) => check && SCAN_LABELS[check.code] && ['pass', 'flag', 'unknown'].includes(check.result))
+      .slice(0, 15).map((check) => ({ code: check.code, result: check.result, label: SCAN_LABELS[check.code] })),
+    summary: value.outcome === 'ready_for_review' ? 'Text checks completed. Clinic and issuing-authority review are still required.'
+      : value.outcome === 'needs_attention' ? 'Some checks need attention. Review the original ID and confirm it with its issuer.'
+        : 'The automated checks need manual review of the original document.',
+  };
+}
 function credentialDto(row) {
   if (!row) return null;
   return {
@@ -72,7 +92,18 @@ function credentialDto(row) {
     idLast4: row.kind === 'patient_id' ? row.id_last4 : null, expiresAt: dateOnly(row.expires_at),
     status: row.status, revision: Number(row.revision), submittedAt: row.submitted_at, reviewedAt: row.reviewed_at,
     reviewNotes: row.review_notes || null, hasDocument: Boolean(row.has_document), fileName: row.file_name, mimeType: row.mime_type,
+    verificationMethod: ['issuer_check', 'in_person_original'].includes(row.verification_method) ? row.verification_method : null,
+    scan: credentialScanDto(row),
   };
 }
 
-module.exports = { MAX_DOCUMENT_BYTES, CLINICAL_ROLES, PATIENT_DOCUMENTS, invalid, requirementForRole, dateOnly, manilaToday, futureExpiry, shortText, decodeDocument, validateSubmission, credentialDto };
+function credentialScanDto(row) {
+  let status = ['not_scanned', 'processing', 'completed', 'unreadable', 'unavailable', 'failed'].includes(row.scan_status) ? row.scan_status : 'not_scanned';
+  const current = Number(row.scan_revision) === Number(row.revision);
+  if (!current) status = 'not_scanned';
+  if (status === 'processing' && (row.scan_lease_active === false || !row.scan_started_at || !Number.isFinite(Date.parse(row.scan_started_at)) || Date.now() - Date.parse(row.scan_started_at) > 90000)) status = 'failed';
+  return { status, revision: current ? Number(row.scan_revision) : null, scannedAt: current && row.scanned_at ? new Date(row.scanned_at).toISOString() : null,
+    analysis: current ? safeScanAnalysis(row.scan_result) : null };
+}
+
+module.exports = { MAX_DOCUMENT_BYTES, CLINICAL_ROLES, PATIENT_DOCUMENTS, invalid, requirementForRole, dateOnly, manilaToday, futureExpiry, shortText, decodeDocument, validateSubmission, credentialDto, safeScanAnalysis };

@@ -10,6 +10,7 @@ const ids = { admin: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', patient: '11111111-
 const roles = ['admin', 'patient', 'doctor', 'nurse', 'midwife'];
 const title = (role) => role[0].toUpperCase() + role.slice(1);
 const requirement = (role) => role === 'patient' ? 'patient_id' : ['doctor', 'nurse', 'midwife'].includes(role) ? 'professional_license' : 'none';
+const scanFor = (revision) => ({ status: 'completed', revision, scannedAt: new Date().toISOString(), analysis: { version: 1, outcome: 'ready_for_review', authenticity: 'not_verified', source: 'local_ocr', confidence: 90, pagesScanned: 1, checks: [{ code: 'ocr_readability', result: 'pass', label: 'Readable text' }, { code: 'issuer_authentication', result: 'unknown', label: 'Manual issuer authentication' }], summary: 'Automated checks only.' } });
 
 async function main() {
   const { preview } = await import('vite');
@@ -61,6 +62,7 @@ async function main() {
           if (request.method() === 'GET') return state.failCredentials ? reply(null, 503, 'Synthetic credentials outage') : reply(receipt(userId));
           if (request.method() === 'POST') {
             state.credentials[userId] = { userId, kind: requirement(accountRole), documentType: body.documentType, documentLabel: body.documentLabel || null, licenseNumber: body.licenseNumber || null, idLast4: body.idLast4 || null, expiresAt: body.expiresAt || null, status: 'pending', revision: (state.credentials[userId]?.revision || 0) + 1, hasDocument: true, fileName: body.file.name, mimeType: body.file.mimeType, submittedAt: new Date().toISOString(), reviewedAt: null, reviewNotes: null };
+            state.credentials[userId].scan = scanFor(state.credentials[userId].revision);
             return reply(receipt(userId), 201);
           }
           if (request.method() === 'PATCH' && endpoint.endsWith('/review')) {
@@ -68,6 +70,7 @@ async function main() {
             const current = state.credentials[userId];
             if (body.revision !== current.revision) return reply(null, 409, 'Synthetic stale review');
             assert.ok(body.reviewNotes.trim());
+            if (body.status === 'verified') { assert.equal(body.officialCheckConfirmed, true); assert.ok(['issuer_check', 'in_person_original'].includes(body.verificationMethod)); }
             state.credentials[userId] = { ...current, status: body.status, reviewedAt: new Date().toISOString(), reviewNotes: body.reviewNotes };
             return reply(receipt(userId));
           }
@@ -164,6 +167,8 @@ async function main() {
     assert.equal(state.credentials[ids.patient].revision, 2, 'Replacement advances the reviewed revision');
     assert.equal(await verify(page).isDisabled(), true);
     await page.getByLabel('Review note', { exact: true }).fill('Synthetic manual review completed; no real identity checked.');
+    await page.getByLabel('How was the ID confirmed?', { exact: true }).selectOption('in_person_original');
+    await page.getByRole('checkbox', { name: 'I completed the selected identity check and matched the ID to this account.', exact: true }).check();
     for (const width of [320, 390, 1440]) await layout(page, width);
     await reviewPanel(page).screenshot({ path: path.resolve(root, '../credentials-desktop.png') });
     await page.setViewportSize({ width: 390, height: 1100 });

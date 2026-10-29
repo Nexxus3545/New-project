@@ -10,6 +10,67 @@ export const credentialRequirement = (role) => role === 'patient' ? 'patient_id'
 export const userMatchesCredentialGroup = (user, group) => group === 'patients' ? user.role === 'patient' : group === 'clinical' ? CLINICAL_ROLES.includes(user.role) : group === 'administrators' ? user.role === 'admin' : true
 export const credentialLabel = (type, label) => type === 'professional_license' ? 'PRC / professional ID' : PATIENT_ID_TYPES.find(([key]) => key === type)?.[1] === 'Other government-issued ID' ? label || 'Other government-issued ID' : PATIENT_ID_TYPES.find(([key]) => key === type)?.[1] || 'Identity document'
 
+const SCAN_STATUSES = ['not_scanned', 'processing', 'completed', 'unreadable', 'unavailable', 'failed']
+const SCAN_OUTCOMES = ['ready_for_review', 'needs_attention', 'manual_review']
+const SCAN_CHECK_LABELS = {
+  ocr_readability: 'Document text readability', account_role: 'Document requirement and account role',
+  submitted_expiry: 'Submitted expiry date', document_type: 'Selected document type',
+  account_name: 'Account name comparison', printed_expiry: 'Printed expiry comparison',
+  date_of_birth: 'Account birth date comparison', license_number: 'Professional license number comparison',
+  professional_role: 'Professional role comparison', duplicate_document: 'Identical file check',
+  issuer_authentication: 'Authentication by issuing authority',
+}
+const SCAN_SUMMARIES = {
+  ready_for_review: 'Readable details are consistent with the submitted account. Clinic or issuer confirmation is still required.',
+  needs_attention: 'One or more checks need attention. Compare the original document and confirm its details before deciding.',
+  manual_review: 'Automatic scanning did not establish enough readable details. A clinic review is required.',
+}
+const emptyScan = () => ({ status: 'not_scanned', revision: null, scannedAt: null, analysis: null })
+
+export function readCredentialScan(value, revision) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !SCAN_STATUSES.includes(value.status)) return emptyScan()
+  if (value.status === 'not_scanned') return emptyScan()
+  if (!Number.isSafeInteger(value.revision) || value.revision !== revision) return emptyScan()
+  const scannedAt = typeof value.scannedAt === 'string' && Number.isFinite(Date.parse(value.scannedAt)) ? value.scannedAt : null
+  const source = value.analysis
+  let analysis = null
+  if (source && source.version === 1 && source.authenticity === 'not_verified' && source.source === 'local_ocr' && SCAN_OUTCOMES.includes(source.outcome) && Array.isArray(source.checks)) {
+    analysis = {
+      version: 1, outcome: source.outcome, authenticity: 'not_verified', source: 'local_ocr',
+      confidence: typeof source.confidence === 'number' && Number.isFinite(source.confidence) && source.confidence >= 0 && source.confidence <= 100 ? source.confidence : null,
+      pagesScanned: Number.isSafeInteger(source.pagesScanned) && source.pagesScanned >= 0 && source.pagesScanned <= 10 ? source.pagesScanned : 0,
+      checks: source.checks.slice(0, 20).filter((check) => check && Object.hasOwn(SCAN_CHECK_LABELS, check.code) && ['pass', 'flag', 'unknown'].includes(check.result)).map((check) => ({ code: check.code, result: check.result, label: SCAN_CHECK_LABELS[check.code] })),
+      summary: SCAN_SUMMARIES[source.outcome],
+    }
+    if (analysis.checks.some((check) => check.result === 'flag')) analysis.outcome = 'needs_attention'
+    else if (analysis.outcome === 'ready_for_review' && (!analysis.checks.some((check) => check.code === 'ocr_readability' && check.result === 'pass') || analysis.confidence === null)) analysis.outcome = 'manual_review'
+    analysis.summary = SCAN_SUMMARIES[analysis.outcome]
+  }
+  if (value.status === 'completed' && !analysis) return emptyScan()
+  return { status: value.status, revision, scannedAt, analysis }
+}
+
+export const CREDENTIAL_SCAN_REVIEW_MAX_AGE_MS = 30 * 60 * 1000
+export const hasCurrentCredentialScan = (credential, now = new Date()) => {
+  const scannedAt = Date.parse(credential?.scan?.scannedAt)
+  return Boolean(credential?.scan && credential.scan.revision === credential.revision && ['completed', 'unreadable', 'unavailable', 'failed'].includes(credential.scan.status) && (credential.scan.status !== 'completed' || credential.scan.analysis)
+    && Number.isFinite(scannedAt) && now.getTime() - scannedAt <= CREDENTIAL_SCAN_REVIEW_MAX_AGE_MS && scannedAt <= now.getTime() + 60_000)
+}
+export const credentialScanNeedsAttention = (credential, now = new Date()) => !hasCurrentCredentialScan(credential, now) || credential.scan.status !== 'completed' || credential.scan.analysis?.outcome !== 'ready_for_review' || credential.scan.analysis?.checks?.some((check) => check.result === 'flag')
+
+export function buildCredentialReview({ credential, decision, reviewNotes, verificationMethod, officialCheckConfirmed, acknowledgeScanFlags }, now = new Date()) {
+  if (!credential || credential.status !== 'pending' || !Number.isSafeInteger(credential.revision) || !['verified', 'rejected'].includes(decision)) throw new Error('Refresh the current pending submission before reviewing it.')
+  const notes = typeof reviewNotes === 'string' ? reviewNotes.trim() : ''
+  if (!notes || notes.length > 1500) throw new Error('Add a short review note before deciding.')
+  const payload = { status: decision, revision: credential.revision, reviewNotes: notes }
+  if (decision === 'rejected') return payload
+  if (!hasCurrentCredentialScan(credential, now)) throw new Error('Run a current automated check for this submission before verifying it.')
+  if (credential.kind === 'professional_license' && (!validDate(credential.expiresAt) || credential.expiresAt <= clinicDate(now))) throw new Error('The professional license needs a future expiry date before verification.')
+  if (!['issuer_check', 'in_person_original'].includes(verificationMethod) || officialCheckConfirmed !== true) throw new Error('Record how you checked the ID and confirm that the check is complete.')
+  if (credentialScanNeedsAttention(credential, now) && acknowledgeScanFlags !== true) throw new Error('Review and acknowledge the scan concerns before verifying this credential.')
+  return { ...payload, verificationMethod, officialCheckConfirmed: true, ...(credentialScanNeedsAttention(credential, now) ? { acknowledgeScanFlags: true } : {}) }
+}
+
 export function clinicDate(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now)
   const get = (key) => parts.find((part) => part.type === key)?.value
@@ -76,5 +137,6 @@ export function readCredentialResponse(data, { userId, role }) {
     reviewNotes: String(value.reviewNotes || '').slice(0, 1500),
     fileName: String(value.fileName || 'identity-document').replace(/[\\/\r\n]/g, '_').slice(0, 180),
     mimeType: ['image/jpeg', 'image/png', 'application/pdf'].includes(value.mimeType) ? value.mimeType : null,
+    scan: readCredentialScan(value.scan, value.revision),
   } }
 }

@@ -1,5 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "express",
-  "buildCommand": "node src/utils/migratePatientCare.js"
+  "buildCommand": "node src/utils/migratePatientCare.js && node src/utils/checkCredentialScanner.js",
+  "functions": {
+    "src/index.js": {
+      "maxDuration": 60,
+      "includeFiles": "{src/utils/credentialOcr.js,node_modules/{tesseract.js,tesseract.js-core,@tesseract.js-data/eng,sharp,@img,@napi-rs}/**,node_modules/pdfjs-dist/{package.json,legacy/build/pdf.mjs,legacy/build/pdf.worker.mjs,standard_fonts/**,cmaps/**,wasm/**}}"
+    }
+  }
 }

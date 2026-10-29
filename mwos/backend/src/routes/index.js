@@ -78,9 +78,11 @@ router.use(authenticate, activityLogger);
 // Onboarding remains accessible while clinical credentials await review.
 router.get('/credentials/mine', credentialCtrl.getMine);
 router.post('/credentials/mine', credentialCtrl.submitMine);
+router.post('/credentials/mine/scan', credentialCtrl.scanMine);
 router.get('/credentials/mine/document', credentialCtrl.downloadMine);
 router.get('/credentials/users/:userId', authorize('admin'), credentialCtrl.getForUser);
 router.post('/credentials/users/:userId', authorize('admin'), requireStepUp('license-change'), credentialCtrl.submitForUser);
+router.post('/credentials/users/:userId/scan', authorize('admin'), requireStepUp('license-change'), credentialCtrl.scanForUser);
 router.get('/credentials/users/:userId/document', authorize('admin'), credentialCtrl.downloadForUser);
 router.patch('/credentials/users/:userId/review', authorize('admin'), requireStepUp('license-change'), credentialCtrl.reviewForUser);
 router.use((req, res, next) => {

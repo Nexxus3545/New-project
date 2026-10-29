@@ -176,7 +176,7 @@ test('required Google patient details generate identifiers on the transaction co
 });
 
 test('email and Google patient registration persist male/general selections without a pregnancy', async () => {
-  const body = { email: user.email, password: 'test-password', role: 'patient', firstName: 'Test', lastName: 'Patient', dateOfBirth: '2000-01-01', gender: 'male', careType: 'general' };
+  const body = { email: user.email, password: 'Test-password1!', role: 'patient', firstName: 'Test', lastName: 'Patient', dateOfBirth: '2000-01-01', gender: 'male', careType: 'general' };
   for (const handler of [auth.register, oauth.completePatientProfile]) {
     patientId = null;
     statements = [];
@@ -227,7 +227,7 @@ test('existing Google patients finish callback and exchange without creating ano
 test('patient and authorized admin-created registration reuse the transaction without leaking staff sessions', async () => {
   for (const role of ['patient', 'admin']) {
     const result = await invoke(auth.register, { user: role === 'admin' ? { ...user, role: 'admin' } : user, body: {
-      email: `${role}@example.invalid`, password: 'test-only-password', role,
+      email: `${role}@example.invalid`, password: 'Test-only-password1!', role,
       firstName: 'Test', lastName: 'Account', dateOfBirth: '2000-01-01',
     } });
     assert.ifError(result.failure);

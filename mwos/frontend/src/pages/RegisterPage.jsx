@@ -6,6 +6,8 @@ import useSignInProviders from '../hooks/useSignInProviders'
 import { GoogleProviderIcon } from '../components/common/AuthProviderIcons'
 import PatientCareFields from '../components/patient/PatientCareFields'
 import { getPortalDestination, getPortalIntent } from '../utils/portalNavigation'
+import PasswordRequirements from '../components/common/PasswordRequirements'
+import { passwordPolicyError, passwordMeetsPolicy } from '../utils/passwordPolicy'
 
 const steps = [
   { label: 'Patient Info', description: 'Identity and birth details' },
@@ -20,6 +22,7 @@ export default function RegisterPage() {
   const { register, isLoading, error, clearError } = useAuthStore()
   const [step, setStep] = useState(0)
   const [providerNotice, setProviderNotice] = useState('')
+  const [passwordError, setPasswordError] = useState('')
   const { providers, note: providerNote } = useSignInProviders()
   const [form, setForm] = useState({
     firstName: '',
@@ -37,6 +40,7 @@ export default function RegisterPage() {
   const onChange = (e) => {
     clearError()
     setProviderNotice('')
+    setPasswordError('')
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
@@ -52,10 +56,17 @@ export default function RegisterPage() {
       if (step === 1 && !form.email) {
         return
       }
+      if (step === 2 && passwordPolicyError(form.password)) {
+        setPasswordError(passwordPolicyError(form.password))
+        return
+      }
       setStep((current) => current + 1)
       return
     }
 
+    if (passwordPolicyError(form.password)) {
+      setPasswordError(passwordPolicyError(form.password)); setStep(2); return
+    }
     const result = await register(form)
     if (result.success) {
       navigate(getPortalDestination(result.user, getPortalIntent(location.search)))
@@ -94,7 +105,12 @@ export default function RegisterPage() {
             <button
               key={item.label}
               type="button"
-              onClick={() => setStep(index)}
+              onClick={() => {
+                if (index > 2 && !passwordMeetsPolicy(form.password)) {
+                  setPasswordError(passwordPolicyError(form.password)); setStep(2); return
+                }
+                setStep(index)
+              }}
               aria-current={step === index ? 'step' : undefined}
               className={`auth-step-button ${
                 step === index
@@ -110,6 +126,7 @@ export default function RegisterPage() {
       </nav>
 
       {error ? <div className="alert-critical auth-form-alert" role="alert">{error}</div> : null}
+      {passwordError ? <div className="alert-critical auth-form-alert" role="alert">{passwordError}</div> : null}
 
       {step === 0 ? (
         <div className="auth-provider-section auth-provider-section-register">
@@ -165,17 +182,21 @@ export default function RegisterPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div><p className="label">Account type</p><p className="mt-3 text-sm font-semibold">Patient</p></div>
                 <div>
-                  <label className="label">Password</label>
+                  <label className="label" htmlFor="registration-password">Password</label>
                   <input
+                    id="registration-password"
                     name="password"
                     type="password"
                     value={form.password}
                     onChange={onChange}
                     className="input"
-                    placeholder="Password (min 6 chars)"
-                    minLength={6}
+                    placeholder="Create a password"
+                    minLength={8}
+                    autoComplete="new-password"
+                    aria-describedby="registration-password-requirements"
                     required
                   />
+                  <PasswordRequirements password={form.password} id="registration-password-requirements" />
                 </div>
                 <div className="md:col-span-2 rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                   Public registration creates patient accounts only. Clinic staff access is assigned by an authorized administrator.
@@ -211,7 +232,7 @@ export default function RegisterPage() {
                 </button>
               ) : null}
 
-              <button type="submit" disabled={isLoading} className="btn-primary flex-1 justify-center py-2.5">
+              <button type="submit" disabled={isLoading || (step >= 2 && !passwordMeetsPolicy(form.password))} className="btn-primary flex-1 justify-center py-2.5">
                 {isLoading ? 'Saving...' : step === steps.length - 1 ? 'Create account' : 'Continue'}
               </button>
             </div>

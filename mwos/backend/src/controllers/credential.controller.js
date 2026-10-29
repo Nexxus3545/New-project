@@ -1,10 +1,14 @@
 const { getClient } = require('../config/database');
 const { resolveStepUpContext } = require('../middleware/stepUp');
+const { createHash } = require('node:crypto');
+const { scanCredential } = require('../utils/credentialScan');
 const { requirementForRole, validateSubmission, credentialDto, dateOnly, futureExpiry, shortText, invalid } = require('../utils/accountCredentials');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const METADATA = `user_id, kind, document_type, document_label, license_number, id_last4, expires_at,
   status, revision, submitted_at, reviewed_at, review_notes, file_name, mime_type,
+  scan_status, scan_revision, scan_started_at, scanned_at, scan_result, verification_method,
+  (scan_started_at > NOW() - INTERVAL '90 seconds' AND scan_started_at <= NOW() + INTERVAL '5 seconds') AS scan_lease_active,
   (octet_length(document_bytes) > 0) AS has_document`;
 const privateResponse = (res) => { res.set('Cache-Control', 'no-store'); res.set('X-Content-Type-Options', 'nosniff'); };
 function authorize(req, res, admin = false, stepUp = false) {
@@ -65,16 +69,19 @@ function submit(admin) {
       const value = validateSubmission(user.role, req.body);
       const result = await client.query(
         `INSERT INTO account_credentials (user_id, kind, document_type, document_label, license_number, id_last4,
-         expires_at, status, revision, document_bytes, file_name, mime_type, submitted_at, submitted_by, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 1, $8, $9, $10, NOW(), $11, NOW())
+         expires_at, status, revision, document_bytes, file_name, mime_type, submitted_at, submitted_by, updated_at, document_sha256)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 1, $8, $9, $10, NOW(), $11, NOW(), $12)
          ON CONFLICT (user_id) DO UPDATE SET kind = EXCLUDED.kind, document_type = EXCLUDED.document_type,
          document_label = EXCLUDED.document_label, license_number = EXCLUDED.license_number, id_last4 = EXCLUDED.id_last4,
          expires_at = EXCLUDED.expires_at, status = 'pending', revision = account_credentials.revision + 1,
          document_bytes = EXCLUDED.document_bytes, file_name = EXCLUDED.file_name, mime_type = EXCLUDED.mime_type,
          submitted_at = NOW(), submitted_by = EXCLUDED.submitted_by, reviewed_at = NULL, reviewed_by = NULL,
-         review_notes = NULL, updated_at = NOW() RETURNING ${METADATA}`,
+         review_notes = NULL, verification_method = NULL, verification_confirmed_at = NULL,
+         scan_status = 'not_scanned', scan_revision = NULL, scan_token = NULL, scan_started_at = NULL,
+         scanned_at = NULL, scan_result = NULL, document_sha256 = EXCLUDED.document_sha256,
+         updated_at = NOW() RETURNING ${METADATA}`,
         [id, value.kind, value.documentType, value.documentLabel, value.licenseNumber, value.idLast4, value.expiresAt,
-          value.bytes, value.fileName, value.mimeType, req.user.id]
+          value.bytes, value.fileName, value.mimeType, req.user.id, createHash('sha256').update(value.bytes).digest('hex')]
       );
       if (value.kind === 'professional_license') {
         await client.query(`INSERT INTO staff_registry (user_id, professional_title, license_number, license_type, license_status, credential_expires_at)
@@ -85,7 +92,15 @@ function submit(admin) {
       }
       await audit(client, req, id, 'CREDENTIAL_SUBMITTED', { kind: value.kind, revision: Number(result.rows[0].revision) });
       await client.query('COMMIT'); begun = false;
-      return res.status(201).json({ success: true, data: { requirement: value.kind, credential: credentialDto(result.rows[0]) } });
+      // OCR must not occupy a pooled DB connection. A failed scan never loses
+      // the saved pending submission or pretends the identity is verified.
+      client.release(); client = null;
+      let saved = result.rows[0];
+      try {
+        await scanCredential({ userId: id, revision: Number(saved.revision), actorId: req.user.id });
+        client = await getClient(); saved = await findCredential(client, id) || saved;
+      } catch { /* The pending receipt remains truthful if OCR is unavailable. */ }
+      return res.status(201).json({ success: true, data: { requirement: value.kind, credential: credentialDto(saved) } });
     } catch (error) { if (begun) await client.query('ROLLBACK'); return fail(res, next, error); } finally { client?.release(); }
   };
 }
@@ -107,10 +122,27 @@ const reviewForUser = async (req, res, next) => {
     if (!current) throw invalid('No credential submission is available for review.', 404);
     if (current.revision !== revision || current.status !== 'pending') throw invalid('This submission changed or was already reviewed. Refresh before reviewing.', 409, 'CREDENTIAL_REVISION_CONFLICT');
     if (requirement === 'none' || current.kind !== requirement || !current.has_document) throw invalid('This submission does not match the current account credential requirement.', 409, 'CREDENTIAL_ROLE_MISMATCH');
+    let verificationMethod = null;
+    if (status === 'verified') {
+      if (!['completed', 'unreadable', 'unavailable', 'failed'].includes(current.scan_status)
+          || Number(current.scan_revision) !== revision || !current.scanned_at
+          || Date.now() - new Date(current.scanned_at).getTime() > 30 * 60 * 1000) {
+        throw invalid('Run a current automated check before reviewing this ID.', 409, 'CREDENTIAL_SCAN_REQUIRED');
+      }
+      verificationMethod = req.body.verificationMethod;
+      if (!['issuer_check', 'in_person_original'].includes(verificationMethod) || req.body.officialCheckConfirmed !== true) {
+        throw invalid('Confirm that the issuing authority or original ID was checked before verification.', 400, 'CREDENTIAL_AUTHENTICITY_CONFIRMATION_REQUIRED');
+      }
+      if ((current.scan_status !== 'completed' || current.scan_result?.outcome !== 'ready_for_review') && req.body.acknowledgeScanFlags !== true) {
+        throw invalid('Review and acknowledge the scan concerns before verifying this ID.', 400, 'CREDENTIAL_SCAN_CONCERNS_REQUIRED');
+      }
+    }
     if (status === 'verified' && current.expires_at) futureExpiry(dateOnly(current.expires_at), requirement === 'professional_license');
     if (status === 'verified' && requirement === 'professional_license' && (!current.license_number || !current.expires_at)) throw invalid('A professional license number and future expiry date are required before verification.');
     const result = await client.query(`UPDATE account_credentials SET status = $2, reviewed_at = NOW(), reviewed_by = $3,
-      review_notes = $4, updated_at = NOW() WHERE user_id = $1 RETURNING ${METADATA}`, [id, status, req.user.id, reviewNotes]);
+      review_notes = $4, verification_method = $5,
+      verification_confirmed_at = CASE WHEN $5::text IS NOT NULL THEN NOW() ELSE NULL END,
+      updated_at = NOW() WHERE user_id = $1 RETURNING ${METADATA}`, [id, status, req.user.id, reviewNotes, verificationMethod]);
     if (requirement === 'professional_license') {
       const staff = await client.query(`INSERT INTO staff_registry (user_id, professional_title, license_number, license_type, license_status,
         credential_expires_at, verified_by, verified_at, last_reviewed_at)
@@ -122,11 +154,27 @@ const reviewForUser = async (req, res, next) => {
       await client.query(`INSERT INTO license_verification_events (staff_id, event_type, previous_status, next_status, notes, performed_by)
         VALUES ($1, $2, 'pending', $3, $4, $5)`, [staff.rows[0].id, status === 'verified' ? 'verified' : 'note_added', status === 'verified' ? 'verified' : 'pending', reviewNotes, req.user.id]);
     }
-    await audit(client, req, id, status === 'verified' ? 'CREDENTIAL_VERIFIED' : 'CREDENTIAL_REJECTED', { kind: current.kind, revision });
+    await audit(client, req, id, status === 'verified' ? 'CREDENTIAL_VERIFIED' : 'CREDENTIAL_REJECTED', { kind: current.kind, revision, verificationMethod });
     await client.query('COMMIT'); begun = false;
     return res.json({ success: true, data: { requirement, credential: credentialDto(result.rows[0]) } });
   } catch (error) { if (begun) await client.query('ROLLBACK'); return fail(res, next, error); } finally { client?.release(); }
 };
+
+function scan(admin) {
+  return async (req, res, next) => {
+    privateResponse(res);
+    if (!authorize(req, res, admin, admin)) return;
+    let client;
+    try {
+      const id = targetId(req, admin), revision = req.body?.revision;
+      if (!Number.isSafeInteger(revision) || revision < 1) throw invalid('Include the current ID submission revision.');
+      const receipt = await scanCredential({ userId: id, revision, actorId: req.user.id });
+      if (receipt.outcome === 'stale') throw invalid('The ID or account details changed. Refresh before scanning again.', 409, 'CREDENTIAL_REVISION_CONFLICT');
+      client = await getClient(); const user = await findUser(client, id); const credential = await findCredential(client, id);
+      return res.json({ success: true, data: { requirement: requirementForRole(user.role), credential: credentialDto(credential) } });
+    } catch (error) { return fail(res, next, error); } finally { client?.release(); }
+  };
+}
 
 function download(admin) {
   return async (req, res, next) => {
@@ -150,4 +198,4 @@ function download(admin) {
   };
 }
 
-module.exports = { getMine: get(false), getForUser: get(true), submitMine: submit(false), submitForUser: submit(true), reviewForUser, downloadMine: download(false), downloadForUser: download(true) };
+module.exports = { getMine: get(false), getForUser: get(true), submitMine: submit(false), submitForUser: submit(true), reviewForUser, downloadMine: download(false), downloadForUser: download(true), scanMine: scan(false), scanForUser: scan(true) };

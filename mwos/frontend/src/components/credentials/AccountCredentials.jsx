@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../utils/api'
 import { useAuthStore } from '../../store/authStore'
-import { buildCredentialSubmission, clinicDate, credentialLabel, credentialRequirement, effectiveCredentialStatus, PATIENT_ID_TYPES, readCredentialResponse } from '../../utils/accountCredentials'
+import { buildCredentialReview, buildCredentialSubmission, clinicDate, credentialLabel, credentialRequirement, credentialScanNeedsAttention, effectiveCredentialStatus, hasCurrentCredentialScan, PATIENT_ID_TYPES, readCredentialResponse } from '../../utils/accountCredentials'
 
 const statusLabels = { missing: 'Not submitted', pending: 'Awaiting clinic review', verified: 'Verified by clinic', rejected: 'Needs replacement', expired: 'Expired — renewal needed' }
 const emptyForm = (role) => ({ documentType: credentialRequirement(role) === 'professional_license' ? 'professional_license' : 'philhealth_id', documentLabel: '', licenseNumber: '', idLast4: '', expiresAt: '', consent: false })
@@ -13,6 +13,7 @@ const safeMessage = (error, action) => error?.response?.status === 403
     ? 'This submission changed or was already reviewed. Refresh it before continuing.'
     : action === 'load' ? 'Credentials could not be loaded. Please try again.'
       : action === 'download' ? 'The private document could not be downloaded. Please try again.'
+        : action === 'scan' ? 'Automated checks could not finish. Refresh the credential and retry. The document remains available for clinic review.'
         : error?.credentialValidation ? error.message : 'The credential action could not be completed. Please try again.'
 
 export default function AccountCredentials({ targetUser, adminMode = false, onChanged }) {
@@ -29,6 +30,9 @@ export default function AccountCredentials({ targetUser, adminMode = false, onCh
   const [file, setFile] = useState(null)
   const [editing, setEditing] = useState(false)
   const [reviewNotes, setReviewNotes] = useState('')
+  const [verificationMethod, setVerificationMethod] = useState('')
+  const [officialCheckConfirmed, setOfficialCheckConfirmed] = useState(false)
+  const [acknowledgeScanFlags, setAcknowledgeScanFlags] = useState(false)
   const [notice, setNotice] = useState('')
   const [localError, setLocalError] = useState('')
   const isReviewer = adminMode && currentUser?.role === 'admin'
@@ -39,14 +43,21 @@ export default function AccountCredentials({ targetUser, adminMode = false, onCh
     queryKey, enabled: Boolean(account?.id) && requirement !== 'none' && (!adminMode || isReviewer),
     queryFn: () => api.get(endpoint).then((response) => readCredentialResponse(response.data.data, { userId: account.id, role: account.role })),
     retry: false,
+    refetchInterval: (query) => query.state.data?.credential?.scan?.status === 'processing' ? 2000 : false,
   })
   const credential = credentialQuery.data?.credential
   const status = effectiveCredentialStatus(credential)
+  const currentScan = hasCurrentCredentialScan(credential)
+  const scanConcerns = credentialScanNeedsAttention(credential)
+  const scanProcessing = credential?.scan?.status === 'processing'
 
   useEffect(() => {
     setForm(emptyForm(account?.role)); setFile(null); setEditing(false); setReviewNotes(''); setNotice(''); setLocalError('')
     if (fileInput.current) fileInput.current.value = ''
   }, [account?.id, account?.role])
+  useEffect(() => {
+    setVerificationMethod(''); setOfficialCheckConfirmed(false); setAcknowledgeScanFlags(false)
+  }, [account?.id, credential?.revision, credential?.scan?.scannedAt, credential?.scan?.status])
   useEffect(() => () => { for (const url of urls.current) URL.revokeObjectURL(url); urls.current.clear() }, [])
   const saved = (data) => {
     queryClient.setQueryData(queryKey, data)
@@ -58,7 +69,7 @@ export default function AccountCredentials({ targetUser, adminMode = false, onCh
       let payload
       try { payload = await buildCredentialSubmission(account.role, submittedForm, submittedFile) }
       catch (error) { error.credentialValidation = true; throw error }
-      const response = await api.post(endpoint, payload)
+      const response = await api.post(endpoint, payload, { timeout: 45000 })
       const data = readCredentialResponse(response.data.data, { userId: account.id, role: account.role })
       if (data.credential?.status !== 'pending' || !data.credential.hasDocument) throw new Error('Invalid submission receipt')
       return data
@@ -70,14 +81,24 @@ export default function AccountCredentials({ targetUser, adminMode = false, onCh
     },
   })
   const review = useMutation({
-    mutationFn: async ({ status: decision, revision, notes }) => {
-      const response = await api.patch(`${endpoint}/review`, { status: decision, revision, reviewNotes: notes })
+    mutationFn: async (payload) => {
+      const response = await api.patch(`${endpoint}/review`, payload)
       const data = readCredentialResponse(response.data.data, { userId: account.id, role: account.role })
-      if (data.credential?.status !== decision || data.credential.revision !== revision) throw new Error('Invalid review receipt')
+      if (data.credential?.status !== payload.status || data.credential.revision !== payload.revision) throw new Error('Invalid review receipt')
       return data
     },
     onSuccess: (data) => { saved(data); setReviewNotes(''); setNotice(data.credential.status === 'verified' ? 'Credential verified by the clinic.' : 'Replacement requested. The account holder can submit a new document.') },
     onError: (error) => { if (error?.response?.status === 409) credentialQuery.refetch() },
+  })
+  const scanMutation = useMutation({
+    mutationFn: async ({ revision }) => {
+      const response = await api.post(`${endpoint}/scan`, { revision }, { timeout: 45000 })
+      const data = readCredentialResponse(response.data.data, { userId: account.id, role: account.role })
+      if (data.credential?.revision !== revision || data.credential.scan.revision !== revision || data.credential.scan.status === 'not_scanned') throw new Error('Invalid scan receipt')
+      return data
+    },
+    onSuccess: (data) => { saved(data); setNotice(data.credential.scan.status === 'processing' ? 'The private automated check is running. Results will refresh here.' : 'Automated checks finished. Official identity confirmation is still required.') },
+    onError: () => { void credentialQuery.refetch() },
   })
   const download = useMutation({
     mutationFn: async () => {
@@ -92,25 +113,25 @@ export default function AccountCredentials({ targetUser, adminMode = false, onCh
       setTimeout(() => { URL.revokeObjectURL(url); urls.current.delete(url) }, 1000)
     },
   })
-  const busy = submit.isPending || review.isPending
-  const error = localError || (submit.error ? safeMessage(submit.error, 'submit') : review.error ? safeMessage(review.error, 'review') : download.error ? safeMessage(download.error, 'download') : '')
-  const verificationNeeded = [submit.error, review.error, download.error].some((item) => item?.response?.status === 403)
+  const busy = submit.isPending || review.isPending || scanMutation.isPending || scanProcessing
+  const error = localError || (submit.error ? safeMessage(submit.error, 'submit') : review.error ? safeMessage(review.error, 'review') : scanMutation.error ? safeMessage(scanMutation.error, 'scan') : download.error ? safeMessage(download.error, 'download') : '')
+  const verificationNeeded = [submit.error, review.error, scanMutation.error, download.error].some((item) => item?.response?.status === 403)
   if (!account?.id || requirement === 'none') return null
   if (adminMode && !isReviewer) return null
 
   const change = (key, value) => { setForm((previous) => ({ ...previous, [key]: value })); setLocalError(''); setNotice(''); submit.reset() }
   const openReplacement = () => {
     setForm({ ...emptyForm(account.role), documentType: credential?.documentType || emptyForm(account.role).documentType, documentLabel: credential?.documentLabel || '', licenseNumber: credential?.licenseNumber || '', expiresAt: credential?.expiresAt || '' })
-    setEditing(true); setNotice(''); setLocalError(''); submit.reset()
+    setEditing(true); setNotice(''); setLocalError(''); submit.reset(); scanMutation.reset()
   }
   const onSubmit = (event) => {
-    event.preventDefault(); setLocalError(''); setNotice(''); review.reset(); download.reset()
+    event.preventDefault(); setLocalError(''); setNotice(''); review.reset(); download.reset(); scanMutation.reset()
     submit.mutate({ submittedForm: { ...form }, submittedFile: file })
   }
   const onReview = (decision) => {
     setNotice(''); setLocalError(''); submit.reset(); download.reset()
-    if (!reviewNotes.trim()) { setLocalError('Add a short review note before deciding.'); return }
-    review.mutate({ status: decision, revision: credential.revision, notes: reviewNotes.trim() })
+    try { review.mutate(buildCredentialReview({ credential, decision, reviewNotes, verificationMethod, officialCheckConfirmed, acknowledgeScanFlags })) }
+    catch (error) { setLocalError(error.message) }
   }
 
   return <section id={!adminMode ? 'account-credentials' : undefined} className="card min-w-0 space-y-5" aria-labelledby={inputId('title')}>
@@ -120,7 +141,7 @@ export default function AccountCredentials({ targetUser, adminMode = false, onCh
       </div>
       <button className="btn-secondary btn-sm" type="button" disabled={credentialQuery.isFetching || busy} onClick={() => { setNotice(''); void credentialQuery.refetch() }}>Refresh credentials</button>
     </div>
-    <p className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600 dark:bg-slate-800 dark:text-slate-300">The clinic reviews the document manually. Documents are private and are not published as public links.</p>
+    <p className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600 dark:bg-slate-800 dark:text-slate-300">Documents are scanned privately for readable details and consistency. These checks do not establish authenticity. The clinic confirms the ID before approving it.</p>
     {professional && !adminMode && status !== 'verified' ? <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">Clinical workspace access awaits approval of a current professional license. You can continue using account settings and submit your credential here.</p> : null}
     {notice ? <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">{notice}</p> : null}
     {error ? <p role="alert" className="alert-warning">{error}</p> : null}
@@ -137,12 +158,27 @@ export default function AccountCredentials({ targetUser, adminMode = false, onCh
         {credential?.hasDocument ? <button type="button" className="btn-secondary mt-4" disabled={download.isPending || busy} onClick={() => { download.reset(); void download.mutate() }}>{download.isPending ? 'Preparing document…' : 'Download ID for review'}</button> : null}
         {credential && !editing ? <button type="button" className="btn-secondary mt-3 sm:ml-3" disabled={busy} onClick={openReplacement}>Submit replacement</button> : null}
       </div>
+      {credential?.hasDocument ? <div className="space-y-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-700" aria-labelledby={inputId('scan-title')}>
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 id={inputId('scan-title')} className="font-semibold">Automated document checks</h3><p className="mt-1 text-sm text-slate-500">This scan compares readable information with the submitted account.</p></div><button type="button" className="btn-secondary btn-sm" disabled={busy || editing} onClick={() => { setNotice(''); setLocalError(''); scanMutation.reset(); scanMutation.mutate({ revision: credential.revision }) }}>{scanMutation.isPending || scanProcessing ? 'Checking document…' : credential.scan.status === 'not_scanned' ? 'Run automated check' : 'Rescan ID'}</button></div>
+        <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100"><strong>Official authenticity not yet verified by this scan.</strong> A readable document or matching text does not prove that an ID is genuine or belongs to the person presenting it.</p>
+        {scanProcessing || scanMutation.isPending ? <p role="status" className="text-sm text-slate-500">Reading the document privately. This can take up to 45 seconds.</p> : credential.scan.status === 'not_scanned' ? <p className="text-sm text-slate-500">No current automated check is available. Run the check before clinic approval.</p> : <>
+          {credential.scan.scannedAt ? <p className="text-xs text-slate-500">Checked {new Date(credential.scan.scannedAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} · Manila time{!currentScan ? ' · Refresh required before approval' : ''}</p> : null}
+          <p role="status" className={`text-sm ${scanConcerns ? 'text-amber-800 dark:text-amber-200' : 'text-slate-600 dark:text-slate-300'}`}>{credential.scan.analysis?.summary || (credential.scan.status === 'unreadable' ? 'The document could not be read clearly. Compare the original ID or submit a clearer copy.' : 'Automatic reading was unavailable. The clinic must inspect the original ID or confirm it with the issuer.')}</p>
+          {credential.scan.analysis?.confidence !== null && credential.scan.analysis?.confidence !== undefined ? <p className="text-xs text-slate-500">Text readability score: {Math.round(credential.scan.analysis.confidence)} / 100. This is not an authenticity score.</p> : null}
+          {credential.scan.analysis?.checks?.length ? <ul className="grid gap-2 text-sm sm:grid-cols-2">{credential.scan.analysis.checks.map((check, index) => <li key={`${check.code}-${index}`} className="flex min-w-0 flex-wrap items-start justify-between gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800"><span className="min-w-0 break-words">{check.label}</span><span className={`badge shrink-0 ${check.result === 'pass' ? 'badge-success' : check.result === 'flag' ? 'badge-warning' : 'badge-gray'}`}>{check.result === 'pass' ? 'Consistent' : check.result === 'flag' ? 'Needs attention' : 'Manual check'}</span></li>)}</ul> : null}
+        </>}
+        {credential.documentType === 'national_id' ? <a className="inline-block text-sm font-semibold underline" href="https://everify.gov.ph/check" target="_blank" rel="noopener noreferrer">Open official National ID Check</a> : null}
+      </div> : null}
       {isReviewer && credential?.status === 'pending' && credential.hasDocument ? <div className="space-y-3 rounded-2xl border border-rose-200 p-4 dark:border-rose-900">
         <h3 className="font-semibold">Clinic review</h3><p className="text-sm text-slate-500">Check the private document against this account and confirm its validity before verifying.{professional ? ' Check the professional license and expiry using the clinic’s verification process.' : ''}</p>
         {professional ? <a className="inline-block text-sm font-semibold underline" href="https://verification.prc.gov.ph/" target="_blank" rel="noopener noreferrer">Check PRC registration</a> : null}
         {isSelf ? <p className="text-sm text-amber-800">Another administrator must review your own credential.</p> : <>
           <label className="label" htmlFor={inputId('review-note')}>Review note</label><textarea id={inputId('review-note')} className="input min-h-24" value={reviewNotes} maxLength={1500} onChange={(event) => { setReviewNotes(event.target.value); setLocalError(''); review.reset() }} disabled={busy} placeholder="Record the checks performed or why a replacement is needed." />
-          <div className="flex flex-wrap gap-3"><button type="button" className="btn-primary" disabled={busy || !reviewNotes.trim() || (professional && (!credential.expiresAt || credential.expiresAt <= clinicDate()))} onClick={() => onReview('verified')}>{review.isPending ? 'Saving review…' : 'Verify credential'}</button><button type="button" className="btn-secondary" disabled={busy || !reviewNotes.trim()} onClick={() => onReview('rejected')}>Request replacement</button></div>
+          <label className="label" htmlFor={inputId('verification-method')}>How was the ID confirmed?</label><select id={inputId('verification-method')} className="input" value={verificationMethod} disabled={busy} onChange={(event) => { setVerificationMethod(event.target.value); setOfficialCheckConfirmed(false); setLocalError('') }}><option value="">Choose the check performed</option><option value="issuer_check">Checked with the issuing authority</option><option value="in_person_original">Inspected the original ID in person</option></select>
+          <label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={officialCheckConfirmed} disabled={busy || !verificationMethod} onChange={(event) => { setOfficialCheckConfirmed(event.target.checked); setLocalError('') }} /><span>I completed the selected identity check and matched the ID to this account.</span></label>
+          {currentScan && scanConcerns ? <label className="flex items-start gap-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100"><input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={acknowledgeScanFlags} disabled={busy} onChange={(event) => { setAcknowledgeScanFlags(event.target.checked); setLocalError('') }} /><span>I reviewed the scan concerns or unreadable details and resolved them using the selected identity check.</span></label> : null}
+          {!currentScan ? <p className="text-sm text-slate-500">Run a current automated check before verification. Results used for approval must be less than 30 minutes old. You can still request a replacement.</p> : null}
+          <div className="flex flex-wrap gap-3"><button type="button" className="btn-primary" disabled={busy || !reviewNotes.trim() || !currentScan || !verificationMethod || !officialCheckConfirmed || (scanConcerns && !acknowledgeScanFlags) || (professional && (!credential.expiresAt || credential.expiresAt <= clinicDate()))} onClick={() => onReview('verified')}>{review.isPending ? 'Saving review…' : 'Verify credential'}</button><button type="button" className="btn-secondary" disabled={busy || !reviewNotes.trim()} onClick={() => onReview('rejected')}>Request replacement</button></div>
         </>}
       </div> : null}
       {editing || !credential ? <form className="space-y-4 border-t border-slate-200 pt-5 dark:border-slate-700" onSubmit={onSubmit}>
@@ -154,10 +190,10 @@ export default function AccountCredentials({ targetUser, adminMode = false, onCh
             {form.documentType === 'other_government_id' ? <div><label htmlFor={inputId('id-name')} className="label">Government ID name</label><input id={inputId('id-name')} className="input" value={form.documentLabel} maxLength={100} required disabled={busy} onChange={(event) => change('documentLabel', event.target.value)} /></div> : null}
             <div><label htmlFor={inputId('last4')} className="label">ID last four characters (optional)</label><input id={inputId('last4')} className="input" value={form.idLast4} maxLength={4} autoComplete="off" disabled={busy} onChange={(event) => change('idLast4', event.target.value)} /><p className="mt-1 text-xs text-slate-500">Do not enter the full government ID number.</p></div>
           </>}
-          <div className="min-w-0 sm:col-span-2"><label className="label" htmlFor={inputId('file')}>{professional ? 'One PRC / professional ID file' : 'One government ID file'}</label><input id={inputId('file')} ref={fileInput} className="input block w-full min-w-0 text-sm" type="file" accept="image/jpeg,image/png,application/pdf" required disabled={busy} onChange={(event) => { setFile(event.target.files?.[0] || null); setLocalError(''); setNotice(''); submit.reset() }} /><p className="mt-1 text-xs text-slate-500">JPEG, PNG, or PDF, up to 2 MB. Upload one clear document. This replaces the previous submission.</p></div>
+          <div className="min-w-0 sm:col-span-2"><label className="label" htmlFor={inputId('file')}>{professional ? 'One PRC / professional ID file' : 'One government ID file'}</label><input id={inputId('file')} ref={fileInput} className="input block w-full min-w-0 text-sm" type="file" accept="image/jpeg,image/png,application/pdf" required disabled={busy} onChange={(event) => { setFile(event.target.files?.[0] || null); setLocalError(''); setNotice(''); submit.reset() }} /><p className="mt-1 text-xs text-slate-500">JPEG, PNG, or PDF, up to 2 MB. Upload one clear document. This replaces the previous submission. Private scanning can take up to 45 seconds.</p></div>
         </div>
         <label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-[var(--accent)]" checked={form.consent} required disabled={busy} onChange={(event) => change('consent', event.target.checked)} /><span>{adminMode ? 'I confirm the account holder provided this document and gave permission for private clinic verification.' : 'I confirm this is my document and permit the clinic to review it privately for account verification.'}</span></label>
-        <div className="flex flex-wrap gap-3"><button type="submit" className="btn-primary" disabled={busy || !file || !form.consent}>{submit.isPending ? 'Submitting document…' : 'Submit for review'}</button>{credential ? <button type="button" className="btn-secondary" disabled={busy} onClick={() => { setEditing(false); setFile(null); setLocalError(''); submit.reset() }}>Cancel replacement</button> : null}</div>
+        <div className="flex flex-wrap gap-3"><button type="submit" className="btn-primary" disabled={busy || !file || !form.consent}>{submit.isPending ? 'Submitting and checking document…' : 'Submit for review'}</button>{credential ? <button type="button" className="btn-secondary" disabled={busy} onClick={() => { setEditing(false); setFile(null); setLocalError(''); submit.reset() }}>Cancel replacement</button> : null}</div>
       </form> : null}
     </> : null}
   </section>

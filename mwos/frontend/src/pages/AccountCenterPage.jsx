@@ -16,6 +16,8 @@ import { hasMaternalCare } from '../utils/patientCare'
 import { settingsSections, useSettingsStore } from '../store/settingsStore'
 import SettingsPanel from '../components/common/SettingsPanel'
 import AccountCredentials from '../components/credentials/AccountCredentials'
+import PasswordRequirements from '../components/common/PasswordRequirements'
+import { passwordPolicyError, passwordMeetsPolicy } from '../utils/passwordPolicy'
 
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -472,8 +474,9 @@ export default function AccountCenterPage({ section = 'profile' }) {
       return
     }
 
-    if (passwordForm.newPassword.length < 8) {
-      setLocalError('New password must be at least 8 characters.')
+    const passwordError = passwordPolicyError(passwordForm.newPassword)
+    if (passwordError) {
+      setLocalError(passwordError)
       return
     }
 
@@ -1007,31 +1010,44 @@ export default function AccountCenterPage({ section = 'profile' }) {
 
             <div className="space-y-4">
               <div>
-                <label className="label">Current password</label>
+                <label className="label" htmlFor="account-current-password">Current password</label>
                 <input
+                  id="account-current-password"
                   className="input"
                   type="password"
+                  autoComplete="current-password"
+                  required
                   value={passwordForm.currentPassword}
                   onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
                 />
               </div>
               <div>
-                <label className="label">New password</label>
+                <label className="label" htmlFor="account-new-password">New password</label>
                 <input
+                  id="account-new-password"
                   className="input"
                   type="password"
+                  minLength={8}
+                  autoComplete="new-password"
+                  aria-describedby="account-password-requirements"
+                  required
                   value={passwordForm.newPassword}
                   onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
                 />
+                <PasswordRequirements password={passwordForm.newPassword} id="account-password-requirements" />
               </div>
               <div>
-                <label className="label">Confirm new password</label>
+                <label className="label" htmlFor="account-confirm-password">Confirm new password</label>
                 <input
+                  id="account-confirm-password"
                   className="input"
                   type="password"
+                  autoComplete="new-password"
+                  required
                   value={passwordForm.confirmPassword}
                   onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
                 />
+                {passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword ? <p role="status" className="mt-2 text-xs text-rose-700 dark:text-rose-300">The new passwords do not match.</p> : null}
               </div>
             </div>
 
@@ -1041,7 +1057,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
 
             <div className="flex flex-wrap justify-end gap-3">
               <Link className="btn-secondary" to="/forgot-password">Recover or set MWOS password</Link>
-              <button type="submit" className="btn-primary" disabled={passwordMutation.isPending}>
+              <button type="submit" className="btn-primary" disabled={passwordMutation.isPending || !passwordMeetsPolicy(passwordForm.newPassword) || passwordForm.newPassword !== passwordForm.confirmPassword || !passwordForm.currentPassword}>
                 {passwordMutation.isPending ? 'Updating password...' : 'Change password'}
               </button>
             </div>

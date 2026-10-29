@@ -30,6 +30,9 @@ const outsider = '66666666-6666-4666-8666-666666666666';
 const meet = 'https://meet.google.com/abc-defg-hij';
 const roomName = videoHelpers.roomNameForSession(sessionId);
 const dailyUrl = `https://mwos-test.daily.co/${roomName}`;
+// Controller scheduling validates against the real clock; keep bookings ahead
+// of it while helper-only timezone fixtures retain their fixed calendar dates.
+const futureBooking = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
 
 function harness(options = {}) {
   let acquired = false;
@@ -208,7 +211,7 @@ test('verified credentials and step-up remain required before holding a database
 
 test('assigned clinician scheduling is atomic, audited and notifies without room or reason disclosure', async () => {
   const app = harness();
-  const result = await app.invoke('update', { status: 'scheduled', meetingUrl: meet + '?authuser=1', startAt: '2026-10-29T10:00:00+08:00' });
+  const result = await app.invoke('update', { status: 'scheduled', meetingUrl: meet + '?authuser=1', startAt: futureBooking });
   assert.equal(result.failure, undefined); assert.equal(result.payload.data.meeting_url, '');
   const state = app.state(); assert.equal(state.committed, true); assert.equal(state.audits, 1); assert.equal(state.notifications, 1); assert.equal(state.released, true);
   assert.ok(state.queries.some((q) => q.sql.endsWith('FOR UPDATE')));
@@ -216,7 +219,7 @@ test('assigned clinician scheduling is atomic, audited and notifies without room
 
 test('notification failure rolls back a session update rather than reporting success', async () => {
   const app = harness({ failNotification: true });
-  const result = await app.invoke('update', { status: 'scheduled', meetingUrl: meet, startAt: '2026-10-29T10:00:00Z' });
+  const result = await app.invoke('update', { status: 'scheduled', meetingUrl: meet, startAt: futureBooking });
   assert.ok(result.failure); assert.equal(app.state().committed, false); assert.equal(app.state().session.status, 'requested'); assert.equal(app.state().rolledBack, true);
 });
 
@@ -245,7 +248,7 @@ test('an administrator still needs thread participation and retains the existing
   assert.equal((await harness().invoke('update', { status: 'cancelled' }, admin)).status, 404);
   assert.equal((await harness({ adminParticipant: true, unverified: true }).invoke('update', { status: 'cancelled' }, admin)).status, 403);
   const app = harness({ adminParticipant: true });
-  const result = await app.invoke('update', { status: 'scheduled', meetingUrl: meet, startAt: '2026-10-29T10:00:00Z' }, admin);
+  const result = await app.invoke('update', { status: 'scheduled', meetingUrl: meet, startAt: futureBooking }, admin);
   assert.equal(result.failure, undefined); assert.equal(result.payload.data.status, 'scheduled');
 });
 
@@ -257,10 +260,10 @@ test('cross-patient conversation conversion is rejected even if the caller is an
 
 test('a verified assigned clinician schedules a call without saving client-provided external URLs', async () => {
   const app = harness();
-  const result = await app.invoke('create', { clinicianId: clinician, patientId, reason: 'Sensitive reason', meetingUrl: meet, startAt: '2026-10-29T10:00:00+08:00', sessionStatus: 'scheduled' });
+  const result = await app.invoke('create', { clinicianId: clinician, patientId, reason: 'Sensitive reason', meetingUrl: meet, startAt: futureBooking, sessionStatus: 'scheduled' });
   assert.equal(result.failure, undefined); assert.equal(result.status, 201);
   assert.equal(app.state().session.status, 'scheduled'); assert.equal(app.state().session.meeting_url, '');
-  assert.equal(app.state().session.start_at, '2026-10-29T02:00:00.000Z');
+  assert.equal(app.state().session.start_at, futureBooking);
 });
 
 test('a patient joins only their scheduled call without staff credentials and receives an uncacheable admission', async () => {

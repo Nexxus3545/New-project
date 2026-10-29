@@ -8,6 +8,7 @@ const { fetchStaffProfileByUserId, recordLicenseEvent, upsertStaffRegistry } = r
 const { generateSessionTokens } = require('../utils/tokens');
 const { issuedAfterRevocation } = require('../utils/sessionRevocation');
 const { normalizePatientCare } = require('../utils/patientCare');
+const { passwordPolicyError } = require('../utils/passwordPolicy');
 const { deliverOtp, generateOtpCode, hashOtpCode, maskPhone } = require('../utils/security');
 
 const { DEFAULT_UI_PREFERENCES, sanitizeUiPreferences } = require('../utils/appearance');
@@ -321,9 +322,8 @@ const register = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Public registration is for patients only. Staff accounts must be created by an authorized clinic administrator.' });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
-    }
+    const passwordError = passwordPolicyError(password);
+    if (passwordError) return res.status(400).json({ success: false, code: 'PASSWORD_POLICY_REQUIRED', message: passwordError });
 
     if (role === 'patient' && !dateOfBirth) {
       return res.status(400).json({ success: false, message: 'dateOfBirth is required for patient registration' });
@@ -614,9 +614,9 @@ const changePassword = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'currentPassword and newPassword are required' });
     }
 
-    if (newPassword.length < 8) {
-      return res.status(400).json({ success: false, message: 'New password must be at least 8 characters' });
-    }
+    const passwordError = passwordPolicyError(newPassword);
+    if (passwordError) return res.status(400).json({ success: false, code: 'PASSWORD_POLICY_REQUIRED', message: passwordError });
+    if (typeof currentPassword !== 'string') return res.status(400).json({ success: false, message: 'Enter your current MWOS password.' });
 
     const result = await query('SELECT password FROM users WHERE id = $1', [req.user.id]);
     if (result.rows.length === 0) {
@@ -696,9 +696,9 @@ const resetPassword = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'token and newPassword are required' });
     }
 
-    if (typeof newPassword !== 'string' || newPassword.length < 8) {
-      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
-    }
+    const passwordError = passwordPolicyError(newPassword);
+    if (passwordError) return res.status(400).json({ success: false, code: 'PASSWORD_POLICY_REQUIRED', message: passwordError });
+    if (typeof token !== 'string') return res.status(400).json({ success: false, message: 'A valid password reset token is required.' });
 
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const hashedPassword = await bcrypt.hash(newPassword, 12);

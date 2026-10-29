@@ -51,7 +51,7 @@ test('reset consumes its token atomically, invalidates every session, and refuse
     assert.equal(args[1], 'synthetic-password-hash');
     return { rows: calls === 1 ? [{ id: 'synthetic-user' }] : [] };
   });
-  const body = { token: 'a'.repeat(64), newPassword: 'synthetic-password' };
+  const body = { token: 'a'.repeat(64), newPassword: 'Synthetic-password1!' };
   assert.equal((await invoke(controller.resetPassword, body)).status, 200);
   assert.equal((await invoke(controller.resetPassword, body)).status, 400);
   assert.equal((await invoke(controller.resetPassword, { ...body, newPassword: 'short' })).status, 400);
