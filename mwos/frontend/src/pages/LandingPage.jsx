@@ -9,6 +9,7 @@ import ClinicSlideshow from '../components/common/ClinicSlideshow'
 import ClinicContact from '../components/common/ClinicContact'
 import { clinicContact } from '../utils/clinicContact'
 import { useAuthStore } from '../store/authStore'
+import useLandingScrollMotion from '../hooks/useLandingScrollMotion'
 import '../styles/landing.css'
 
 const bookingPath = '/portal?intent=appointment'
@@ -57,6 +58,8 @@ function PublishedReviews() {
 }
 
 export default function LandingPage() {
+  const page = useRef(null)
+  useLandingScrollMotion(page)
   const [menuOpen, setMenuOpen] = useState(false)
   const header = useRef(null)
   const menuButton = useRef(null)
@@ -79,7 +82,7 @@ export default function LandingPage() {
     }
   }, [menuOpen])
 
-  return <div className="clinic-landing">
+  return <div ref={page} className="clinic-landing">
     <a className="clinic-skip" href="#main-content">Skip to content</a>
     {menuOpen ? <div className="clinic-menu-shade" aria-hidden="true" /> : null}
     <header ref={header} className="clinic-header" onBlurCapture={(event) => {
