@@ -99,7 +99,7 @@ export default function LandingPage() {
       <section className="clinic-public-hero clinic-container" aria-labelledby="clinic-hero-title">
         <div className="clinic-hero-copy">
           <p className="clinic-eyebrow"><span className="clinic-tiny-line" /> Maternal care, thoughtfully connected</p>
-          <h1 id="clinic-hero-title"><span>With you, from</span>{' '}<span>first visit to</span>{' '}<span className="clinic-hero-emphasis">first embrace.</span></h1>
+          <h1 id="clinic-hero-title"><span>Expert care for you.</span>{' '}<span>A loving start</span>{' '}<span className="clinic-hero-emphasis">for your baby.</span></h1>
           <p className="clinic-hero-description">A little reassurance. A clearer next step. Connect with TMC Copino Birthing Home & Medical Clinic for your pregnancy journey and care after birth.</p>
           <div className="clinic-actions"><Link className="clinic-button" to={bookingPath}>Book an appointment <AppIcon name="calendar" /></Link><a className="clinic-quiet-link" href="#care">Explore maternal care <span aria-hidden="true">&rarr;</span></a></div>
           <p className="clinic-booking-note">Request online. Your visit is confirmed by the clinic.</p>

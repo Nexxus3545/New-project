@@ -50,7 +50,7 @@ async function main() {
   try {
     const guest = await fixture();
     await guest.page.goto(origin);
-    await guest.page.getByRole('heading', { level: 1 }).filter({ hasText: 'first embrace.' }).waitFor();
+    await guest.page.getByRole('heading', { level: 1, name: 'Expert care for you. A loving start for your baby.' }).waitFor();
     const title = guest.page.locator('#clinic-hero-title');
     const titleStyles = await title.evaluate((element) => [...element.children].map((child) => {
       const style = getComputedStyle(child);
