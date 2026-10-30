@@ -26,17 +26,27 @@ async function main() {
   }
   const settled = (page, index) => page.waitForFunction(({ selector, index }) => [...document.querySelectorAll(selector)].every((node, i) => {
     const opacity = Number(getComputedStyle(node).opacity);
-    return i === index ? node.dataset.sectionState === 'active' && opacity > 0.99 : node.dataset.sectionState !== 'active' && opacity < 0.01;
+    return i === index ? node.dataset.sectionState === 'active' && opacity === 1 : node.dataset.sectionState !== 'active' && opacity === 0;
   }), { selector: sections, index });
   async function scrollToSection(page, index) {
     await page.mouse.wheel(0, 1);
     await page.locator(sections).nth(index).evaluate(node => {
       let top = 0;
       for (let current = node; current; current = current.offsetParent) top += current.offsetTop;
-      const header = document.querySelector('.clinic-header').getBoundingClientRect().bottom;
+      const header = document.querySelector('.clinic-header').offsetHeight;
       window.scrollTo({ top: top + 30 - (header + (innerHeight - header) * 0.38), behavior: 'instant' });
     });
     await settled(page, index);
+  }
+  const headerSettled = (page, visible) => page.waitForFunction(visible => {
+    const node = document.querySelector('.clinic-header');
+    return Number(getComputedStyle(node).opacity) === (visible ? 1 : 0)
+      && node.dataset.headerState === (visible ? 'visible' : 'hidden');
+  }, visible);
+  async function returnToTop(page) {
+    await page.evaluate(() => document.activeElement?.blur());
+    await page.keyboard.press('Control+Home');
+    await headerSettled(page, true);
   }
   try {
     const { page, context } = await fixture();
@@ -53,6 +63,32 @@ async function main() {
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No horizontal overflow at ' + width);
         assert.equal(await page.locator('[data-section-state="active"]').count(), 1);
       }
+      await scrollToSection(page, 1);
+      await headerSettled(page, false);
+      await page.mouse.wheel(0, -100);
+      await headerSettled(page, true);
+      await page.mouse.wheel(0, 160);
+      await headerSettled(page, false);
+      await page.screenshot({ path: path.join(process.env.TEMP, `mwos-scroll-header-${width}.png`) });
+      // The footer supplies the logo; the top logo stays hidden even on a small upward scroll.
+      await page.keyboard.press('Control+End');
+      await headerSettled(page, false);
+      await page.mouse.wheel(0, -30);
+      await headerSettled(page, false);
+      assert.equal(await page.locator('.clinic-footer').evaluate(e => getComputedStyle(e).opacity), '1');
+      // Keyboard navigation can still reach a hidden header without scrolling with a mouse.
+      await page.keyboard.press('Tab');
+      await page.locator('.clinic-home-link').focus();
+      await headerSettled(page, true);
+      await returnToTop(page);
+      if (width === 390) {
+        await page.getByRole('button', { name: 'Toggle navigation' }).click();
+        await page.mouse.wheel(0, 180);
+        await headerSettled(page, true);
+        assert.equal(await page.locator('.clinic-menu-button').getAttribute('aria-expanded'), 'true');
+        await page.keyboard.press('Escape');
+        await returnToTop(page);
+      }
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
     const nav = page.getByRole('navigation', { name: 'Clinic navigation' });
@@ -61,10 +97,12 @@ async function main() {
     assert.equal(await page.locator('#care').evaluate(e => getComputedStyle(e).opacity), '0', 'All of Our Care disappears together');
     assert.equal(await page.locator('#care .clinic-service').first().getAttribute('data-scroll-section'), null);
     await page.screenshot({ path: path.join(process.env.TEMP, 'mwos-whole-section-clinic.png') });
+    await returnToTop(page);
     await nav.getByRole('link', { name: 'Downloads', exact: true }).click();
     await settled(page, 7);
     assert.equal(await page.locator('a[href="#downloads"][aria-current="location"]').count(), 1);
     await page.screenshot({ path: path.join(process.env.TEMP, 'mwos-whole-section-downloads.png') });
+    await returnToTop(page);
     await nav.getByRole('link', { name: 'Our care', exact: true }).click();
     await settled(page, 0);
     await page.keyboard.press('Tab');
@@ -75,9 +113,11 @@ async function main() {
     await scrollToSection(page, 0);
     await page.emulateMedia({ media: 'print' });
     assert.ok(await page.locator(sections).evaluateAll(nodes => nodes.every(e => Number(getComputedStyle(e).opacity) === 1)), 'Print includes every section');
+    assert.equal(await page.locator('.clinic-header').evaluate(e => getComputedStyle(e).opacity), '1', 'Print includes the header');
     await page.emulateMedia({ media: 'screen', reducedMotion: 'reduce' });
     await page.waitForFunction(() => !document.querySelector('.clinic-landing').dataset.scrollMotion);
     assert.equal(await page.locator('[data-scroll-section]').count(), 0);
+    assert.equal(await page.locator('.clinic-header').getAttribute('data-header-state'), null);
     assert.ok(await page.locator(sections).evaluateAll(nodes => nodes.every(e => Number(getComputedStyle(e).opacity) === 1)));
     assert.ok(Math.abs(await page.evaluate(() => document.documentElement.scrollHeight) - originalHeight) < 25, 'Fading does not collapse the document');
     await page.emulateMedia({ reducedMotion: 'no-preference' });
@@ -89,7 +129,7 @@ async function main() {
     assert.equal(await reduced.page.locator('[data-scroll-section]').count(), 0);
     await reduced.context.close();
     assert.deepEqual(errors, []);
-    console.log('Whole-section motion passed: all 8 sections forward and reverse on desktop/phone, only one active section, complete Our Care disappearance, anchor navigation, keyboard controls, stable page height, print, reduced motion and route cleanup.');
+    console.log('Scroll motion passed: all 8 sections in both directions on desktop/phone, header hides down and returns up, footer logo handoff, keyboard access, mobile menu, anchors, stable page height, print, reduced motion and route cleanup.');
   } finally { await browser.close(); await new Promise(resolve => server.httpServer.close(resolve)); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

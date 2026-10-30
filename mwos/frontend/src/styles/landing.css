@@ -391,23 +391,50 @@
 
 /* Crossfade entire sections without collapsing their scroll positions. */
 @media screen and (prefers-reduced-motion: no-preference) {
+  .clinic-landing[data-scroll-motion='sections'] .clinic-header {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    transition: opacity 360ms ease, transform 520ms cubic-bezier(.22,1,.36,1) !important;
+  }
+  .clinic-landing[data-scroll-motion='sections'] .clinic-header[data-header-state='hidden'] {
+    opacity: 0;
+    pointer-events: none;
+    transform: translate3d(0, -105%, 0);
+  }
+  .clinic-landing[data-scroll-motion='sections'] .clinic-header:has(:focus-visible) {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+    transition: none !important;
+  }
   .clinic-landing[data-scroll-motion='sections'] [data-scroll-section] {
     opacity: 0;
     pointer-events: none;
-    transform: translate3d(0, 18px, 0);
-    transition: opacity 460ms ease, transform 460ms cubic-bezier(.2,.65,.3,1) !important;
+    transform: translate3d(0, 30px, 0) scale(.99);
+    transition: opacity 480ms ease, transform 700ms cubic-bezier(.22,1,.36,1) !important;
   }
-  .clinic-landing[data-scroll-motion='sections'] [data-section-state='before'] { transform: translate3d(0, -18px, 0); }
+  .clinic-landing[data-scroll-motion='sections'] [data-section-state='before'] { transform: translate3d(0, -30px, 0) scale(.99); }
   .clinic-landing[data-scroll-motion='sections'] [data-section-state='active'] {
     opacity: 1;
     pointer-events: auto;
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0) scale(1);
   }
+  .clinic-landing[data-scroll-motion='sections'] [data-scroll-section] :is(.clinic-services > article, .clinic-visit-steps > li, .clinic-platforms > .clinic-platform-card) {
+    transform: translate3d(0, 16px, 0);
+    transition: transform 700ms cubic-bezier(.22,1,.36,1) !important;
+  }
+  .clinic-landing[data-scroll-motion='sections'] [data-section-state='active'] :is(.clinic-services > article, .clinic-visit-steps > li, .clinic-platforms > .clinic-platform-card) {
+    transform: translate3d(0, 0, 0);
+    transition-delay: 60ms !important;
+  }
+  .clinic-landing[data-scroll-motion='sections'] [data-section-state='active'] :is(.clinic-services > article, .clinic-visit-steps > li, .clinic-platforms > .clinic-platform-card):nth-child(2) { transition-delay: 110ms !important; }
+  .clinic-landing[data-scroll-motion='sections'] [data-section-state='active'] :is(.clinic-services > article, .clinic-visit-steps > li, .clinic-platforms > .clinic-platform-card):nth-child(3) { transition-delay: 160ms !important; }
+  .clinic-landing[data-scroll-motion='sections'] [data-section-state='active'] :is(.clinic-services > article, .clinic-visit-steps > li, .clinic-platforms > .clinic-platform-card):nth-child(4) { transition-delay: 210ms !important; }
   .clinic-landing[data-scroll-motion='sections'] [data-section-state='active']:focus-within { transition: none !important; }
   .clinic-landing .clinic-navigation a[aria-current='location'] { color: var(--clinic-rose); text-decoration: underline; text-underline-offset: 7px; }
 }
 @media print, (prefers-reduced-motion: reduce) {
-  .clinic-landing [data-scroll-section] {
+  .clinic-landing .clinic-header, .clinic-landing [data-scroll-section] {
     transition: none !important;
     opacity: 1 !important;
     transform: none !important;
