@@ -71,10 +71,13 @@ async function main() {
       await headerSettled(page, false);
       await page.screenshot({ path: path.join(process.env.TEMP, `mwos-scroll-header-${width}.png`) });
       // The footer supplies the logo; the top logo stays hidden even on a small upward scroll.
-      await page.keyboard.press('Control+End');
+      await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+      await page.waitForFunction(() => scrollY + innerHeight >= document.documentElement.scrollHeight - 2);
       await headerSettled(page, false);
       await page.mouse.wheel(0, -30);
+      await page.waitForFunction(() => document.documentElement.scrollHeight - (scrollY + innerHeight) >= 20);
       await headerSettled(page, false);
+      assert.ok(await page.locator('.clinic-footer').evaluate(e => e.getBoundingClientRect().top < innerHeight * 0.9), 'Footer is actually in view');
       assert.equal(await page.locator('.clinic-footer').evaluate(e => getComputedStyle(e).opacity), '1');
       // Keyboard navigation can still reach a hidden header without scrolling with a mouse.
       await page.keyboard.press('Tab');
