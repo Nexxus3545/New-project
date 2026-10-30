@@ -1,4 +1,4 @@
-// Rendered scroll behavior with synthetic public feedback; no account writes.
+// Public homepage only; synthetic feedback and no account writes.
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require(process.env.MWOS_PLAYWRIGHT_MODULE || 'C:/Users/shane/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
@@ -8,16 +8,9 @@ async function main() {
   const server = await preview({ configFile: false, root: path.resolve(__dirname, '../..'), preview: { host: '127.0.0.1', port: 4191, strictPort: true } });
   const browser = await chromium.launch({ headless: true, executablePath: process.env.MWOS_CHROME_BINARY || 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
   const errors = [];
-  const settle = async page => {
-    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  };
-  async function fixture(mode = 'native', width = 1440) {
-    const context = await browser.newContext({ viewport: { width, height: 1000 }, reducedMotion: mode === 'reduced' ? 'reduce' : 'no-preference', serviceWorkers: 'block' });
-    if (['fallback', 'unsupported'].includes(mode)) await context.addInitScript(mode => {
-      const supports = CSS.supports.bind(CSS);
-      CSS.supports = (...args) => args[0].includes('animation-timeline') ? false : supports(...args);
-      if (mode === 'unsupported') window.IntersectionObserver = undefined;
-    }, mode);
+  const sections = '#main-content > section:not(.clinic-public-hero)';
+  async function fixture(reducedMotion = 'no-preference') {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion, serviceWorkers: 'block' });
     await context.route('**/*', route => {
       const url = new URL(route.request().url());
       if (url.pathname.includes('/api/')) return route.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ success: true, data: { totalReviews: 1, recent: [{ id: 'synthetic-review', rating: 4, display_name: 'Synthetic reviewer', comment: 'Synthetic public feedback for animation testing.' }] } }) });
@@ -29,79 +22,74 @@ async function main() {
     await page.getByRole('heading', { level: 1, name: 'Expert care for you. A loving start for your baby.' }).waitFor();
     await page.getByText('Synthetic public feedback for animation testing.', { exact: true }).waitFor();
     await page.evaluate(() => document.fonts.ready);
-    await settle(page);
-    return { context, page };
+    return { page, context };
   }
-  const alpha = locator => locator.evaluate(e => Number(getComputedStyle(e).opacity));
-  const move = async (page, y) => { await page.evaluate(y => window.scrollTo({ top: y, behavior: 'instant' }), y); await settle(page); };
+  const settled = (page, index) => page.waitForFunction(({ selector, index }) => [...document.querySelectorAll(selector)].every((node, i) => {
+    const opacity = Number(getComputedStyle(node).opacity);
+    return i === index ? node.dataset.sectionState === 'active' && opacity > 0.99 : node.dataset.sectionState !== 'active' && opacity < 0.01;
+  }), { selector: sections, index });
+  async function scrollToSection(page, index) {
+    await page.mouse.wheel(0, 1);
+    await page.locator(sections).nth(index).evaluate(node => {
+      let top = 0;
+      for (let current = node; current; current = current.offsetParent) top += current.offsetTop;
+      const header = document.querySelector('.clinic-header').getBoundingClientRect().bottom;
+      window.scrollTo({ top: top + 30 - (header + (innerHeight - header) * 0.38), behavior: 'instant' });
+    });
+    await settled(page, index);
+  }
   try {
     const { page, context } = await fixture();
-    assert.equal(await page.locator('.clinic-landing').getAttribute('data-scroll-motion'), 'native');
-    assert.equal(await page.locator('.clinic-header[data-scroll-reveal]').count(), 0);
-    const card = page.locator('.clinic-service').first();
-    const layout = await card.evaluate(e => ({ top: e.offsetTop, height: e.offsetHeight }));
-    const headerTop = (await page.locator('.clinic-header').boundingBox()).y;
-    await move(page, layout.top - 950);
-    assert.ok(await alpha(card) < 0.8, 'A card fades in as it enters the lower edge');
-    await page.screenshot({ path: path.join(process.env.TEMP, 'mwos-scroll-enter.png') });
-    await move(page, layout.top - 350);
-    assert.ok(await alpha(card) > 0.98, 'Reading area is fully opaque');
-    await page.screenshot({ path: path.join(process.env.TEMP, 'mwos-scroll-reading.png') });
-    await move(page, layout.top + layout.height - 30);
-    assert.ok(await alpha(card) < 0.8, 'The same card fades out near the upper edge');
-    assert.ok(Math.abs((await page.locator('.clinic-header').boundingBox()).y - headerTop) < 1, 'Navigation stays fixed');
-    await card.getByRole('link').focus();
-    assert.equal(await alpha(card), 1, 'Keyboard focus never remains faded');
-    await card.getByRole('link').evaluate(e => e.blur());
-    await move(page, layout.top - 350);
-    assert.ok(await alpha(card) > 0.98, 'Scrolling back restores the same content');
-    assert.equal(await page.locator('.clinic-review[data-scroll-reveal]').count(), 1, 'Asynchronous feedback gets motion');
-    await page.emulateMedia({ media: 'print' });
-    assert.equal(await alpha(card), 1, 'Printed content remains fully visible');
-    await page.emulateMedia({ media: 'screen', reducedMotion: 'reduce' });
-    await settle(page);
-    assert.equal(await page.locator('[data-scroll-reveal]').count(), 0, 'Changing OS motion preference removes animations');
-    await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await settle(page);
-    assert.equal(await page.locator('.clinic-landing').getAttribute('data-scroll-motion'), 'native');
-    for (const width of [320, 390, 768, 1440]) {
+    assert.equal(await page.locator('.clinic-landing').getAttribute('data-scroll-motion'), 'sections');
+    assert.equal(await page.locator('[data-scroll-reveal]').count(), 0, 'Individual cards no longer fade independently');
+    assert.equal(await page.locator('.clinic-header[data-scroll-section]').count(), 0);
+    const count = await page.locator(sections).count();
+    assert.equal(count, 8);
+    const originalHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+    for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1000 });
-      await move(page, 0);
-      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No horizontal overflow at ' + width);
-      await page.locator('a[href="#care"]').first().evaluate(e => e.click());
-      await settle(page);
-      assert.ok(await alpha(page.locator('.clinic-section-top')) > 0.98, 'Anchor headings remain readable');
-      if (width === 390) await page.screenshot({ path: path.join(process.env.TEMP, 'mwos-scroll-phone.png') });
+      for (const index of [...Array(count).keys(), ...Array.from({ length: count - 1 }, (_, i) => count - 2 - i)]) {
+        await scrollToSection(page, index);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No horizontal overflow at ' + width);
+        assert.equal(await page.locator('[data-section-state="active"]').count(), 1);
+      }
     }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const nav = page.getByRole('navigation', { name: 'Clinic navigation' });
+    await nav.getByRole('link', { name: 'The clinic', exact: true }).click();
+    await settled(page, 1);
+    assert.equal(await page.locator('#care').evaluate(e => getComputedStyle(e).opacity), '0', 'All of Our Care disappears together');
+    assert.equal(await page.locator('#care .clinic-service').first().getAttribute('data-scroll-section'), null);
+    await page.screenshot({ path: path.join(process.env.TEMP, 'mwos-whole-section-clinic.png') });
+    await nav.getByRole('link', { name: 'Downloads', exact: true }).click();
+    await settled(page, 7);
+    assert.equal(await page.locator('a[href="#downloads"][aria-current="location"]').count(), 1);
+    await page.screenshot({ path: path.join(process.env.TEMP, 'mwos-whole-section-downloads.png') });
+    await nav.getByRole('link', { name: 'Our care', exact: true }).click();
+    await settled(page, 0);
+    await page.keyboard.press('Tab');
+    await page.locator('#clinic .clinic-tour-play').focus();
+    await settled(page, 1);
+    await page.keyboard.press('Space');
+    assert.equal(await page.locator('#clinic').getAttribute('data-section-state'), 'active', 'Using a focused control does not hide its section');
+    await scrollToSection(page, 0);
+    await page.emulateMedia({ media: 'print' });
+    assert.ok(await page.locator(sections).evaluateAll(nodes => nodes.every(e => Number(getComputedStyle(e).opacity) === 1)), 'Print includes every section');
+    await page.emulateMedia({ media: 'screen', reducedMotion: 'reduce' });
+    await page.waitForFunction(() => !document.querySelector('.clinic-landing').dataset.scrollMotion);
+    assert.equal(await page.locator('[data-scroll-section]').count(), 0);
+    assert.ok(await page.locator(sections).evaluateAll(nodes => nodes.every(e => Number(getComputedStyle(e).opacity) === 1)));
+    assert.ok(Math.abs(await page.evaluate(() => document.documentElement.scrollHeight) - originalHeight) < 25, 'Fading does not collapse the document');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.waitForFunction(() => document.querySelector('.clinic-landing').dataset.scrollMotion === 'sections');
+    await page.goto('http://127.0.0.1:4191/login');
+    assert.equal(await page.locator('[data-scroll-motion]').count(), 0);
     await context.close();
-
-    const fallback = await fixture('fallback');
-    assert.equal(await fallback.page.locator('.clinic-landing').getAttribute('data-scroll-motion'), 'fallback');
-    const fallbackCard = fallback.page.locator('.clinic-service').first();
-    await fallbackCard.scrollIntoViewIfNeeded();
-    await fallback.page.waitForFunction(() => document.querySelector('.clinic-service').dataset.revealState === 'visible');
-    await fallback.page.waitForFunction(() => Number(getComputedStyle(document.querySelector('.clinic-service')).opacity) > 0.98);
-    assert.ok(await alpha(fallbackCard) > 0.98);
-    const fallbackBox = await fallbackCard.evaluate(e => ({ top: e.getBoundingClientRect().top + scrollY, height: e.offsetHeight }));
-    await move(fallback.page, fallbackBox.top + fallbackBox.height + 150);
-    await fallback.page.waitForFunction(() => document.querySelector('.clinic-service').dataset.revealState === 'above');
-    await fallback.page.waitForFunction(() => Number(getComputedStyle(document.querySelector('.clinic-service')).opacity) < 0.1);
-    assert.ok(await alpha(fallbackCard) < 0.1, 'Fallback also fades on exit: ' + JSON.stringify(await fallbackCard.evaluate(e => ({ opacity: getComputedStyle(e).opacity, transition: getComputedStyle(e).transition, animation: getComputedStyle(e).animationName, state: e.dataset.revealState, focused: e.matches(':focus-within') }))));
-    await fallbackCard.scrollIntoViewIfNeeded();
-    await fallbackCard.getByRole('link').focus();
-    assert.equal(await alpha(fallbackCard), 1);
-    await fallback.page.goto('http://127.0.0.1:4191/login');
-    assert.equal(await fallback.page.locator('[data-scroll-motion]').count(), 0, 'Motion is scoped to the public homepage');
-    await fallback.context.close();
-
-    for (const mode of ['reduced', 'unsupported']) {
-      const app = await fixture(mode, 390);
-      assert.equal(await app.page.locator('[data-scroll-motion]').count(), 0);
-      assert.equal(await alpha(app.page.locator('.clinic-service').first()), 1, mode + ' keeps content visible');
-      await app.context.close();
-    }
+    const reduced = await fixture('reduce');
+    assert.equal(await reduced.page.locator('[data-scroll-section]').count(), 0);
+    await reduced.context.close();
     assert.deepEqual(errors, []);
-    console.log('Scroll motion passed: actual fade in/out, reverse scrolling, fixed header, readable focus/anchors, dynamic reviews, print, reduced motion, fallback, cleanup and 320–1440px layouts.');
+    console.log('Whole-section motion passed: all 8 sections forward and reverse on desktop/phone, only one active section, complete Our Care disappearance, anchor navigation, keyboard controls, stable page height, print, reduced motion and route cleanup.');
   } finally { await browser.close(); await new Promise(resolve => server.httpServer.close(resolve)); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

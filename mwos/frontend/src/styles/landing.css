@@ -389,38 +389,28 @@
 @media (min-width: 641px) and (max-width: 1000px) { .clinic-landing .clinic-platforms > .clinic-platform-card { flex-direction: column; justify-content: center; } }
 @media (max-width: 380px) { .clinic-landing .clinic-platforms > .clinic-platform-card { padding: 16px 12px; gap: 8px; font-size: 20px; } }
 
-/* Keep the middle of the viewport fully readable. Motion follows the user's
-   scroll; it never changes document flow or captures the scroll wheel. */
-@keyframes clinic-scroll-reveal {
-  0% { opacity: 0; transform: translate3d(0, 24px, 0); }
-  18%, 82% { opacity: 1; transform: translate3d(0, 0, 0); }
-  100% { opacity: 0; transform: translate3d(0, -18px, 0); }
-}
+/* Crossfade entire sections without collapsing their scroll positions. */
 @media screen and (prefers-reduced-motion: no-preference) {
-  .clinic-landing[data-scroll-motion='native'] [data-scroll-reveal] {
-    animation: clinic-scroll-reveal auto linear both !important;
-    animation-timeline: view(block) !important;
-    animation-range: entry 0% exit 100% !important;
+  .clinic-landing[data-scroll-motion='sections'] [data-scroll-section] {
+    opacity: 0;
+    pointer-events: none;
+    transform: translate3d(0, 18px, 0);
+    transition: opacity 460ms ease, transform 460ms cubic-bezier(.2,.65,.3,1) !important;
   }
-  .clinic-landing[data-scroll-motion='fallback'] [data-scroll-reveal] {
+  .clinic-landing[data-scroll-motion='sections'] [data-section-state='before'] { transform: translate3d(0, -18px, 0); }
+  .clinic-landing[data-scroll-motion='sections'] [data-section-state='active'] {
     opacity: 1;
+    pointer-events: auto;
     transform: translate3d(0, 0, 0);
-    transition: opacity 650ms ease, transform 650ms cubic-bezier(.2,.65,.3,1) !important;
   }
-  .clinic-landing[data-scroll-motion='fallback'] [data-reveal-state='below'] { opacity: 0; transform: translate3d(0, 24px, 0); }
-  .clinic-landing[data-scroll-motion='fallback'] [data-reveal-state='above'] { opacity: 0; transform: translate3d(0, -18px, 0); }
-  .clinic-landing[data-scroll-motion] [data-scroll-reveal]:focus-within {
-    animation: none !important;
-    transition: none !important;
-    opacity: 1 !important;
-    transform: none !important;
-  }
+  .clinic-landing[data-scroll-motion='sections'] [data-section-state='active']:focus-within { transition: none !important; }
+  .clinic-landing .clinic-navigation a[aria-current='location'] { color: var(--clinic-rose); text-decoration: underline; text-underline-offset: 7px; }
 }
 @media print, (prefers-reduced-motion: reduce) {
-  .clinic-landing [data-scroll-reveal] {
-    animation: none !important;
+  .clinic-landing [data-scroll-section] {
     transition: none !important;
     opacity: 1 !important;
     transform: none !important;
+    pointer-events: auto !important;
   }
 }
