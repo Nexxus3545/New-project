@@ -6,6 +6,11 @@ const { test } = require('node:test');
 const helpers = require('../src/utils/teleconsult');
 const videoHelpers = require('../src/utils/dailyVideo');
 const scheduling = require('../src/utils/teleconsultScheduling');
+const providers = require('../src/utils/teleconsultProviders');
+
+const verifiedProof = { license_status: 'verified', license_number: 'SYNTHETIC-123', credential_expires_at: '2099-12-31',
+  account_credential_kind: 'professional_license', account_credential_status: 'verified', account_credential_license_number: 'SYNTHETIC-123',
+  account_credential_expires_at: '2099-12-31', account_credential_has_document: true };
 
 test('appointment DATE values preserve their Manila calendar day before timezone conversion', () => {
   const { execFileSync } = require('node:child_process');
@@ -60,6 +65,12 @@ function harness(options = {}) {
     if (text === 'ROLLBACK') { rolledBack = true; candidate = null; return { rows: [] }; }
     if (text.startsWith('SELECT pg_advisory_xact_lock')) return { rows: [] };
     if (text.startsWith('WITH scheduling_bookings')) return { rows: options.conflicts || [] };
+    if (text.startsWith('SELECT u.id, u.first_name') && text.includes('LEFT JOIN staff_registry')) {
+      const rows = [{ id: clinician, first_name: 'Synthetic', last_name: 'Clinician', role: options.clinicianRole || 'doctor', ...verifiedProof,
+        ...(options.providerUnverified ? { account_credential_status: 'pending' } : {}) }];
+      if (options.availableClinicians) rows.push({ id: outsider, role: 'nurse', ...verifiedProof });
+      return { rows: options.inactiveClinician || options.missingClinician ? [] : rows };
+    }
     if (text.startsWith('SELECT tcs.id, tcs.thread_id')) {
       const row = candidate || session;
       return { rows: [{ id: row.id, thread_id: row.thread_id, patient_name: 'Synthetic Patient', clinician_id: row.clinician_id, clinician_name: 'Synthetic Clinician', reason: 'Sensitive reason', status: row.status, preferred_start_at: row.preferred_start_at, start_at: row.start_at, duration_minutes: row.duration_minutes, created_at: '2026-10-28T00:00:00Z' }] };
@@ -116,6 +127,7 @@ function harness(options = {}) {
       if (name === 'node:crypto') return require(name);
       if (name === '../utils/teleconsult') return helpers;
       if (name === '../utils/teleconsultScheduling') return scheduling;
+      if (name === '../utils/teleconsultProviders') return providers;
       if (name === '../utils/dailyVideo') return {
         managedRoomNameForSession: videoHelpers.managedRoomNameForSession,
         dailyVideo: {
@@ -190,8 +202,8 @@ test('an existing consultation cannot be reset or rescheduled by recreating its 
   assert.equal(result.status, 409); assert.equal(app.state().committed, false);
 });
 
-test('patients, nurses, nonparticipants and unassigned clinicians cannot manage rooms', async () => {
-  for (const role of ['patient', 'nurse']) {
+test('patients, nonparticipants and unassigned clinicians cannot manage rooms', async () => {
+  for (const role of ['patient']) {
     const app = harness(); assert.equal((await app.invoke('update', { status: 'scheduled' }, { id: patientUser, role })).status, 403);
     assert.equal(app.state().acquired, false);
   }
@@ -199,6 +211,7 @@ test('patients, nurses, nonparticipants and unassigned clinicians cannot manage 
   assert.equal((await outsiderApp.invoke('update', { status: 'scheduled' }, { id: outsider, role: 'doctor' })).status, 404);
   const unassigned = harness({ adminParticipant: true });
   assert.equal((await unassigned.invoke('update', { status: 'scheduled' }, { id: outsider, role: 'doctor' })).status, 404);
+  assert.equal((await harness().invoke('update', { status: 'scheduled' }, { id: outsider, role: 'nurse' })).status, 404);
 });
 
 test('verified credentials and step-up remain required before holding a database connection', async () => {
@@ -243,10 +256,11 @@ test('legacy rooms can be cancelled or completed without validating or retaining
 });
 
 
-test('an administrator still needs thread participation and retains the existing verification gate', async () => {
+test('an administrator needs thread participation and step-up, without requiring a clinical license', async () => {
   const admin = { id: outsider, role: 'admin' };
   assert.equal((await harness().invoke('update', { status: 'cancelled' }, admin)).status, 404);
-  assert.equal((await harness({ adminParticipant: true, unverified: true }).invoke('update', { status: 'cancelled' }, admin)).status, 403);
+  assert.equal((await harness({ adminParticipant: true, noStepUp: true }).invoke('update', { status: 'cancelled' }, admin)).status, 403);
+  assert.equal((await harness({ adminParticipant: true, unverified: true }).invoke('update', { status: 'cancelled' }, admin)).status, 200);
   const app = harness({ adminParticipant: true });
   const result = await app.invoke('update', { status: 'scheduled', meetingUrl: meet, startAt: futureBooking }, admin);
   assert.equal(result.failure, undefined); assert.equal(result.payload.data.status, 'scheduled');
@@ -406,7 +420,7 @@ test('acceptance rechecks availability under the lock and rejects changed or ove
 });
 
 test('admin acceptance rejects a removed patient or unavailable clinical assignment without booking', async () => {
-  for (const options of [{ missingPatient: true }, { missingClinician: true }, { inactiveClinician: true }, { clinicianRole: 'nurse' }]) {
+  for (const options of [{ missingPatient: true }, { missingClinician: true }, { inactiveClinician: true }, { clinicianRole: 'patient' }, { providerUnverified: true }]) {
     const app = harness({ preferredStartAt: new Date(Date.now() + 86400000).toISOString(), ...options });
     const result = await app.invoke('accept', {}, { id: outsider, role: 'admin' });
     assert.equal(result.status, 409);
@@ -415,4 +429,56 @@ test('admin acceptance rejects a removed patient or unavailable clinical assignm
     assert.equal(app.state().notifications, 0);
     assert.equal(app.state().queries.some((entry) => entry.sql.startsWith('WITH scheduling_bookings')), false);
   }
+});
+
+test('the current admin can create a coordinator request without a professional license', async () => {
+  const app = harness({ clinicianRole: 'admin', unverified: true });
+  const result = await app.invoke('create', { patientId, reason: 'Appointment assistance' }, { id: clinician, role: 'admin' });
+  assert.equal(result.failure, undefined);
+  assert.equal(result.status, 201);
+  assert.equal(app.state().session.clinician_id, clinician);
+  assert.equal(app.state().session.status, 'requested');
+  const members = app.state().queries.filter(q => q.sql.startsWith('INSERT INTO conversation_participants')).map(q => q.params[1]);
+  assert.ok(members.includes(clinician) && members.includes(patientUser));
+  const noStepUp = await harness({ clinicianRole: 'admin', noStepUp: true }).invoke('create', { patientId, reason: 'Assistance' }, { id: clinician, role: 'admin' });
+  assert.equal(noStepUp.status, 403);
+});
+
+test('patients can request the admin fallback, but cannot confirm their own preferred schedule', async () => {
+  const app = harness({ clinicianRole: 'admin' });
+  const result = await app.invoke('create', { clinicianId: clinician, reason: 'Appointment assistance', preferredStartAt: futureBooking, startAt: futureBooking, sessionStatus: 'scheduled' }, { id: patientUser, role: 'patient' });
+  assert.equal(result.failure, undefined);
+  assert.equal(result.status, 201);
+  assert.equal(app.state().session.status, 'requested');
+  assert.equal(app.state().session.start_at, null);
+  assert.equal(app.state().session.preferred_start_at, futureBooking);
+});
+
+test('new admin assignments stop when a verified clinical provider is available; existing requests can finish', async () => {
+  const options = { clinicianRole: 'admin', availableClinicians: true, preferredStartAt: futureBooking };
+  const fresh = harness(options);
+  assert.equal((await fresh.invoke('create', { clinicianId: clinician, reason: 'Assistance' }, { id: patientUser, role: 'patient' })).status, 400);
+  assert.equal(fresh.state().committed, false);
+  const existing = harness(options);
+  const accepted = await existing.invoke('accept', {}, { id: outsider, role: 'admin' });
+  assert.equal(accepted.failure, undefined);
+  assert.equal(accepted.status, 200);
+  assert.equal(existing.state().session.status, 'scheduled');
+});
+
+test('coordinator bookings preserve collision rejection and private video membership', async () => {
+  const conflict = { kind: 'teleconsult', startAt: futureBooking, endAt: new Date(Date.parse(futureBooking) + 1800000).toISOString() };
+  const app = harness({ clinicianRole: 'admin', preferredStartAt: futureBooking, conflicts: [conflict] });
+  assert.equal((await app.invoke('accept', {}, { id: clinician, role: 'admin' })).status, 409);
+  assert.equal(app.state().committed, false);
+  const video = harness({ clinicianRole: 'admin', status: 'scheduled', startAt: futureBooking });
+  assert.equal((await video.invoke('join', {}, { id: clinician, role: 'admin' })).status, 200);
+  assert.equal((await harness({ clinicianRole: 'admin', status: 'scheduled', startAt: futureBooking }).invoke('join', {}, { id: outsider, role: 'admin' })).status, 404);
+});
+
+test('a verified assigned nurse can receive, accept and manage a consultation', async () => {
+  const app = harness({ clinicianRole: 'nurse', preferredStartAt: futureBooking });
+  assert.equal((await app.invoke('accept', {}, { id: outsider, role: 'admin' })).status, 200);
+  const own = harness({ clinicianRole: 'nurse', status: 'scheduled', startAt: futureBooking });
+  assert.equal((await own.invoke('update', { status: 'active' }, { id: clinician, role: 'nurse' })).status, 200);
 });

@@ -92,6 +92,7 @@ function harness() {
       if (name === '../middleware/stepUp') return {};
       if (name === '../utils/teleconsult') return {};
       if (name === '../utils/teleconsultScheduling') return {};
+      if (name === '../utils/teleconsultProviders') return {};
       if (name === '../utils/dailyVideo') return {};
       if (name === '../utils/security') return {};
       throw new Error('Unexpected module: ' + name);

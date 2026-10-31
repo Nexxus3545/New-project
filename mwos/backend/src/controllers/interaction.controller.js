@@ -4,6 +4,7 @@ const { resolveStepUpContext } = require('../middleware/stepUp');
 const { buildTeleconsultMeetingDetails, prepareTeleconsultUpdate, parseSchedule } = require('../utils/teleconsult');
 const { dailyVideo, managedRoomNameForSession } = require('../utils/dailyVideo');
 const { parseDuration, futureSchedule, lockScheduling, findSchedulingConflicts, assertSchedulingAvailable, sendSchedulingConflict } = require('../utils/teleconsultScheduling');
+const { CLINICAL_PROVIDER_ROLES, getTeleconsultProviders, isTeleconsultProviderAvailable } = require('../utils/teleconsultProviders');
 const {
   getStaffSecurityContext,
   recordSecurityAudit,
@@ -147,6 +148,7 @@ const fetchThreadDetail = async (client, threadId, userId) => {
 };
 
 const getDirectory = async (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
   try {
     const client = await getClient();
     try {
@@ -157,6 +159,7 @@ const getDirectory = async (req, res, next) => {
          ORDER BY role, last_name, first_name`,
         [STAFF_ROLES]
       );
+      const teleconsultProviders = await getTeleconsultProviders(client);
 
       if (req.user.role === 'patient') {
         const patient = await getPatientRecordByUser(client, req.user.id);
@@ -164,6 +167,7 @@ const getDirectory = async (req, res, next) => {
           success: true,
           data: {
             staff: staffResult.rows,
+            teleconsultProviders,
             patients: patient ? [patient] : [],
           },
         });
@@ -180,6 +184,7 @@ const getDirectory = async (req, res, next) => {
         success: true,
         data: {
           staff: staffResult.rows,
+          teleconsultProviders,
           patients: patientsResult.rows,
         },
       });
@@ -468,8 +473,9 @@ const createTeleconsultSession = async (req, res, next) => {
         });
       }
 
-      staffProfile = await getStaffSecurityContext(req.user.id);
-      if (!staffProfile) {
+      // Admins coordinate bookings without claiming a clinical qualification.
+      staffProfile = req.user.role === 'admin' ? null : await getStaffSecurityContext(req.user.id);
+      if (req.user.role !== 'admin' && !staffProfile) {
         if (client) await client.query('ROLLBACK');
         return res.status(403).json({
           success: false,
@@ -477,7 +483,7 @@ const createTeleconsultSession = async (req, res, next) => {
         });
       }
 
-      if (!staffProfile.isVerified) {
+      if (req.user.role !== 'admin' && !staffProfile.isVerified) {
         if (client) await client.query('ROLLBACK');
         return res.status(403).json({
           success: false,
@@ -502,7 +508,7 @@ const createTeleconsultSession = async (req, res, next) => {
     client = await getClient();
     await client.query('BEGIN');
     await lockScheduling(client);
-    const requestedClinicianId = req.body?.clinicianId || (['doctor', 'midwife'].includes(req.user.role) ? req.user.id : null);
+    const requestedClinicianId = req.body?.clinicianId || (STAFF_ROLES.includes(req.user.role) ? req.user.id : null);
     if (!requestedClinicianId) {
       await client.query('ROLLBACK');
       return res.status(400).json({
@@ -537,11 +543,12 @@ const createTeleconsultSession = async (req, res, next) => {
         requestId: req.requestId || null,
       });
     }
-    if (!['doctor', 'midwife'].includes(clinician.role)) {
+    if (!await isTeleconsultProviderAvailable(client, clinician)) {
       await client.query('ROLLBACK');
       return res.status(400).json({
         success: false,
-        message: 'Tele-consult sessions can only be assigned to a doctor or midwife',
+        message: 'Choose an available verified care provider, or the clinic coordinator when no clinical provider is available. Refresh the provider list.',
+        code: 'CONSULTATION_ASSIGNMENT_UNAVAILABLE',
         requestId: req.requestId || null,
       });
     }
@@ -609,7 +616,7 @@ const createTeleconsultSession = async (req, res, next) => {
     const triggerSource = req.body?.triggerSource || (req.user.role === 'patient' ? 'manual' : 'message');
     const clinicalTrigger = req.body?.clinicalTrigger || null;
     const patientRequest = req.user.role === 'patient';
-    const canManageMeeting = req.user.role === 'admin' || (['doctor', 'midwife'].includes(req.user.role) && req.user.id === clinician.id);
+    const canManageMeeting = req.user.role === 'admin' || (CLINICAL_PROVIDER_ROLES.includes(req.user.role) && req.user.id === clinician.id);
     const sessionStatus = patientRequest ? 'requested' : (req.body?.sessionStatus || (req.body?.startAt ? 'scheduled' : 'requested'));
     if (!['requested', 'scheduled'].includes(sessionStatus)) {
       await client.query('ROLLBACK');
@@ -752,6 +759,9 @@ const createTeleconsultSession = async (req, res, next) => {
         patientId: patientRecord.id,
         clinicianId: clinician.id,
         meetingProvider: meetingDetails.meetingProvider,
+        providerRole: clinician.role,
+        providerKind: clinician.role === 'admin' ? 'coordination' : 'clinical',
+        createdBy: req.user.id,
         sessionStatus,
         triggerSource,
         messageId: messageResult.rows[0].id,
@@ -784,14 +794,14 @@ const createTeleconsultSession = async (req, res, next) => {
 const updateTeleconsultSession = async (req, res, next) => {
   let client;
   try {
-    if (!['admin', 'doctor', 'midwife'].includes(req.user.role)) {
+    if (!STAFF_ROLES.includes(req.user.role)) {
       return res.status(403).json({ success: false, message: 'Only an administrator or the assigned clinician can manage a consultation.' });
     }
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.params.id || '')) {
       return res.status(404).json({ success: false, message: 'Consultation not found or access denied' });
     }
-    const staffProfile = await getStaffSecurityContext(req.user.id);
-    if (!staffProfile?.isVerified) {
+    const staffProfile = req.user.role === 'admin' ? null : await getStaffSecurityContext(req.user.id);
+    if (req.user.role !== 'admin' && !staffProfile?.isVerified) {
       return res.status(403).json({ success: false, message: 'Verified staff credentials are required to manage consultations.', code: 'STAFF_CREDENTIAL_REQUIRED' });
     }
     try { resolveStepUpContext(req, 'teleconsult'); } catch (error) {
@@ -825,7 +835,7 @@ const updateTeleconsultSession = async (req, res, next) => {
        WHERE id = $1 RETURNING *`,
       [session.id, update.status, update.meetingProvider, update.meetingUrl, update.meetingCode, update.startAt, update.endAt, update.durationMinutes]
     );
-    await recordSecurityAudit({ client, staffId: staffProfile.staffId, actionPerformed: 'TELECONSULT_UPDATED', entityType: 'tele_consult_session', entityId: session.id, deviceIp: req.ip, authMethod: req.stepUp?.authMethod || 'Password', credentialStrength: req.stepUp?.credentialStrength || 'Step_Up', requestId: req.requestId || null, details: { previousStatus: session.status, status: update.status, provider: update.meetingProvider } });
+    await recordSecurityAudit({ client, staffId: staffProfile?.staffId || null, actionPerformed: 'TELECONSULT_UPDATED', entityType: 'tele_consult_session', entityId: session.id, deviceIp: req.ip, authMethod: req.stepUp?.authMethod || 'Password', credentialStrength: req.stepUp?.credentialStrength || 'Step_Up', requestId: req.requestId || null, details: { previousStatus: session.status, status: update.status, provider: update.meetingProvider, updatedBy: req.user.id } });
     await createNotifications(client, {
       userIds: thread.participants.map((person) => person.id).filter((id) => id !== req.user.id),
       title: 'Telehealth consultation updated',
@@ -843,7 +853,7 @@ const updateTeleconsultSession = async (req, res, next) => {
 };
 
 const REVIEW_FIELDS = `tcs.id, tcs.thread_id, CONCAT_WS(' ', p.first_name, p.last_name) AS patient_name,
-  tcs.clinician_id, CONCAT_WS(' ', u.first_name, u.last_name) AS clinician_name,
+  tcs.clinician_id, CONCAT_WS(' ', u.first_name, u.last_name) AS clinician_name, u.role AS clinician_role,
   tcs.reason, tcs.status, tcs.preferred_start_at, tcs.start_at, tcs.duration_minutes, tcs.created_at`;
 const REVIEW_JOINS = 'FROM tele_consult_sessions tcs LEFT JOIN patients p ON p.id = tcs.patient_id LEFT JOIN users u ON u.id = tcs.clinician_id';
 const validSessionId = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || '');
@@ -906,7 +916,7 @@ const acceptTeleconsultSession = async (req, res, next) => {
       [session.clinician_id]
     );
     const clinician = clinicianResult.rows[0];
-    if (!patient || !clinician?.is_active || !['doctor', 'midwife'].includes(clinician.role)) {
+    if (!patient || !await isTeleconsultProviderAvailable(client, clinician, { existingAssignment: true })) {
       await client.query('ROLLBACK');
       return res.status(409).json({ success: false, code: 'CONSULTATION_ASSIGNMENT_UNAVAILABLE', message: 'The patient or assigned care provider is no longer available. Review the consultation assignment before accepting.' });
     }

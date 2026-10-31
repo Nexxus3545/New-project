@@ -612,7 +612,7 @@ router.get('/interactions/teleconsults/:id/availability', authenticate, authoriz
 router.post('/interactions/teleconsults/:id/accept', authenticate, authorize('admin'), interactionCtrl.acceptTeleconsultSession);
 router.get('/interactions/teleconsults/video/status', authenticate, interactionCtrl.getTeleconsultVideoStatus);
 router.post('/interactions/teleconsults/:id/video/join', authenticate, interactionCtrl.joinTeleconsultVideo);
-router.patch('/interactions/teleconsults/:id', authenticate, authorize('admin','doctor','midwife'), interactionCtrl.updateTeleconsultSession);
+router.patch('/interactions/teleconsults/:id', authenticate, authorize('admin','doctor','midwife','nurse'), interactionCtrl.updateTeleconsultSession);
 router.get('/interactions/threads/:id', authenticate, interactionCtrl.getThreadById);
 router.post('/interactions/threads/:id/messages', authenticate, interactionCtrl.addMessage);
 router.post('/interactions/messages/:id/promote', authenticate, authorize('admin','doctor','midwife','nurse'), requireStepUp('clinical-note'), interactionCtrl.promoteMessageToRecord);

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../utils/api'
 import { useAuthStore } from '../../store/authStore'
+import { telehealthProviderLabel } from '../../utils/telehealthProviders'
 import { createConsultationReview, formatReviewTime, makeReviewSelection, REVIEW_DURATIONS, reviewLocalDateTime, reviewSelectionKey } from '../../utils/consultationReview'
 
 export default function ConsultationReview({ onAccepted }) {
@@ -85,7 +86,7 @@ export default function ConsultationReview({ onAccepted }) {
       {selected ? <div className="min-w-0 rounded-2xl border border-slate-200 p-4 sm:p-5 dark:border-slate-700">
         <h3 className="break-words font-semibold">{selected.patient_name || 'Patient consultation'}</h3>
         <dl className="mt-4 grid min-w-0 gap-3 text-sm sm:grid-cols-2">
-          <div><dt className="text-slate-500">Care provider</dt><dd className="mt-1 break-words">{selected.clinician_name || 'Assigned care team'}</dd></div>
+          <div><dt className="text-slate-500">Care provider</dt><dd className="mt-1 break-words">{selected.clinician_name || 'Assigned care team'}{selected.clinician_role ? <span className="mt-1 block text-xs text-slate-500">{telehealthProviderLabel({ role: selected.clinician_role })}</span> : null}</dd></div>
           <div><dt className="text-slate-500">Requested duration</dt><dd className="mt-1">{Number(selected.duration_minutes) || 30} minutes</dd></div>
           <div className="sm:col-span-2"><dt className="text-slate-500">Patient preferred schedule</dt><dd className="mt-1">{formatReviewTime(selected.preferred_start_at)}{selected.preferred_start_at ? ' · Asia/Manila' : ''}</dd></div>
           {selected.start_at ? <div className="sm:col-span-2"><dt className="text-slate-500">Confirmed schedule</dt><dd className="mt-1">{formatReviewTime(selected.start_at)} · Asia/Manila</dd></div> : null}

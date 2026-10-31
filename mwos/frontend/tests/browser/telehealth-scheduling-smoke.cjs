@@ -16,7 +16,7 @@ async function main() {
   const preferred = `${localDate}T10:00`;
   const alternative = `${localDate}T11:00`;
 
-  async function fixture({ role = 'admin', empty = false, reviewFailure = false } = {}) {
+  async function fixture({ role = 'admin', empty = false, reviewFailure = false, coordinator = false } = {}) {
     const user = { id: role === 'patient' ? ids.patientUser : 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', firstName: 'Synthetic', lastName: role === 'patient' ? 'Patient' : 'Admin', role, email: 'test@example.invalid', careType: 'maternal', patientId: role === 'patient' ? ids.patient : undefined };
     const record = { id: ids.session, thread_id: ids.thread, patient_id: ids.patient, patient_name: 'Demo Patient', clinician_id: ids.clinician, clinician_name: 'Demo Clinician', reason: 'Synthetic follow-up concern', status: 'requested', preferred_start_at: new Date(preferred).toISOString(), start_at: null, duration_minutes: 45, created_at: new Date().toISOString() };
     const state = { record, requests: [], available: false, conflictAtAccept: false, empty, reviewFailure, patientCreated: false, blockedExternal: [], devices: 0 };
@@ -38,7 +38,11 @@ async function main() {
         state.requests.push({ endpoint, method: req.method(), body, search: url.search });
         const reply = (data, status = 200, message) => route.fulfill({ status, headers: cors, contentType: 'application/json', body: JSON.stringify({ success: status < 400, data, message }) });
         if (endpoint === '/auth/me') return reply(user);
-        if (endpoint === '/interactions/directory') return reply({ staff: [{ id: ids.clinician, first_name: 'Demo', last_name: 'Clinician', role: 'doctor' }], patients: [{ id: ids.patient, user_id: ids.patientUser, first_name: 'Demo', last_name: 'Patient' }] });
+        if (endpoint === '/interactions/directory') {
+          const staff = coordinator ? [{ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', first_name: 'Synthetic', last_name: 'Admin', role: 'admin', provider_kind: 'coordination', provider_label: 'Admin · Clinic coordinator' }]
+            : [{ id: ids.clinician, first_name: 'Demo', last_name: 'Clinician', role: 'doctor' }];
+          return reply({ staff, teleconsultProviders: staff, patients: [{ id: ids.patient, user_id: ids.patientUser, first_name: 'Demo', last_name: 'Patient' }] });
+        }
         if (endpoint === '/interactions/teleconsults/review') {
           assert.equal(role, 'admin', 'Only the admin requests the review queue');
           return state.reviewFailure ? reply(null, 503, 'Synthetic review outage') : reply(state.empty ? [] : [state.record]);
@@ -53,12 +57,12 @@ async function main() {
           return reply(state.record);
         }
         if (req.method() === 'POST' && endpoint === '/interactions/teleconsults') {
-          assert.equal(role, 'patient');
+          assert.ok(role === 'patient' || coordinator);
           state.patientCreated = true;
-          state.record = { ...state.record, preferred_start_at: body.preferredStartAt, duration_minutes: body.durationMinutes };
+          state.record = { ...state.record, clinician_id: body.clinicianId, preferred_start_at: body.preferredStartAt, duration_minutes: body.durationMinutes };
           return reply({ thread: { id: ids.thread }, session: state.record }, 201);
         }
-        const threads = role === 'patient' && state.patientCreated ? [{ id: ids.thread, title: 'Synthetic consultation', patient_id: ids.patient, patient_name: 'Demo Patient', teleconsult_status: state.record.status, thread_type: 'tele_consult', latest_message: state.record.reason }] : [];
+        const threads = state.patientCreated ? [{ id: ids.thread, title: 'Synthetic consultation', patient_id: ids.patient, patient_name: 'Demo Patient', teleconsult_status: state.record.status, thread_type: 'tele_consult', latest_message: state.record.reason }] : [];
         if (endpoint === '/interactions/threads') return reply(threads);
         if (endpoint === `/interactions/threads/${ids.thread}`) return reply({ ...threads[0], teleconsult_session: state.record, messages: [] });
         if (endpoint === '/interactions/teleconsults/video/status') return reply({ provider: 'daily', configured: true });
@@ -136,7 +140,7 @@ async function main() {
     const patient = await fixture({ role: 'patient' });
     assert.equal(await patient.page.getByRole('heading', { name: 'Review consultation requests', exact: true }).count(), 0);
     await patient.page.getByRole('button', { name: 'Request consultation', exact: true }).first().click();
-    await patient.page.getByLabel('Doctor or midwife', { exact: true }).selectOption(ids.clinician);
+    await patient.page.getByLabel('Provider or clinic coordinator', { exact: true }).selectOption(ids.clinician);
     await patient.page.getByLabel('Preferred date and time (optional)', { exact: true }).fill(preferred);
     await patient.page.getByLabel('Consultation duration', { exact: true }).selectOption('60');
     await patient.page.getByLabel('Reason for consultation', { exact: true }).fill('Synthetic patient request');
@@ -152,6 +156,27 @@ async function main() {
     assert.equal(await patient.page.getByRole('button', { name: 'Join video consultation', exact: true }).isDisabled(), true);
     assert.equal(patient.state.requests.some((call) => call.endpoint.endsWith('/review')), false);
     await patient.context.close();
+
+    for (const role of ['admin', 'patient']) {
+      const fallback = await fixture({ role, coordinator: true, empty: true });
+      await fallback.page.getByRole('button', { name: 'Request consultation', exact: true }).first().click();
+      const provider = fallback.page.getByLabel('Provider or clinic coordinator', { exact: true });
+      await fallback.page.waitForFunction(() => document.querySelector('#telehealth-request-clinician')?.value === 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+      assert.equal(await provider.locator('option:checked').textContent(), 'Synthetic Admin · Admin · Clinic coordinator');
+      await fallback.page.getByText(/No verified clinical provider is available yet/).waitFor();
+      if (role === 'admin') await fallback.page.getByLabel('Patient', { exact: true }).selectOption(ids.patient);
+      await fallback.page.getByLabel('Reason for consultation', { exact: true }).fill('Synthetic coordinator assistance');
+      await layout(fallback.page, 390);
+      await fallback.page.screenshot({ path: path.join(process.env.TEMP, `mwos-coordinator-${role}.png`), fullPage: true });
+      await fallback.page.getByRole('button', { name: 'Submit request', exact: true }).click();
+      await fallback.page.getByRole('heading', { name: 'Live video consultation', exact: true }).waitFor();
+      const created = fallback.state.requests.find(call => call.method === 'POST' && call.endpoint === '/interactions/teleconsults');
+      assert.equal(created.body.clinicianId, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+      assert.equal(Object.hasOwn(created.body, 'sessionStatus'), false);
+      assert.equal(role === 'admin' ? created.body.patientId : Object.hasOwn(created.body, 'patientId'), role === 'admin' ? ids.patient : false);
+      await fallback.page.getByText('Admin · Clinic coordinator', { exact: true }).waitFor();
+      await fallback.context.close();
+    }
 
     const empty = await fixture({ empty: true });
     await empty.page.getByText('No consultation requests to review.', { exact: true }).waitFor();

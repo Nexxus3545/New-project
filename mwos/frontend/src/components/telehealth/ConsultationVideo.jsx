@@ -17,7 +17,7 @@ export default function ConsultationVideo({ session, user, onUpdated, onJoin, on
   const [formError, setFormError] = useState('')
   const [notice, setNotice] = useState('')
   const status = session?.status || 'requested'
-  const manageable = Boolean(session?.id) && (user?.role === 'admin' || (['doctor', 'midwife'].includes(user?.role) && session.clinician_id === user.id))
+  const manageable = Boolean(session?.id) && (user?.role === 'admin' || (['doctor', 'midwife', 'nurse'].includes(user?.role) && session.clinician_id === user.id))
   const update = useMutation({
     mutationFn: (payload) => api.patch(`/interactions/teleconsults/${session.id}`, payload).then((response) => response.data.data),
     onSuccess: (saved) => { setNotice('Consultation details saved.'); onUpdated?.(saved) },
@@ -40,7 +40,7 @@ export default function ConsultationVideo({ session, user, onUpdated, onJoin, on
     {['completed', 'cancelled'].includes(status) ? <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">This consultation is closed.</p> : null}
     {manageable && !['completed', 'cancelled'].includes(status) ? <div className="mt-5 border-t border-rose-100 pt-5 dark:border-rose-900/40">
       <h4 className="text-sm font-semibold">Clinic meeting controls</h4>
-      <p className="mt-2 text-xs leading-5 text-slate-500">Requires verified staff credentials and additional sign-in verification in Account settings. Only the assigned patient and care team can enter the private room.</p>
+      <p className="mt-2 text-xs leading-5 text-slate-500">{user?.role === 'admin' ? 'Clinic coordination requires additional sign-in verification in Account settings.' : 'Requires verified staff credentials and additional sign-in verification in Account settings.'} Only the assigned patient and care team can enter the private room.</p>
       {user?.role === 'admin' && status === 'requested' ? <p className="mt-4 text-sm leading-6">Review the patient's preferred time and existing bookings before accepting. <a href="#telehealth-consultation-review" className="font-semibold underline">Review consultation request</a></p> : null}
       {['requested', 'scheduled'].includes(status) && !(user?.role === 'admin' && status === 'requested') ? <form className="mt-4 space-y-3" onSubmit={(event) => { event.preventDefault(); changeStatus('scheduled') }}>
         <div><label htmlFor="consultation-schedule" className="label">Confirmed date and time</label><input id="consultation-schedule" type="datetime-local" className="input" value={startAt} onChange={(event) => setStartAt(event.target.value)} required /><p className="mt-1 text-xs text-slate-500">Shown in your device's local time.</p></div>

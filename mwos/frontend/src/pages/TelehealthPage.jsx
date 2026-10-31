@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore'
 import DeviceCheck from '../components/telehealth/DeviceCheck'
 import ConsultationVideo from '../components/telehealth/ConsultationVideo'
 import ConsultationReview from '../components/telehealth/ConsultationReview'
+import { telehealthProviderLabel } from '../utils/telehealthProviders'
 
 const SESSION_FILTERS = [
   ['all', 'All sessions'],
@@ -79,7 +80,8 @@ export default function TelehealthPage() {
     return thread.teleconsult_status === statusFilter || thread.status === statusFilter
   }), [allThreads, statusFilter])
   const directory = directoryQuery.data || { staff: [], patients: [] }
-  const clinicians = (directory.staff || []).filter((person) => ['doctor', 'midwife'].includes(person.role))
+  const clinicians = useMemo(() => directoryQuery.data?.teleconsultProviders
+    || (directoryQuery.data?.staff || []).filter(person => ['doctor', 'midwife'].includes(person.role)), [directoryQuery.data])
   const selectedThread = allThreads.find((thread) => thread.id === selectedThreadId) || null
 
   const detailQuery = useQuery({
@@ -103,10 +105,14 @@ export default function TelehealthPage() {
   }, [threads, selectedThreadId])
 
   useEffect(() => {
-    if (!patientMode && ['doctor', 'midwife'].includes(user?.role) && user?.id) {
-      setRequestForm((current) => current.clinicianId ? current : { ...current, clinicianId: user.id })
-    }
-  }, [patientMode, user?.id, user?.role])
+    if (!showRequest) return
+    setRequestForm(current => {
+      if (clinicians.some(person => person.id === current.clinicianId)) return current
+      const own = !patientMode && clinicians.find(person => person.id === user?.id)
+      const selected = own || (clinicians.length === 1 ? clinicians[0] : null)
+      return current.clinicianId === (selected?.id || '') ? current : { ...current, clinicianId: selected?.id || '' }
+    })
+  }, [showRequest, clinicians, patientMode, user?.id])
 
   const createMutation = useMutation({
     mutationFn: (payload) => api.post('/interactions/teleconsults', payload).then((response) => response.data.data),
@@ -133,7 +139,7 @@ export default function TelehealthPage() {
     event.preventDefault()
     setRequestError('')
     if (!requestForm.clinicianId) {
-      setRequestError('Please choose a doctor or midwife for this consultation.')
+      setRequestError('Please choose an available care provider or clinic coordinator.')
       return
     }
     if (!requestForm.reason.trim()) {
@@ -167,7 +173,8 @@ export default function TelehealthPage() {
   const detail = detailQuery.data
   const session = detail?.teleconsult_session
   const activeStatus = session?.status || selectedThread?.teleconsult_status || 'requested'
-  const clinician = clinicians.find((person) => person.id === session?.clinician_id)
+  const clinician = (directory.staff || []).find((person) => person.id === session?.clinician_id)
+    || detail?.participants?.find(person => person.id === session?.clinician_id)
   const patient = (directory.patients || []).find((person) => person.id === detail?.patient_id)
   const messagePath = patientMode ? '/my/messages' : '/messages'
 
@@ -260,7 +267,8 @@ export default function TelehealthPage() {
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Care provider</p>
                   <p className="mt-2 font-semibold text-slate-900 dark:text-slate-100">{clinician ? staffName(clinician) : 'To be confirmed'}</p>
-                  <p className="mt-1 text-sm text-slate-500">{clinician ? roleLabel(clinician.role) : 'The clinic will assign a provider.'}</p>
+                  <p className="mt-1 text-sm text-slate-500">{clinician ? telehealthProviderLabel(clinician) : 'The clinic will assign a provider.'}</p>
+                  {clinician?.role === 'admin' ? <p className="mt-2 text-xs text-slate-500">Clinic assistance and coordination. Medical assessment is provided by a licensed care professional.</p> : null}
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{activeStatus === 'requested' ? 'Preferred schedule' : 'Confirmed schedule'}</p>
@@ -316,11 +324,13 @@ export default function TelehealthPage() {
               </div>
             ) : null}
             <div>
-              <label htmlFor="telehealth-request-clinician" className="label">Doctor or midwife</label>
-              <select id="telehealth-request-clinician" value={requestForm.clinicianId} onChange={(event) => setRequestForm((current) => ({ ...current, clinicianId: event.target.value }))} className="input">
+              <label htmlFor="telehealth-request-clinician" className="label">Provider or clinic coordinator</label>
+              <select id="telehealth-request-clinician" value={requestForm.clinicianId} onChange={(event) => setRequestForm((current) => ({ ...current, clinicianId: event.target.value }))} className="input" disabled={directoryQuery.isPending || directoryQuery.isError} required>
                 <option value="">Choose provider</option>
-                {clinicians.map((person) => <option key={person.id} value={person.id}>{staffName(person)} · {roleLabel(person.role)}</option>)}
+                {clinicians.map((person) => <option key={person.id} value={person.id}>{staffName(person)} · {telehealthProviderLabel(person)}</option>)}
               </select>
+              {clinicians.some(person => person.role === 'admin') ? <p className="mt-2 text-xs leading-5 text-slate-500">No verified clinical provider is available yet. The clinic administrator can assist with requests, scheduling, and video coordination. Medical assessment requires a licensed care professional.</p> : null}
+              {directoryQuery.isError ? <p role="alert" className="mt-2 text-sm text-rose-700">Providers could not be loaded. <button type="button" onClick={() => directoryQuery.refetch()} className="underline">Try again</button></p> : !directoryQuery.isPending && !clinicians.length ? <p role="status" className="mt-2 text-sm text-slate-500">No provider or coordinator is available. Please contact the clinic.</p> : null}
             </div>
             <div>
               <label htmlFor="telehealth-request-title" className="label">Consultation title</label>
@@ -348,10 +358,10 @@ export default function TelehealthPage() {
               <label htmlFor="telehealth-request-reason" className="label">Reason for consultation</label>
               <textarea id="telehealth-request-reason" value={requestForm.reason} onChange={(event) => setRequestForm((current) => ({ ...current, reason: event.target.value }))} className="input min-h-[8rem] resize-y" placeholder="Briefly describe the concern, symptoms, or follow-up needed." />
             </div>
-            {requestError ? <div className="alert-critical"><span>{requestError}</span></div> : null}
+            {requestError ? <div role="alert" className="alert-critical"><span>{requestError}{!patientMode && ['STEP_UP_REQUIRED', 'STEP_UP_PURPOSE_MISMATCH', 'STAFF_CREDENTIAL_REQUIRED'].includes(createMutation.error?.response?.data?.code) ? <Link to="/settings" className="mt-2 block font-semibold underline">Verify your access in Account settings</Link> : null}</span></div> : null}
             <div className="flex justify-end gap-3">
               <button type="button" onClick={() => { setShowRequest(false); setRequestError('') }} className="btn-secondary">Cancel</button>
-              <button type="submit" disabled={createMutation.isPending} className="btn-primary">{createMutation.isPending ? 'Submitting...' : 'Submit request'}</button>
+              <button type="submit" disabled={createMutation.isPending || directoryQuery.isPending || directoryQuery.isError || !clinicians.length} className="btn-primary">{createMutation.isPending ? 'Submitting...' : 'Submit request'}</button>
             </div>
           </form>
         </Modal>
