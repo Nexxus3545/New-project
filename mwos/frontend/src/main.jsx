@@ -6,6 +6,9 @@ import './index.css'
 import { useThemeStore } from './store/themeStore'
 import { useAuthStore } from './store/authStore'
 import { bindSessionCache } from './utils/sessionCache'
+import { initializeInstallApp } from './utils/installApp'
+
+initializeInstallApp()
 
 const queryClient = new QueryClient({
   defaultOptions: {

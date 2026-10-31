@@ -1,0 +1,21 @@
+{
+  "id": "/",
+  "name": "TMC Copino MWOS",
+  "short_name": "MWOS",
+  "description": "Appointments, records, messages, and telehealth with TMC Copino. Internet and sign-in required.",
+  "lang": "en",
+  "start_url": "/portal?source=installed",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fff7fa",
+  "theme_color": "#73364d",
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/icons/mwos-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/mwos-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Open MWOS", "url": "/portal" },
+    { "name": "Appointments", "url": "/portal?intent=appointment" }
+  ]
+}

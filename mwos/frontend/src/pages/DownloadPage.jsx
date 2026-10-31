@@ -6,18 +6,15 @@ import BrandMark from '../components/common/BrandMark'
 import PlatformLogo from '../components/common/PlatformLogo'
 import '../styles/download.css'
 import { useAuthStore } from '../store/authStore'
-
-const downloadCards = [
-  { title: 'Desktop app', platform: 'windows', subtitle: 'Windows portable app', description: 'Read the Windows setup guide. A reviewed release file is not published here yet.', href: '/downloads/mwos-windows-guide.txt' },
-  { title: 'Desktop app', platform: 'macos', subtitle: 'macOS app', description: 'A signed and notarized macOS release is not published yet.', href: '/downloads/mwos-macos-guide.txt' },
-  { title: 'Mobile app', platform: 'android', subtitle: 'Android app', description: 'Internal preview testing is ongoing. A public-release APK is not published here yet.', href: '/downloads/mwos-android-guide.txt' },
-  { title: 'Mobile app', platform: 'ios', subtitle: 'iOS app', description: 'An Apple-signed iOS release is not published yet.', href: '/downloads/mwos-ios-guide.txt' },
-]
+import PlatformSetup, { platformOptions } from '../components/common/PlatformSetup'
+import { getDevicePlatform } from '../utils/installApp'
 
 export default function DownloadPage() {
-  const { hash } = useLocation()
+  const { hash, key } = useLocation()
+  const selectedPlatform = platformOptions.find(card => `#${card.id}` === hash)?.id
+  const platform = selectedPlatform || getDevicePlatform() || 'windows'
   useEffect(() => {
-    if (hash) document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'center' })
+    if (hash === '#review') document.getElementById('review')?.scrollIntoView({ block: 'center' })
   }, [hash])
   const [form, setForm] = useState({ displayName: '', roleLabel: 'Guest', rating: 5, comment: '' })
   const [notice, setNotice] = useState('')
@@ -59,19 +56,20 @@ export default function DownloadPage() {
           </div>
         </section>
         <section id="platforms" className="download-platform-section" aria-labelledby="platform-title">
-          <div className="download-section-heading"><div><p className="download-eyebrow">FIND YOUR PLATFORM</p><h2 id="platform-title">A familiar home, on every screen.</h2></div><p>Explore desktop and mobile options.<br />The web portal is available while native apps are being prepared.</p></div>
-          <div className="download-platform-grid" aria-label="Application downloads">
-            {downloadCards.map((card, index) => (
-              <article key={card.platform} id={card.platform} className="download-platform-card">
-                <div className="download-card-top"><span className={'download-logo download-logo-' + card.platform}><PlatformLogo platform={card.platform} /></span><span className="download-card-number">0{index + 1}</span></div>
-                <p className="download-eyebrow">{card.title}</p>
-                <h3>{({ windows: 'Windows', macos: 'macOS', android: 'Android', ios: 'iOS' })[card.platform]}</h3>
+          <div className="download-section-heading"><div><p className="download-eyebrow">FIND YOUR PLATFORM</p><h2 id="platform-title">A familiar home, on every screen.</h2></div><p>Install the MWOS web app on your device,<br />or open the full system in your browser.</p></div>
+          <div className="download-platform-grid" aria-label="MWOS device options">
+            {platformOptions.map((card, index) => (
+              <article key={card.id} id={card.id} className="download-platform-card" data-selected={platform === card.id}>
+                <div className="download-card-top"><span className={'download-logo download-logo-' + card.id}><PlatformLogo platform={card.id} /></span><span className="download-card-number">0{index + 1}</span></div>
+                <p className="download-eyebrow">{card.type}</p>
+                <h3>{card.name}</h3>
                 <p className="download-card-description">{card.description}</p>
-                <div className="download-card-bottom"><span className="download-release"><i /> App coming soon</span><a href={card.href}>View setup guide <span aria-hidden="true">↗</span></a></div>
+                <div className="download-card-bottom"><span className="download-release"><i /> Available as a web app</span><Link to={`#${card.id}`} aria-label={`Set up MWOS on ${card.name}`}>Set up on {card.name} <span aria-hidden="true">→</span></Link><Link to="/portal" aria-label={`Open MWOS for ${card.name}`}>Open MWOS <span aria-hidden="true">↗</span></Link></div>
               </article>
             ))}
           </div>
-          <div className="download-note"><span aria-hidden="true">ⓘ</span><p><strong>Ready to get started?</strong> Use the web portal today. Native app installers will appear here once released.</p><Link to="/portal">Open portal →</Link></div>
+          <PlatformSetup platform={platform} focusOnChange={selectedPlatform ? key : ''} />
+          <div className="download-note"><span aria-hidden="true">ⓘ</span><p><strong>One account, the same care.</strong> Sign in to your patient or staff workspace from any supported device. Internet is required; native APK, EXE, and App Store releases are not published here.</p><Link to="/portal">Open portal →</Link></div>
         </section>
         <div className="download-feedback-heading"><p className="download-eyebrow">BETTER CARE, TOGETHER</p><h2>Your experience matters.</h2><p>Read community feedback or share a thought about MWOS.</p></div>
         <div className="download-feedback-grid">

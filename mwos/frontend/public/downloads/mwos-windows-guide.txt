@@ -1,10 +1,11 @@
-MWOS Windows Access Guide
+MWOS Windows Web App
 
-Use the web portal
-1. Open https://tmc-copino-mwos.vercel.app/portal in your browser.
-2. Sign in with your clinic account or create a patient account.
-3. No installation is needed for the web portal.
+Setup: https://tmc-copino-mwos.vercel.app/download#windows
+Open portal: https://tmc-copino-mwos.vercel.app/portal
 
-Native app availability
-A reviewed Windows installer is not included in this download center.
-This guide is not an app installer. Native releases require a platform build and testing; Apple platforms also require Apple signing for distribution.
+1. Open the setup page in Microsoft Edge or Google Chrome on Windows.
+2. Choose Install MWOS when available, or use the browser menu to install the page as an app.
+3. Open MWOS from the Start menu or desktop and sign in.
+
+Use your existing patient or clinic staff account. Internet is required for appointments, records, messages, and telehealth.
+This installs the MWOS web app. Native APK, EXE, and App Store releases are not published here. If installation is not offered, open the portal directly in your browser.
