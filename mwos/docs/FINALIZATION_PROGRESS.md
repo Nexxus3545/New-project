@@ -24,7 +24,7 @@ User request: finalize the whole system and implement visible controls and missi
 - [x] Audit remaining visible controls, error/loading states, and client compatibility.
 - [x] Run meaningful API/database and browser workflow checks, builds, and security regression tests.
 - [x] Update the user guide (32 sections, Word and PDF).
-- [ ] Publish and verify the online release.
+- [x] Publish and verify the online release.
 
 ## Initial confirmed defects
 
@@ -40,7 +40,7 @@ User request: finalize the whole system and implement visible controls and missi
 
 ## Verification evidence
 
-- Backend regression: 176 passed, 8 environment-dependent tests skipped, 0 failures.
+- Backend regression: 178 passed, 8 environment-dependent tests skipped, 0 failures.
 - Frontend regression: 104 passed, 0 failures; production build passed.
 - Real local PostgreSQL/API: 80 checks passed in a newly created, isolated synthetic database.
 - Additional checks: verified-clinician signature, rollback on signing failure, patient balances, pending labs, ultrasound notes, PostgreSQL backup and restore into a separate empty test database.
@@ -56,3 +56,14 @@ PhilHealth claims transmission, official identity-registry verification, payment
 
 Prepared against production source commit `7731e1c4b668efa7972351610d2c004071d68654`. Deployment evidence is recorded separately after publication.
 
+
+Production published 1 November 2026. Release commit: `9ba8697b0913473b1b48de62ded52db625e5ee5d`.
+
+- Frontend deployment: `dpl_4twnBLXootxzHGAbEEtVYfzoGR5h` — READY.
+- Backend deployment: `dpl_C5xyBegFpktHjSbpxddGSFeGfof7` — READY.
+- Build logs confirmed additive migration and synthetic credential scanner check passed.
+- Canonical API health returned HTTP 200 and `database: connected`. Anonymous new-record endpoints returned HTTP 401.
+- Actual production browser verified the new release bundle, login, Windows/Android/macOS/iOS setup, and unauthenticated Billing redirect. No page errors.
+- Clinical writes and payments were verified only in the isolated local test database. No real patient mutation was used for production verification.
+
+Live log review found a Vercel forwarding-header configuration issue. The follow-up fix trusts exactly one Vercel proxy hop so visitor rate limits remain separate, keeps direct-server proxy trust disabled, and returns HTTP 403 for disallowed origins.

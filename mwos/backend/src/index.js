@@ -16,6 +16,11 @@ const { requestContext } = require('./middleware/requestContext');
 const { migrate } = require('./utils/migrate');
 
 const app = express();
+// Vercel overwrites X-Forwarded-For with the client IP. Trust only its one
+// forwarding hop so rate limits distinguish visitors; direct local servers
+// keep Express's default and do not trust user-supplied forwarding headers.
+// https://vercel.com/docs/headers/request-headers#x-forwarded-for
+if (process.env.VERCEL === '1') app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 
 const configuredOrigins = (process.env.FRONTEND_URL || '')
@@ -54,7 +59,7 @@ app.use(
     origin: (origin, callback) => {
       // Non-browser calls such as health checks do not send an Origin header.
       if (!origin || isAllowedOrigin(origin)) return callback(null, true);
-      return callback(new Error('This site is not allowed to call the MWOS API.'));
+      return callback(Object.assign(new Error('This site is not allowed to call the MWOS API.'), { statusCode: 403 }));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
