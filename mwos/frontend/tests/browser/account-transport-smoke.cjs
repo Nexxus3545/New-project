@@ -195,7 +195,7 @@ async function main() {
       await staff.page.locator('aside').screenshot({ path: path.join(output, 'navigation-icons-' + role + '.png') });
       await staff.page.goto(origin + '/billing');
       if (billingAllowed) {
-        await staff.page.getByRole('heading', { name: 'Billing', exact: true }).waitFor();
+        await staff.page.getByRole('heading', { name: 'Billing & PhilHealth', exact: true }).waitFor();
         assert.ok(staff.requests.includes('GET /billing'));
       } else {
         await staff.page.waitForURL(origin + '/');

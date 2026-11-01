@@ -1,3 +1,4 @@
+import { ReferralRecords } from '../../components/common/CoordinationWorkflows'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -396,6 +397,7 @@ export default function PatientEmergencyPage() {
           </form>
         </div>
       </div>
+      <ReferralRecords/>
     </div>
   )
 }

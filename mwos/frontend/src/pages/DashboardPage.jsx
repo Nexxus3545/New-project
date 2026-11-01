@@ -1,3 +1,4 @@
+import BackupControls from '../components/common/BackupControls'
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -522,6 +523,7 @@ export default function DashboardPage() {
 
           <div className="rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
             <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-50">Backup & Recovery</h3>
+            <BackupControls/>
             {backupStatus ? (
               <div className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300">
                 <p>Latest backup status: <span className="font-semibold capitalize text-slate-900 dark:text-slate-50">{backupStatus.status}</span></p>

@@ -40,6 +40,7 @@ export default function PatientPharmacyPage() {
 
   return (
     <div className="space-y-6">
+      <Link to="/my/pharmacy/success" className="btn-secondary">Track pickup requests</Link>
       <div className="page-header">
         <div>
           <h1 className="page-title">Pharmacy</h1>

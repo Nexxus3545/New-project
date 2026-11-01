@@ -329,6 +329,7 @@ const register = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'dateOfBirth is required for patient registration' });
     }
 
+    if (![email,firstName,lastName].every(value => typeof value === 'string') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || email.length > 255 || !firstName.trim() || !lastName.trim() || firstName.length > 100 || lastName.length > 100 || (phone != null && (typeof phone !== 'string' || phone.length > 30)) || (city != null && typeof city !== 'string')) return res.status(400).json({success:false,message:'Enter a valid name, email address, and contact details.'});
     const normalizedEmail = email.toLowerCase().trim();
     const normalizedFirstName = firstName.trim();
     const normalizedLastName = lastName.trim();

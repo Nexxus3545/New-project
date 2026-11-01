@@ -1,3 +1,4 @@
+import { PickupRequests } from '../components/common/CoordinationWorkflows'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
@@ -159,6 +160,7 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6">
+      <PickupRequests />
       <div className="page-header">
         <div>
           <h1 className="page-title">Medicine Management</h1>

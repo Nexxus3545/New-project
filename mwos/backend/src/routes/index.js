@@ -32,6 +32,12 @@ const emergencyLocationCtrl = require('../controllers/emergencyLocation.controll
 const securityCtrl = require('../controllers/security.controller');
 const { uploadVideo, uploadDocument, uploadMedicineImage } = require('../middleware/uploads');
 const { signClinicalRecord } = require('../utils/security');
+const clinical = require('../controllers/clinicalWorkflow.controller');
+const billingWorkflow = require('../controllers/billingWorkflow.controller');
+const coordination = require('../controllers/coordinationWorkflow.controller');
+const workflowValidation = require('../utils/workflowValidation');
+const educationWorkflow = require('../controllers/educationWorkflow.controller');
+const { ownLinkedRecord, ownPatientQuery } = require('../middleware/recordScope');
 const oauthCtrl = require('../controllers/oauth.controller');
 const { passport } = require('../config/oauth');
 
@@ -147,43 +153,27 @@ router.get('/patients', authenticate, authorize('admin','doctor','midwife','nurs
 router.post('/patients', authenticate, authorizePermission('patients:write'), patientCtrl.create);
 router.get('/patients/me', authenticate, authorize('patient'), patientCtrl.getMe);
 router.patch('/patients/me', authenticate, authorize('patient'), patientCtrl.updateMe);
-router.get('/patients/:id', authenticate, patientCtrl.getOne);
+router.get('/patients/:id', authenticate, requireOwnPatient, patientCtrl.getOne);
 router.patch('/patients/:id', authenticate, authorizePermission('patients:write'), patientCtrl.update);
-router.get('/patients/:id/summary', authenticate, patientCtrl.getSummary);
+router.get('/patients/:id/summary', authenticate, requireOwnPatient, patientCtrl.getSummary);
 
 // ── PREGNANCIES ───────────────────────────────────────────────
 const { query } = require('../config/database');
 
-router.get('/pregnancies', authenticate, async (req, res, next) => {
-  try {
-    const { patientId, status } = req.query;
-    const conditions = [];
-    const params = [];
-    let idx = 1;
-    if (patientId) { conditions.push(`patient_id = $${idx++}`); params.push(patientId); }
-    if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const result = await query(`SELECT * FROM pregnancies ${where} ORDER BY created_at DESC`, params);
-    res.json({ success: true, data: result.rows });
-  } catch (err) { next(err); }
-});
-
-router.post('/pregnancies', authenticate, authorize('admin','doctor','midwife'), async (req, res, next) => {
-  try {
-    const { patientId, lmp, edd, gravida, para, abortion, livingChildren, riskLevel, riskFactors, notes } = req.body;
-    if (!patientId || !lmp || !edd) {
-      return res.status(400).json({ success: false, message: 'Patient ID, LMP, and EDD are required' });
-    }
-    const result = await query(
-      `INSERT INTO pregnancies (patient_id, lmp, edd, gravida, para, abortion, living_children, risk_level, risk_factors, notes, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [patientId, lmp, edd, gravida||1, para||0, abortion||0, livingChildren||0, riskLevel||'low', riskFactors||[], notes||null, req.user.id]
-    );
-    res.status(201).json({ success: true, message: 'Pregnancy record created', data: result.rows[0] });
-  } catch (err) { next(err); }
-});
+router.get('/pregnancies', authenticate, ownPatientQuery, clinical.listPregnancies);
+router.post('/pregnancies', authenticate, authorize('admin','doctor','midwife'), authorizePermission('patients:write'), clinical.savePregnancy);
+router.patch('/pregnancies/:id', authenticate, authorize('admin','doctor','midwife'), authorizePermission('patients:write'), clinical.savePregnancy);
 
 // ── APPOINTMENTS ──────────────────────────────────────────────
+// Structured pickup and referral coordination; patients remain scoped to their own records.
+router.get('/pharmacy/pickups', coordination.listPickups);
+router.post('/pharmacy/pickups', coordination.createPickup);
+router.patch('/pharmacy/pickups/:id', (req,res,next) => req.user.role === 'patient' ? next() : authorizePermission('pharmacy:write')(req,res,next), coordination.updatePickup);
+router.get('/referrals', coordination.listReferrals);
+router.post('/referrals', authorize('admin','doctor','midwife','nurse'), authorizePermission('communication:write'), coordination.createReferral);
+router.patch('/referrals/:id', authorize('admin','doctor','midwife','nurse'), authorizePermission('communication:write'), coordination.updateReferral);
+router.post('/appointments/:id/remind', authorize('admin','doctor','midwife','nurse'), authorizePermission('appointments:write'), coordination.remindAppointment);
+
 router.get('/appointments', authenticate, apptCtrl.getAll);
 router.get('/appointments/today', authenticate, authorize('admin','doctor','midwife','nurse'), apptCtrl.getToday);
 router.post('/appointments', authenticate, apptCtrl.create);
@@ -191,223 +181,37 @@ router.patch('/appointments/:id', authenticate, apptCtrl.update);
 
 // ── VITALS ────────────────────────────────────────────────────
 router.post('/vitals', authenticate, authorizePermission('clinical:vitals:write'), vitalsCtrl.create);
-router.get('/vitals/patient/:patientId', authenticate, vitalsCtrl.getByPatient);
-router.get('/vitals/trend/:pregnancyId', authenticate, vitalsCtrl.getTrend);
+router.get('/vitals/patient/:patientId', authenticate, requireOwnPatient, vitalsCtrl.getByPatient);
+router.get('/vitals/trend/:pregnancyId', authenticate, ownLinkedRecord('pregnancies','pregnancyId'), vitalsCtrl.getTrend);
 
 // ── DELIVERIES ────────────────────────────────────────────────
+router.patch('/deliveries/:id', authenticate, authorizePermission('clinical:deliveries:write'), deliveryCtrl.update);
 router.post('/deliveries', authenticate, authorizePermission('clinical:deliveries:write'), deliveryCtrl.create);
-router.get('/deliveries/patient/:patientId', authenticate, deliveryCtrl.getByPatient);
+router.get('/deliveries/patient/:patientId', authenticate, requireOwnPatient, deliveryCtrl.getByPatient);
 router.post('/deliveries/:deliveryId/labor-progress', authenticate, authorizePermission('clinical:deliveries:write'), deliveryCtrl.addLaborProgress);
-router.get('/deliveries/:deliveryId/labor-progress', authenticate, deliveryCtrl.getLaborProgress);
+router.get('/deliveries/:deliveryId/labor-progress', authenticate, ownLinkedRecord('deliveries','deliveryId'), deliveryCtrl.getLaborProgress);
 
-// ── EMR: Labs, Ultrasounds, Prescriptions ─────────────────────
-router.get('/emr/labs/:patientId', authenticate, async (req, res, next) => {
-  try {
-    const result = await query('SELECT * FROM lab_results WHERE patient_id = $1 ORDER BY test_date DESC', [req.params.patientId]);
-    res.json({ success: true, data: result.rows });
-  } catch (err) { next(err); }
-});
+// Clinical chart workflows: patient ownership is enforced on every read.
+router.get('/emr/labs/:patientId', authenticate, requireOwnPatient, clinical.list('labs'));
+router.post('/emr/labs', authenticate, authorizePermission('clinical:labs:write'), clinical.create('labs'));
+router.get('/emr/ultrasounds/:patientId', authenticate, requireOwnPatient, clinical.list('ultrasounds'));
+router.post('/emr/ultrasounds', authenticate, authorizePermission('clinical:ultrasounds:write'), clinical.create('ultrasounds'));
+router.get('/emr/prescriptions/:patientId', authenticate, requireOwnPatient, clinical.list('prescriptions'));
+router.post('/emr/prescriptions', authenticate, authorizePermission('clinical:prescriptions:write'), clinical.create('prescriptions'));
+router.get('/postpartum/:patientId', authenticate, requireOwnPatient, clinical.list('postpartum'));
+router.post('/postpartum', authenticate, authorizePermission('clinical:postpartum:write'), clinical.create('postpartum'));
+router.get('/immunizations/:patientId', authenticate, requireOwnPatient, clinical.list('immunizations'));
+router.post('/immunizations', authenticate, authorizePermission('clinical:immunizations:write'), clinical.create('immunizations'));
+router.get('/newborns/:patientId', authenticate, requireOwnPatient, clinical.list('newborns'));
+router.post('/newborns', authenticate, authorizePermission('clinical:deliveries:write'), clinical.create('newborns'));
+router.get('/pediatric/:patientId', authenticate, requireOwnPatient, clinical.list('pediatric'));
+router.post('/pediatric', authenticate, authorizePermission('clinical:vitals:write'), clinical.create('pediatric'));
 
-router.post('/emr/labs', authenticate, authorizePermission('clinical:labs:write'), async (req, res, next) => {
-  try {
-    const { patientId, pregnancyId, testName, testDate, resultValue, unit, referenceRange, status, notes } = req.body;
-    if (!patientId || !testName || !testDate) {
-      return res.status(400).json({ success: false, message: 'Patient ID, test name, and test date are required' });
-    }
-    const result = await query(
-      `INSERT INTO lab_results (patient_id, pregnancy_id, test_name, test_date, result_value, unit, reference_range, status, notes, uploaded_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-      [patientId, pregnancyId||null, testName, testDate, resultValue||null, unit||null, referenceRange||null, status||'normal', notes||null, req.user.id]
-    );
-    await signClinicalRecord({
-      staffId: req.user.id,
-      entityType: 'lab_results',
-      entityId: result.rows[0].id,
-      actionType: 'create',
-      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
-      requestId: req.requestId || null,
-    });
-    res.status(201).json({ success: true, data: result.rows[0] });
-  } catch (err) { next(err); }
-});
-
-router.get('/emr/ultrasounds/:patientId', authenticate, async (req, res, next) => {
-  try {
-    const result = await query('SELECT * FROM ultrasounds WHERE patient_id = $1 ORDER BY scan_date DESC', [req.params.patientId]);
-    res.json({ success: true, data: result.rows });
-  } catch (err) { next(err); }
-});
-
-router.post('/emr/ultrasounds', authenticate, authorizePermission('clinical:ultrasounds:write'), async (req, res, next) => {
-  try {
-    const { patientId, pregnancyId, scanDate, gestationalAgeWeeks, findings, placentaLocation, amnioticFluid } = req.body;
-    if (!patientId || !scanDate) {
-      return res.status(400).json({ success: false, message: 'Patient ID and scan date are required' });
-    }
-    const result = await query(
-      `INSERT INTO ultrasounds (patient_id, pregnancy_id, scan_date, gestational_age_weeks, findings, placenta_location, amniotic_fluid, performed_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [patientId, pregnancyId||null, scanDate, gestationalAgeWeeks||null, findings||null, placentaLocation||null, amnioticFluid||null, req.user.id]
-    );
-    await signClinicalRecord({
-      staffId: req.user.id,
-      entityType: 'ultrasounds',
-      entityId: result.rows[0].id,
-      actionType: 'create',
-      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
-      requestId: req.requestId || null,
-    });
-    res.status(201).json({ success: true, data: result.rows[0] });
-  } catch (err) { next(err); }
-});
-
-router.get('/emr/prescriptions/:patientId', authenticate, async (req, res, next) => {
-  try {
-    const result = await query(
-      `SELECT pr.*, u.first_name || ' ' || u.last_name as prescribed_by_name
-       FROM prescriptions pr LEFT JOIN users u ON u.id = pr.prescribed_by
-       WHERE pr.patient_id = $1 ORDER BY pr.prescribed_date DESC`,
-      [req.params.patientId]
-    );
-    res.json({ success: true, data: result.rows });
-  } catch (err) { next(err); }
-});
-
-router.post('/emr/prescriptions', authenticate, authorizePermission('clinical:prescriptions:write'), async (req, res, next) => {
-  try {
-    const { patientId, pregnancyId, medicationName, dosage, frequency, route, duration, instructions } = req.body;
-    if (!patientId || !medicationName) {
-      return res.status(400).json({ success: false, message: 'Patient ID and medication name are required' });
-    }
-    const result = await query(
-      `INSERT INTO prescriptions (patient_id, pregnancy_id, medication_name, dosage, frequency, route, duration, instructions, prescribed_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [patientId, pregnancyId||null, medicationName, dosage||null, frequency||null, route||null, duration||null, instructions||null, req.user.id]
-    );
-    await signClinicalRecord({
-      staffId: req.user.id,
-      entityType: 'prescriptions',
-      entityId: result.rows[0].id,
-      actionType: 'create',
-      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
-      requestId: req.requestId || null,
-    });
-    res.status(201).json({ success: true, data: result.rows[0] });
-  } catch (err) { next(err); }
-});
-
-// ── POSTPARTUM ────────────────────────────────────────────────
-router.get('/postpartum/:patientId', authenticate, async (req, res, next) => {
-  try {
-    const result = await query('SELECT * FROM postpartum_records WHERE patient_id = $1 ORDER BY visit_date DESC', [req.params.patientId]);
-    res.json({ success: true, data: result.rows });
-  } catch (err) { next(err); }
-});
-
-router.post('/postpartum', authenticate, authorizePermission('clinical:postpartum:write'), async (req, res, next) => {
-  try {
-    const { patientId, deliveryId, visitDate, daysPostpartum, bpSystolic, bpDiastolic, temperature, woundStatus, lochia, breastfeedingStatus, emotionalStatus, notes } = req.body;
-    if (!patientId || !deliveryId || !visitDate) {
-      return res.status(400).json({ success: false, message: 'Patient ID, delivery ID, and visit date are required' });
-    }
-    const result = await query(
-      `INSERT INTO postpartum_records (patient_id, delivery_id, visit_date, days_postpartum, bp_systolic, bp_diastolic, temperature, wound_status, lochia, breastfeeding_status, emotional_status, notes, recorded_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-      [patientId, deliveryId, visitDate, daysPostpartum||null, bpSystolic||null, bpDiastolic||null, temperature||null, woundStatus||null, lochia||null, breastfeedingStatus||null, emotionalStatus||null, notes||null, req.user.id]
-    );
-    await signClinicalRecord({
-      staffId: req.user.id,
-      entityType: 'postpartum_records',
-      entityId: result.rows[0].id,
-      actionType: 'create',
-      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
-      requestId: req.requestId || null,
-    });
-    res.status(201).json({ success: true, data: result.rows[0] });
-  } catch (err) { next(err); }
-});
-
-// ── IMMUNIZATIONS ─────────────────────────────────────────────
-router.get('/immunizations/:patientId', authenticate, async (req, res, next) => {
-  try {
-    const result = await query('SELECT * FROM immunizations WHERE patient_id = $1 ORDER BY date_given DESC', [req.params.patientId]);
-    res.json({ success: true, data: result.rows });
-  } catch (err) { next(err); }
-});
-
-router.post('/immunizations', authenticate, authorizePermission('clinical:immunizations:write'), async (req, res, next) => {
-  try {
-    const { patientId, deliveryId, vaccineName, doseNumber, dateGiven, dueDate, notes } = req.body;
-    if (!patientId || !vaccineName || !dateGiven) {
-      return res.status(400).json({ success: false, message: 'Patient ID, vaccine name, and date given are required' });
-    }
-    const result = await query(
-      `INSERT INTO immunizations (patient_id, delivery_id, vaccine_name, dose_number, date_given, due_date, notes, given_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [patientId, deliveryId||null, vaccineName, doseNumber||1, dateGiven, dueDate||null, notes||null, req.user.id]
-    );
-    await signClinicalRecord({
-      staffId: req.user.id,
-      entityType: 'immunizations',
-      entityId: result.rows[0].id,
-      actionType: 'create',
-      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
-      requestId: req.requestId || null,
-    });
-    res.status(201).json({ success: true, data: result.rows[0] });
-  } catch (err) { next(err); }
-});
-
-// ── BILLING ───────────────────────────────────────────────────
-router.get('/billing', authenticate, authorize('admin','doctor'), async (req, res, next) => {
-  try {
-    const { patientId, status } = req.query;
-    const conditions = [];
-    const params = [];
-    let idx = 1;
-    if (patientId) { conditions.push(`b.patient_id = $${idx++}`); params.push(patientId); }
-    if (status) { conditions.push(`b.payment_status = $${idx++}`); params.push(status); }
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const result = await query(
-      `SELECT b.*, p.first_name || ' ' || p.last_name as patient_name
-       FROM billing b LEFT JOIN patients p ON p.id = b.patient_id
-       ${where} ORDER BY b.created_at DESC`,
-      params
-    );
-    res.json({ success: true, data: result.rows });
-  } catch (err) { next(err); }
-});
-
-router.post('/billing', authenticate, authorizePermission('finance:billing:write'), async (req, res, next) => {
-  try {
-    const { patientId, deliveryId, serviceType, amount, discount, paymentMethod, philhealthClaimNo, philhealthAmount, notes } = req.body;
-    if (!patientId || !amount) {
-      return res.status(400).json({ success: false, message: 'Patient ID and amount are required' });
-    }
-    const disc = parseFloat(discount || 0);
-    const total = parseFloat(amount) - disc;
-    const result = await query(
-      `INSERT INTO billing (patient_id, delivery_id, service_type, amount, discount, total_amount, payment_method, philhealth_claim_no, philhealth_amount, notes, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [patientId, deliveryId||null, serviceType||null, amount, disc, total, paymentMethod||null, philhealthClaimNo||null, philhealthAmount||0, notes||null, req.user.id]
-    );
-    res.status(201).json({ success: true, data: result.rows[0] });
-  } catch (err) { next(err); }
-});
-
-router.patch('/billing/:id/pay', authenticate, authorizePermission('finance:billing:write'), async (req, res, next) => {
-  try {
-    const { paymentMethod, amount } = req.body;
-    const bill = await query('SELECT * FROM billing WHERE id = $1', [req.params.id]);
-    if (bill.rows.length === 0) return res.status(404).json({ success: false, message: 'Bill not found' });
-    const newStatus = parseFloat(amount) >= parseFloat(bill.rows[0].total_amount) ? 'paid' : 'partial';
-    const result = await query(
-      `UPDATE billing SET payment_status = $1, payment_method = $2, updated_at = NOW() WHERE id = $3 RETURNING *`,
-      [newStatus, paymentMethod, req.params.id]
-    );
-    res.json({ success: true, data: result.rows[0] });
-  } catch (err) { next(err); }
-});
+router.get('/billing', authenticate, authorize('admin','doctor'), billingWorkflow.list);
+router.get('/billing/:id', authenticate, authorize('admin','doctor'), billingWorkflow.detail);
+router.post('/billing', authenticate, authorizePermission('finance:billing:write'), billingWorkflow.create);
+router.patch('/billing/:id/pay', authenticate, authorizePermission('finance:billing:write'), billingWorkflow.pay);
+router.patch('/billing/:id/reconcile', authenticate, authorizePermission('finance:billing:write'), billingWorkflow.reconcile);
 
 // ── INVENTORY ─────────────────────────────────────────────────
 router.get('/inventory', authenticate, async (req, res, next) => {
@@ -444,36 +248,14 @@ router.patch('/inventory/:id/adjust', authenticate, authorizePermission('operati
 });
 
 // ── EDUCATION ─────────────────────────────────────────────────
-router.get('/education', authenticate, async (req, res, next) => {
-  try {
-    const { category, trimester } = req.query;
-    const conditions = ["is_published = true"];
-    const params = [];
-    let idx = 1;
-    if (category) { conditions.push(`category = $${idx++}`); params.push(category); }
-    if (trimester) { conditions.push(`(trimester_target = $${idx++} OR trimester_target = 'all')`); params.push(trimester); }
-    const result = await query(`SELECT * FROM education_content WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC`, params);
-    res.json({ success: true, data: result.rows });
-  } catch (err) { next(err); }
-});
-
-router.post('/education', authenticate, authorizePermission('content:education:write'), async (req, res, next) => {
-  try {
-    const { title, category, trimesterTarget, content, mediaUrl } = req.body;
-    if (!title || !content) return res.status(400).json({ success: false, message: 'Title and content are required' });
-    const result = await query(
-      `INSERT INTO education_content (title, category, trimester_target, content, media_url, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [title, category||null, trimesterTarget||'all', content, mediaUrl||null, req.user.id]
-    );
-    res.status(201).json({ success: true, data: result.rows[0] });
-  } catch (err) { next(err); }
-});
+router.get('/education', authenticate, educationWorkflow.list);
+router.post('/education', authenticate, authorizePermission('content:education:write'), educationWorkflow.save);
+router.patch('/education/:id', authenticate, authorizePermission('content:education:write'), educationWorkflow.save);
 
 // ── REPORTS ───────────────────────────────────────────────────
 router.get('/reports/dashboard', authenticate, authorize('admin','doctor','midwife','nurse'), reportCtrl.getDashboard);
 router.get('/reports/patient-dashboard', authenticate, authorize('patient'), reportCtrl.getPatientDashboard);
-router.get('/reports/births/monthly', authenticate, authorize('admin','doctor'), reportCtrl.getBirthsMonthly);
+router.get('/reports/births/monthly', authenticate, authorize('admin','doctor','midwife','nurse'), reportCtrl.getBirthsMonthly);
 router.get('/reports/audit-logs', authenticate, authorize('admin'), reportCtrl.getAuditLogs);
 
 // ── USERS (admin) ─────────────────────────────────────────────
@@ -575,6 +357,8 @@ router.get('/users', authenticate, authorize('admin'), async (req, res, next) =>
 
 router.patch('/users/:id/toggle', authenticate, authorize('admin'), requireStepUp('critical'), async (req, res, next) => {
   try {
+    workflowValidation.uuid(req.params.id);
+    if (req.params.id === req.user.id) return res.status(409).json({success:false,message:'You cannot deactivate your own administrator account.'});
     const result = await query(
       `UPDATE users SET is_active = NOT is_active, refresh_token = NULL, sessions_revoked_at = NOW(), updated_at = NOW()
        WHERE id = $1 AND NOT EXISTS (
@@ -622,6 +406,8 @@ router.post('/interactions/tasks', authenticate, interactionCtrl.createTask);
 router.patch('/interactions/tasks/:id', authenticate, interactionCtrl.updateTask);
 
 // ── OPERATIONS (backup & restore) ─────────────────────────────────────────────
+router.get('/admin/backup-status', authenticate, authorize('admin'), operationsCtrl.getBackupStatus);
+router.post('/admin/clinic-export', authenticate, authorize('admin'), requireStepUp('backup-restore'), operationsCtrl.exportClinicData);
 router.post('/admin/backup', authenticate, authorize('admin'), requireStepUp('backup-restore'), operationsCtrl.createBackup);
 router.post('/admin/restore', authenticate, authorize('admin'), requireStepUp('backup-restore'), operationsCtrl.restoreBackup);
 router.get('/admin/backup-logs', authenticate, authorize('admin'), operationsCtrl.getBackupLogs);

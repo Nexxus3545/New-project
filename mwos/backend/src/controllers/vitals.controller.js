@@ -1,5 +1,6 @@
 const { query } = require('../config/database');
-const { signClinicalRecord } = require('../utils/security');
+const { clinicalTransaction, linkedPatient } = require('../utils/clinicalWorkflow');
+const v = require('../utils/workflowValidation');
 
 const categorizeBP = (systolic, diastolic) => {
   if (!systolic || !diastolic) return 'unknown';
@@ -23,6 +24,8 @@ const create = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Patient ID and visit date are required' });
     }
 
+    v.uuid(patientId, 'Patient'); v.date(visitDate, 'Visit date');
+    for (const [key,value,max] of [['weight',weightKg,500],['height',heightCm,250],['systolic',bpSystolic,350],['diastolic',bpDiastolic,250],['pulse',pulseRate,300],['temperature',temperature,50],['FHR',fetalHeartRate,300]]) v.number(value,key,0,max);
     const bpCategory = categorizeBP(bpSystolic, bpDiastolic);
     let bmi = null;
     if (weightKg && heightCm) {
@@ -30,7 +33,9 @@ const create = async (req, res, next) => {
       bmi = (weightKg / (heightM * heightM)).toFixed(2);
     }
 
-    const result = await query(
+    const vitals = await clinicalTransaction(req, 'vitals', async client => {
+    await linkedPatient(client, patientId, { pregnancies: pregnancyId, appointments: appointmentId });
+    const result = await client.query(
       `INSERT INTO vitals (
         patient_id, pregnancy_id, appointment_id, visit_date,
         gestational_age_weeks, weight_kg, height_cm, bmi,
@@ -50,14 +55,7 @@ const create = async (req, res, next) => {
       ]
     );
 
-    const vitals = result.rows[0];
-    await signClinicalRecord({
-      staffId: req.user.id,
-      entityType: 'vitals',
-      entityId: vitals.id,
-      actionType: 'create',
-      authMethod: req.stepUp?.authMethod || 'SMS_OTP',
-      requestId: req.requestId || null,
+    return result.rows[0];
     });
 
     const alerts = [];

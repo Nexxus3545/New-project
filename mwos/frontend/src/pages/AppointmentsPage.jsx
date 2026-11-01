@@ -1,3 +1,4 @@
+import { WorkflowForm, WorkflowError, required } from '../components/common/WorkflowForm'
 import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
@@ -56,15 +57,36 @@ const formatTimeLabel = (value) => (value ? value.slice(0, 5) : '--')
 
 export default function AppointmentsPage() {
   const qc = useQueryClient()
+  const [reschedule, setReschedule] = useState(null)
+  const [notice, setNotice] = useState('')
+  const remind = useMutation({mutationFn:id=>api.post(`/appointments/${id}/remind`),onSuccess:r=>setNotice(r.data.message)})
   const [showForm, setShowForm] = useState(false)
   const [calendarMonth, setCalendarMonth] = useState(() => new Date())
   const [selectedDateKey, setSelectedDateKey] = useState(TODAY_KEY)
   const [form, setForm] = useState(DEFAULT_FORM)
   const [error, setError] = useState('')
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['appointments'],
-    queryFn: () => api.get('/appointments', { params: { limit: 50 } }).then((r) => r.data.data),
+  const calendarRange = useMemo(() => {
+    const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
+    start.setDate(start.getDate() - start.getDay())
+    const end = new Date(start)
+    end.setDate(end.getDate() + 41)
+    return { from: toDateKey(start), to: toDateKey(end) }
+  }, [calendarMonth])
+  const { data, isLoading, error: listError, refetch } = useQuery({
+    queryKey: ['appointments', calendarRange],
+    queryFn: async () => {
+      const rows = []
+      let page = 1
+      let pages = 1
+      do {
+        const response = await api.get('/appointments', { params: { ...calendarRange, limit: 200, page } })
+        rows.push(...response.data.data)
+        pages = response.data.pagination?.pages || 1
+        page += 1
+      } while (page <= pages)
+      return rows
+    },
   })
 
   const { data: patients } = useQuery({
@@ -76,7 +98,7 @@ export default function AppointmentsPage() {
   const createMut = useMutation({
     mutationFn: (body) => api.post('/appointments', body),
     onSuccess: () => {
-      qc.invalidateQueries(['appointments'])
+      qc.invalidateQueries({queryKey:['appointments']})
       setShowForm(false)
       setForm(DEFAULT_FORM)
       setError('')
@@ -86,7 +108,7 @@ export default function AppointmentsPage() {
 
   const updateMut = useMutation({
     mutationFn: ({ id, ...body }) => api.patch(`/appointments/${id}`, body),
-    onSuccess: () => qc.invalidateQueries(['appointments']),
+    onSuccess: () => { qc.invalidateQueries({queryKey:['appointments']});setReschedule(null) },
   })
 
   const appointments = data || []
@@ -186,6 +208,11 @@ export default function AppointmentsPage() {
 
   return (
     <div className="space-y-6">
+      {listError && <div className="card" role="alert"><WorkflowError error={listError}/><button type="button" className="btn-secondary" onClick={()=>refetch()}>Reload appointments</button></div>}
+      <WorkflowError error={updateMut.error || remind.error} />
+      {notice && <p className="card" role="status">{notice}</p>}
+      {reschedule && <WorkflowForm key={reschedule.id} title="Review appointment schedule" fields={[required(['scheduledDate','Date','date']),required(['scheduledTime','Time (Philippine time)','time']),['notes','Clinic note','textarea']]} initial={{scheduledDate:toDateKey(reschedule.scheduled_date),scheduledTime:reschedule.scheduled_time.slice(0,5),notes:reschedule.notes||''}} onSave={f=>updateMut.mutate({...f,id:reschedule.id})} pending={updateMut.isPending} error={updateMut.error} onCancel={()=>setReschedule(null)}/>}
+
       <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
         <div className="rounded-[32px] border border-white/80 bg-gradient-to-br from-[#fff6fb] via-white to-[#f4efff] p-6 shadow-[0_24px_60px_rgba(214,92,138,0.10)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/70">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -321,7 +348,7 @@ export default function AppointmentsPage() {
               <p className="mt-6 text-sm text-slate-500">No appointments have been scheduled yet.</p>
             ) : (
               <div className="mt-5 space-y-3">
-                {sortedAppointments.slice(0, 8).map((appointment) => (
+                {sortedAppointments.map((appointment) => (
                   <div key={appointment.id} className="rounded-[22px] border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/70">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -334,8 +361,12 @@ export default function AppointmentsPage() {
                       <span className={`badge ${STATUS_TONE[appointment.status] || 'badge-gray'}`}>{appointment.status}</span>
                     </div>
 
-                    {appointment.status === 'scheduled' ? (
+                    {['scheduled','confirmed'].includes(appointment.status) ? (
                       <div className="mt-4 flex flex-wrap gap-2">
+                        {appointment.status === 'scheduled' && <button type="button" className="btn-primary btn-sm" disabled={updateMut.isPending} onClick={()=>updateMut.mutate({id:appointment.id,status:'confirmed'})}>Accept appointment</button>}
+                        <button type="button" className="btn-secondary btn-sm" onClick={()=>{updateMut.reset();setReschedule(appointment)}}>Reschedule</button>
+                        {appointment.status === 'confirmed' && <button type="button" className="btn-secondary btn-sm" disabled={remind.isPending} onClick={()=>remind.mutate(appointment.id)}>Add portal reminder</button>}
+                        <button type="button" className="btn-secondary btn-sm" disabled={updateMut.isPending} onClick={()=>updateMut.mutate({id:appointment.id,status:'no_show'})}>Mark no-show</button>
                         <button
                           type="button"
                           onClick={() => updateMut.mutate({ id: appointment.id, status: 'completed' })}

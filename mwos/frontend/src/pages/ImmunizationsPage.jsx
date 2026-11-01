@@ -33,6 +33,7 @@ export default function ImmunizationsPage() {
     }
   }, [patients, selectedPatientId])
 
+  const {data: deliveries=[]} = useQuery({queryKey:['deliveries',selectedPatientId],queryFn:()=>api.get(`/deliveries/patient/${selectedPatientId}`).then(r=>r.data.data),enabled:!!selectedPatientId})
   const selectedPatient = patients.find((patient) => String(patient.id) === String(selectedPatientId))
 
   const { data: immunizations = [], isLoading } = useQuery({
@@ -59,7 +60,7 @@ export default function ImmunizationsPage() {
       const diff = new Date(item.due_date).getTime() - Date.now()
       return diff <= 14 * 24 * 60 * 60 * 1000 && diff >= 0
     }).length
-    const doseCount = immunizations.reduce((sum, item) => sum + Number(item.dose_number || 0), 0)
+    const doseCount = immunizations.length
     const latest = immunizations[0]
 
     return [
@@ -252,13 +253,8 @@ export default function ImmunizationsPage() {
               />
             </div>
             <div>
-              <label className="label">Delivery ID</label>
-              <input
-                className="input"
-                value={form.deliveryId}
-                onChange={(event) => setForm((current) => ({ ...current, deliveryId: event.target.value }))}
-                placeholder="Optional link to delivery"
-              />
+              <label className="label" htmlFor="immunization-delivery">Related delivery (optional)</label>
+              <select id="immunization-delivery" className="input" value={form.deliveryId} onChange={event=>setForm(current=>({...current,deliveryId:event.target.value}))}><option value="">No linked delivery</option>{deliveries.filter(d=>d.birth_recorded).map(d=><option key={d.id} value={d.id}>{d.delivery_code} · {formatDate(d.delivery_date)}</option>)}</select>
             </div>
             <div className="md:col-span-2">
               <label className="label">Notes</label>

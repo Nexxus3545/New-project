@@ -7,6 +7,8 @@ const teleconsultSchedulingMigrationSql = fs.readFileSync(path.join(__dirname, '
 const accountCredentialsMigrationSql = fs.readFileSync(path.join(__dirname, '../../supabase/migrations/20261028181230_account_credentials.sql'), 'utf8');
 const credentialScanningMigrationSql = fs.readFileSync(path.join(__dirname, '../../supabase/migrations/20261028233717_credential_scanning.sql'), 'utf8');
 
+const completeWorkflowSql = fs.readFileSync(path.join(__dirname, '../config/migrations/20261101-complete-workflows.sql'), 'utf8');
+
 async function migratePatientCare(client) {
   await client.query('BEGIN');
   try {
@@ -17,6 +19,7 @@ async function migratePatientCare(client) {
     await client.query(teleconsultSchedulingMigrationSql);
     await client.query(accountCredentialsMigrationSql);
     await client.query(credentialScanningMigrationSql);
+    await client.query(completeWorkflowSql);
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');

@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
+import { WorkflowForm, required } from '../components/common/WorkflowForm'
+import { useAuthStore } from '../store/authStore'
 import AccountCredentials from '../components/credentials/AccountCredentials'
 import { credentialRequirement, effectiveCredentialStatus, userMatchesCredentialGroup } from '../utils/accountCredentials'
 
@@ -21,6 +23,10 @@ const userCredentialStatus = (user) => user.credential_status ? effectiveCredent
 
 export default function UsersPage() {
   const queryClient = useQueryClient()
+  const currentUser = useAuthStore(s => s.user)
+  const [showCreate, setShowCreate] = useState(false)
+  const [createdAccount, setCreatedAccount] = useState(null)
+  const createAccount = useMutation({mutationFn: body => api.post('/users', body), onSuccess: response => {setShowCreate(false);setCreatedAccount(response.data.data.user);queryClient.invalidateQueries({queryKey:['users-admin']})}})
   const [search, setSearch] = useState('')
   const [group, setGroup] = useState('all')
   const [roleFilter, setRoleFilter] = useState('all')
@@ -45,6 +51,9 @@ export default function UsersPage() {
 
   return <div className="min-w-0 space-y-6">
     <div className="page-header"><div><h1 className="page-title">Users & credentials</h1><p className="page-sub">Manage patient identity separately from professional licenses and administrator access.</p></div><button type="button" className="btn-secondary" disabled={isFetching} onClick={() => refetch()}>{isFetching ? 'Refreshing…' : 'Refresh users'}</button></div>
+    <div className="flex flex-wrap gap-3"><button type="button" className="btn-primary" onClick={()=>{createAccount.reset();setShowCreate(true)}}>Create staff account</button></div>
+    {createdAccount && <p className="card" role="status">Account created for {createdAccount.email}. The staff member can sign in and submit their professional credential in Account settings. Clinical access requires clinic verification.</p>}
+    {showCreate && <WorkflowForm title="Create staff account" fields={[required(['firstName','First name']),required(['lastName','Last name']),required(['email','Email','email']),['phone','Contact number','tel'],required(['role','Staff role','select',['doctor','nurse','midwife','admin']]),required(['password','Initial password (8+ characters, letter, number and symbol)','password'])]} initial={{role:'nurse'}} onSave={createAccount.mutate} pending={createAccount.isPending} error={createAccount.error} onCancel={()=>setShowCreate(false)}/>}
     <div className="card min-w-0 space-y-4">
       <div role="group" aria-label="User groups" className="flex flex-wrap gap-2">{groups.map(([key, label]) => <button key={key} type="button" aria-pressed={group === key} className={group === key ? 'btn-primary' : 'btn-secondary'} onClick={() => changeGroup(key)}>{label}</button>)}</div>
       <div className="grid gap-3 text-sm md:grid-cols-3">
@@ -70,7 +79,7 @@ export default function UsersPage() {
         <div className="flex flex-wrap items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent-soft)] font-semibold text-[var(--accent-text)]">{initials(user.first_name, user.last_name)}</div><div className="min-w-0"><h3 className="break-words text-lg font-semibold">{user.first_name} {user.last_name}</h3><p className="break-all text-sm text-slate-500">{user.email}</p><p className="mt-1 text-xs text-slate-500">{user.phone || 'No phone recorded'}</p></div></div><div className="flex flex-wrap gap-2"><span className={`badge ${role.tone}`}>{role.label}</span><span className={`badge ${activity.tone}`}>{activity.label}</span></div></div>
         <dl className="grid gap-3 text-xs sm:grid-cols-2"><div><dt className="text-slate-500">Last seen · Manila time</dt><dd className="mt-1">{formatDateTime(user.last_seen_at)}</dd></div><div><dt className="text-slate-500">Last sign-in · Manila time</dt><dd className="mt-1">{formatDateTime(user.last_login_at)}</dd></div></dl>
         {requirement !== 'none' ? <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-700"><div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold">{requirement === 'patient_id' ? 'Patient identity' : 'Professional license'}</h4><span className={`badge ${status === 'verified' ? 'badge-success' : status === 'rejected' || status === 'expired' ? 'badge-danger' : 'badge-warning'}`}>{credentialStatuses[status] || 'Awaiting review'}</span></div><p className="mt-2 text-xs leading-5 text-slate-500">{requirement === 'patient_id' ? 'One valid government-issued ID. Review identity independently from professional credentials.' : 'Review professional ID, license number, and expiry before approving clinical access.'}</p><button type="button" className="btn-secondary mt-3" onClick={() => { setSelectedUser(user); requestAnimationFrame(() => document.getElementById('user-credential-review')?.scrollIntoView({ block: 'start', behavior: 'smooth' })) }}>Review credentials</button></div> : <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">Administrator account. Professional license verification does not apply.</p>}
-        <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 dark:border-slate-700"><div><p className="text-sm font-semibold">Account access</p><p className="mt-1 text-xs text-slate-500">{user.is_active ? 'Active account. Credential requirements still apply.' : 'Sign-in is paused.'}</p></div><button type="button" className={user.is_active ? 'btn-danger btn-sm' : 'btn-primary btn-sm'} disabled={toggleMutation.isPending} onClick={() => toggleMutation.mutate(user.id)}>{user.is_active ? 'Deactivate' : 'Reactivate'}</button></div>
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 dark:border-slate-700"><div><p className="text-sm font-semibold">Account access</p><p className="mt-1 text-xs text-slate-500">{user.is_active ? 'Active account. Credential requirements still apply.' : 'Sign-in is paused.'}</p></div><button type="button" className={user.is_active ? 'btn-danger btn-sm' : 'btn-primary btn-sm'} disabled={toggleMutation.isPending || user.id === currentUser?.id} onClick={() => { if(window.confirm(`${user.is_active ? 'Deactivate' : 'Reactivate'} access for ${user.first_name} ${user.last_name}?`)) toggleMutation.mutate(user.id) }}>{user.is_active ? 'Deactivate' : 'Reactivate'}</button></div>
       </article>
     })}</div>}
   </div>

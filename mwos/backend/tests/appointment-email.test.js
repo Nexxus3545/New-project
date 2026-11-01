@@ -22,12 +22,12 @@ const execute = async (sql, params = []) => {
   if (text === 'COMMIT') { committed = true; return { rows: [] }; }
   if (text === 'ROLLBACK') return { rows: [] };
   if (text.startsWith('SELECT pg_advisory_xact_lock') || text.startsWith('WITH scheduling_bookings')) return { rows: [] };
-  if (text.startsWith('SELECT id FROM patients')) return { rows: [{ id: 'patient-1' }] };
+  if (text.startsWith('SELECT id FROM patients')) return { rows: [{ id: '11111111-1111-4111-8111-111111111111' }] };
   if (text.startsWith('SELECT id FROM appointments')) return { rows: [] };
   if (text.startsWith('SELECT * FROM appointments')) return { rows: appointment ? [{ ...appointment }] : [] };
   if (text.startsWith('INSERT INTO appointments')) {
     writes += 1;
-    appointment = { id: 'appointment-1', patient_id: params[0], appointment_type: params[3], scheduled_date: params[4], scheduled_time: params[5], notes: params[6], status: 'scheduled', updated_at: new Date('2026-10-24T00:00:00Z') };
+    appointment = { id: '22222222-2222-4222-8222-222222222222', patient_id: params[0], appointment_type: params[3], scheduled_date: params[4], scheduled_time: params[5], notes: params[6], status: 'scheduled', updated_at: new Date('2026-10-24T00:00:00Z') };
     return { rows: [{ ...appointment }] };
   }
   if (text.startsWith('UPDATE appointments SET')) {
@@ -71,11 +71,11 @@ after(async () => { database.query = saved.query; database.getClient = saved.get
 async function invoke(handler, body, role = 'patient') {
   const result = { status: 200 };
   const res = { status(code) { result.status = code; return this; }, json(payload) { result.payload = payload; } };
-  await handler({ user: { id: 'user-1', role }, body, params: { id: 'appointment-1' } }, res, (error) => { throw error; });
+  await handler({ user: { id: 'user-1', role }, body, params: { id: '22222222-2222-4222-8222-222222222222' } }, res, (error) => { throw error; });
   assert.equal(held, false);
   return result;
 }
-const create = () => invoke(controller.create, { patientId: 'patient-1', appointmentType: 'prenatal', scheduledDate: '2026-12-01', scheduledTime: '09:00', notes: 'SECRET-CLINICAL-NOTE' });
+const create = () => invoke(controller.create, { patientId: '11111111-1111-4111-8111-111111111111', appointmentType: 'prenatal', scheduledDate: '2099-12-01', scheduledTime: '09:00', notes: 'SECRET-CLINICAL-NOTE' });
 
 test('appointment creation commits one notification and sends a private, minimal email afterward', async () => {
   const result = await create();
@@ -83,7 +83,7 @@ test('appointment creation commits one notification and sends a private, minimal
   assert.equal(result.payload.notification.email, 'accepted');
   assert.equal(noticeCount, 1);
   assert.equal(messages.length, 1);
-  assert.match(messages[0].text, /December 1, 2026/);
+  assert.match(messages[0].text, /December 1, 2099/);
   assert.match(messages[0].text, /09:00/);
   assert.doesNotMatch(messages[0].text, /SECRET-CLINICAL-NOTE|prenatal|pregnancy|diagnosis/i);
   await deliverNotification([...events.keys()][0]);
@@ -97,7 +97,7 @@ test('real schedule/status changes notify, repeated states and note-only edits d
   await invoke(controller.update, { status: 'confirmed' }, 'doctor');
   await invoke(controller.update, { notes: 'private revised note' }, 'doctor');
   assert.equal(messages.length, 2);
-  await invoke(controller.update, { scheduledDate: '2026-12-02', scheduledTime: '10:00' }, 'doctor');
+  await invoke(controller.update, { scheduledDate: '2099-12-02', scheduledTime: '10:00' }, 'doctor');
   assert.equal(messages.length, 3);
   await invoke(controller.update, { status: 'cancelled' });
   assert.equal(messages.length, 4);

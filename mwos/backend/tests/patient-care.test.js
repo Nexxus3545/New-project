@@ -37,10 +37,10 @@ let hasProfile;
 database.query = async (sql, params = []) => {
   statements.push({ sql, params });
   if (sql.startsWith('SELECT pg_advisory_xact_lock') || sql.startsWith('WITH scheduling_bookings')) return { rows: [] };
-  if (sql.startsWith('SELECT id FROM patients')) return { rows: hasProfile ? [{ id: ownsPatient ? 'patient-1' : 'other-patient' }] : [] };
+  if (sql.startsWith('SELECT id FROM patients')) return { rows: hasProfile ? [{ id: ownsPatient ? '11111111-1111-4111-8111-111111111111' : '33333333-3333-4333-8333-333333333333' }] : [] };
   if (sql.startsWith('SELECT id FROM pregnancies')) return { rows: pregnancyMatches ? [{ id: 'pregnancy-1' }] : [] };
   if (sql.startsWith('SELECT id FROM appointments')) return { rows: [] };
-  if (sql.startsWith('INSERT INTO appointments')) return { rows: [{ id: 'appointment-1', appointment_type: params[3], pregnancy_id: params[1] }] };
+  if (sql.startsWith('INSERT INTO appointments')) return { rows: [{ id: '22222222-2222-4222-8222-222222222222', appointment_type: params[3], pregnancy_id: params[1] }] };
   if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)) return { rows: [] };
   if (sql.includes('oi.provider_email AS email')) return { rows: [] };
   throw new Error(`Unexpected query: ${sql}`);
@@ -53,7 +53,7 @@ after(async () => { database.query = originalQuery; database.getClient = origina
 async function invoke(handler, body = {}) {
   const result = { status: 200 };
   const res = { status(code) { result.status = code; return this; }, json(payload) { result.payload = payload; } };
-  await handler({ user: { id: 'user-1', role: 'patient' }, query: {}, body: { patientId: 'patient-1', scheduledDate: '2026-11-01', scheduledTime: '09:00', ...body } }, res, (error) => { throw error; });
+  await handler({ user: { id: 'user-1', role: 'patient' }, query: {}, body: { patientId: '11111111-1111-4111-8111-111111111111', scheduledDate: '2099-11-01', scheduledTime: '09:00', ...body } }, res, (error) => { throw error; });
   return result;
 }
 

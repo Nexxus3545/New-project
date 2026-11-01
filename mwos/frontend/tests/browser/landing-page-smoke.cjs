@@ -91,9 +91,9 @@ async function main() {
       assert.equal(await link.getAttribute('rel'), 'noopener noreferrer');
     }
     await guest.page.getByText('No written reviews have been published yet.', { exact: true }).waitFor();
-    await guest.page.getByRole('button', { name: 'Show a place to rest', exact: true }).click();
-    assert.equal(await guest.page.getByRole('button', { name: 'Show a place to rest', exact: true }).getAttribute('aria-pressed'), 'true');
-    await guest.page.getByAltText('Clinic recovery room with two patient beds').waitFor();
+    await guest.page.getByRole('button', { name: 'Show shared ward & recovery area', exact: true }).click();
+    assert.equal(await guest.page.getByRole('button', { name: 'Show shared ward & recovery area', exact: true }).getAttribute('aria-pressed'), 'true');
+    await guest.page.getByAltText('Shared clinic ward with two patient beds and IV stands').waitFor();
     const faq = guest.page.locator('details').filter({ hasText: 'How do I request an appointment?' });
     await faq.locator('summary').click();
     assert.equal(await faq.getAttribute('open'), '');
@@ -205,14 +205,16 @@ async function main() {
     assert.equal(await ended.page.evaluate(() => localStorage.getItem('accessToken')), null);
     await ended.page.getByRole('link', { name: 'Visit Download Center', exact: true }).click();
     await ended.page.waitForURL('**/download');
-    await ended.page.getByRole('heading', { name: 'Install MWOS on your device.', exact: true }).waitFor();
+    await ended.page.locator('#download-title').waitFor();
+    assert.match(await ended.page.locator('#download-title').innerText(), /Your care\./);
     assert.equal(await ended.page.locator('a[href$=".apk"], a[href$=".exe"]').count(), 0, 'Unpublished installers cannot become fake download buttons');
-    const guides = await ended.page.locator('[aria-label="Application downloads"] a').all();
+    const guides = await ended.page.locator('[aria-label="MWOS device options"] a[aria-label^="Set up MWOS"]').all();
     assert.equal(guides.length, 4);
     for (const guide of guides) {
-      const response = await ended.page.request.get(origin + await guide.getAttribute('href'));
-      assert.equal(response.status(), 200);
-      assert.match(response.headers()['content-type'], /text\/plain/);
+      await guide.click();
+      assert.equal(new URL(ended.page.url()).hash, new URL(await guide.getAttribute('href'), origin).hash);
+      await ended.page.locator('.download-setup-steps').waitFor();
+      assert.equal(await ended.page.locator('.download-setup-steps li').count(), 3);
     }
     await ended.context.close();
     assert.deepEqual(errors, []);

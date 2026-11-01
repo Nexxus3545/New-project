@@ -127,7 +127,7 @@ async function main() {
     await registration.page.getByRole('button', { name: 'Continue', exact: true }).click();
     await registration.page.locator('input[name="email"]').fill('test@example.invalid');
     await registration.page.getByRole('button', { name: 'Continue', exact: true }).click();
-    await registration.page.locator('input[name="password"]').fill('test-only-password');
+    await registration.page.locator('input[name="password"]').fill('Test-only-password1!');
     await registration.page.getByRole('button', { name: 'Continue', exact: true }).click();
     await registration.page.getByRole('button', { name: 'Create account', exact: true }).click();
     await registration.page.waitForURL('**/my/dashboard');

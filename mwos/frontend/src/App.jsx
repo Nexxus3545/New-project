@@ -23,7 +23,7 @@ import PatientsPage from './pages/PatientsPage'
 import PatientDetailPage from './pages/PatientDetailPage'
 import AppointmentsPage from './pages/AppointmentsPage'
 import VitalsPage from './pages/VitalsPage'
-import DeliveriesPage from './pages/DeliveriesPage'
+import { DeliveryWorkspace, PostnatalWorkspace, PediatricWorkspace } from './pages/ClinicalWorkflows'
 import InventoryPage from './pages/InventoryPage'
 import BillingPage from './pages/BillingPage'
 import ReportsPage from './pages/ReportsPage'
@@ -111,14 +111,14 @@ export default function App() {
           <Route path="/prenatal-care" element={<VitalsPage />} />
           <Route path="/prenatal-monitoring" element={<VitalsPage />} />
           <Route path="/vitals" element={<VitalsPage />} />
-          <Route path="/postnatal-care" element={<DeliveriesPage />} />
-          <Route path="/postnatal-monitoring" element={<DeliveriesPage />} />
-          <Route path="/deliveries" element={<DeliveriesPage />} />
-          <Route path="/labor-delivery" element={<DeliveriesPage />} />
+          <Route path="/postnatal-care" element={<PostnatalWorkspace />} />
+          <Route path="/postnatal-monitoring" element={<PostnatalWorkspace />} />
+          <Route path="/deliveries" element={<DeliveryWorkspace />} />
+          <Route path="/labor-delivery" element={<DeliveryWorkspace />} />
           <Route path="/examinations" element={<ExaminationsPage />} />
           <Route path="/medical-records" element={<ExaminationsPage />} />
           <Route path="/immunizations" element={<ImmunizationsPage />} />
-          <Route path="/pediatric-monitoring" element={<ImmunizationsPage />} />
+          <Route path="/pediatric-monitoring" element={<PediatricWorkspace />} />
           <Route path="/medicines" element={<InventoryPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/billing" element={<ProtectedRoute roles={['admin', 'doctor']}><BillingPage /></ProtectedRoute>} />
@@ -170,7 +170,7 @@ export default function App() {
           <Route path="/my/pregnancy" element={<PatientVitalsPage />} />
           <Route path="/my/records" element={<PatientRecordsPage />} />
           <Route path="/my/health-records" element={<PatientRecordsPage />} />
-          <Route path="/my/baby" element={<PatientReportsPage />} />
+          <Route path="/my/baby" element={<PediatricWorkspace />} />
           <Route path="/my/education" element={<PatientEducationPage />} />
           <Route path="/my/health-tips" element={<PatientEducationPage />} />
           <Route path="/my/interactions" element={<MessagesPage />} />

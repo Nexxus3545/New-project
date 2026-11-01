@@ -11,6 +11,7 @@ export default function PatientCheckoutPage() {
   const removeFromCart = usePatientExperienceStore((state) => state.removeFromCart)
   const clearCart = usePatientExperienceStore((state) => state.clearCart)
   const [pickupNotes, setPickupNotes] = useState('')
+  const [requestId] = useState(() => crypto.randomUUID())
 
   const { data: patient } = useQuery({
     queryKey: ['patient-me-checkout'],
@@ -24,16 +25,7 @@ export default function PatientCheckoutPage() {
   )
 
   const submitMutation = useMutation({
-    mutationFn: () => api.post('/interactions/threads', {
-      title: 'Pharmacy pickup request',
-      initialMessage: [
-        `Patient: ${patient?.first_name || 'Unknown'} ${patient?.last_name || ''}`.trim(),
-        'Requested medicines:',
-        ...cart.map((item) => `- ${item.item_name} x${item.quantity || 1}`),
-        pickupNotes.trim() ? `Notes: ${pickupNotes.trim()}` : 'Notes: none',
-      ].join('\n'),
-      priority: 'high',
-    }),
+    mutationFn: () => api.post('/pharmacy/pickups', { requestId, patientId: patient?.id, items: cart.map(i => ({id:i.id,quantity:i.quantity||1})), notes: pickupNotes }),
     onSuccess: () => {
       clearCart()
       navigate('/my/pharmacy/success')
@@ -84,7 +76,7 @@ export default function PatientCheckoutPage() {
               <h3 className="section-title">Pickup summary</h3>
               <p className="mt-3 text-sm text-gray-600">{totalUnits} medicine item(s) ready to send to the clinic support team.</p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <span className="badge badge-info">MWOS support thread</span>
+                <span className="badge badge-info">Clinic review</span>
                 <span className="badge badge-gray">Pickup workflow</span>
               </div>
             </div>

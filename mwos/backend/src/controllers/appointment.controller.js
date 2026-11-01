@@ -1,3 +1,4 @@
+const v = require('../utils/workflowValidation');
 const { query, getClient } = require('../config/database');
 const { APPOINTMENT_TYPES, MATERNAL_APPOINTMENTS } = require('../utils/patientCare');
 const { queueAppointmentNotification, deliverNotification } = require('../utils/notificationEvents');
@@ -5,7 +6,9 @@ const { appointmentStartAt, lockScheduling, assertSchedulingAvailable, sendSched
 
 const getAll = async (req, res, next) => {
   try {
-    const { status, date, patientId, page = 1, limit = 20 } = req.query;
+    const { status, date, patientId, from, to } = req.query;
+    const page = v.number(req.query.page ?? 1, 'Page', 1, 100000, true, true);
+    const limit = v.number(req.query.limit ?? 20, 'Page size', 1, 200, true, true);
     const offset = (page - 1) * limit;
     const conditions = [];
     const params = [];
@@ -13,6 +16,9 @@ const getAll = async (req, res, next) => {
 
     if (status) { conditions.push(`a.status = $${idx++}`); params.push(status); }
     if (date) { conditions.push(`a.scheduled_date = $${idx++}`); params.push(date); }
+    if (from) { v.date(from, 'Start date'); conditions.push(`a.scheduled_date >= $${idx++}`); params.push(from); }
+    if (to) { v.date(to, 'End date'); conditions.push(`a.scheduled_date <= $${idx++}`); params.push(to); }
+    if (from && to && from > to) v.fail('End date must be on or after start date.');
     if (patientId) { conditions.push(`a.patient_id = $${idx++}`); params.push(patientId); }
 
     // Patients only see their own
@@ -87,6 +93,11 @@ const create = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Patient ID, date, and time are required' });
     }
 
+    v.uuid(patientId,'Patient'); v.date(scheduledDate,'Appointment date');
+    if (typeof scheduledTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(scheduledTime)) v.fail('Select a valid appointment time.');
+    if (Date.parse(appointmentStartAt(scheduledDate, scheduledTime)) <= Date.now()) v.fail('Choose a future appointment date and time.');
+    if (assignedTo) {v.uuid(assignedTo,'Provider');const provider=await query("SELECT id FROM users WHERE id=$1 AND is_active=true AND role IN ('admin','doctor','nurse','midwife')",[assignedTo]);if(!provider.rows.length)v.fail('Choose an active clinic provider.');}
+    v.text(notes,'Notes',3000);
     const type = appointmentType || 'consultation';
     if (!APPOINTMENT_TYPES.includes(type)) {
       return res.status(400).json({ success: false, message: 'Select a supported appointment type' });
@@ -143,6 +154,10 @@ const update = async (req, res, next) => {
     const { id } = req.params;
     const { status, notes, scheduledDate, scheduledTime } = req.body;
 
+    v.uuid(id);
+    if(scheduledDate)v.date(scheduledDate,'Appointment date');
+    if(scheduledTime && !/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(scheduledTime)) v.fail('Select a valid appointment time.');
+    v.text(notes,'Notes',3000);
     if (status && !['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show'].includes(status)) {
       return res.status(400).json({ success: false, message: 'Select a valid appointment status' });
     }
@@ -165,6 +180,10 @@ const update = async (req, res, next) => {
     }
 
     const previousAppointment = existing.rows[0];
+    if (['completed','cancelled','no_show'].includes(previousAppointment.status)) v.fail('This appointment is closed. Create a new request to book another visit.',409);
+    if (req.user.role === 'patient' && previousAppointment.status === 'confirmed' && (scheduledDate || scheduledTime)) v.fail('Contact the clinic to reschedule a confirmed visit.',409);
+    if ((scheduledDate || scheduledTime) && Date.parse(appointmentStartAt(scheduledDate || previousAppointment.scheduled_date,scheduledTime || previousAppointment.scheduled_time)) <= Date.now()) v.fail('Choose a future appointment date and time.');
+
     if (['scheduled', 'confirmed'].includes(status || previousAppointment.status)) {
       await assertSchedulingAvailable(client, { clinicianId: previousAppointment.assigned_to, patientId: previousAppointment.patient_id,
         startAt: appointmentStartAt(scheduledDate || previousAppointment.scheduled_date, scheduledTime || previousAppointment.scheduled_time),

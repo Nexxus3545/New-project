@@ -9,10 +9,10 @@ const getDashboard = async (req, res, next) => {
         (SELECT COUNT(*) FROM pregnancies WHERE status = 'active') AS active_pregnancies,
         (SELECT COUNT(*) FROM appointments WHERE scheduled_date = CURRENT_DATE
           AND status NOT IN ('cancelled', 'no_show')) AS today_appointments,
-        (SELECT COUNT(*) FROM deliveries WHERE DATE_TRUNC('month', delivery_date)
+        (SELECT COUNT(*) FROM deliveries WHERE birth_recorded=true AND DATE_TRUNC('month', delivery_date)
           = DATE_TRUNC('month', CURRENT_DATE)) AS deliveries_this_month,
         (SELECT COUNT(*) FROM patients WHERE risk_level = 'high') AS high_risk_patients,
-        (SELECT COUNT(*) FROM billing WHERE payment_status = 'pending') AS pending_bills,
+        (SELECT COUNT(*) FROM billing WHERE payment_status IN ('pending','partial')) AS pending_bills,
         (SELECT COUNT(*) FROM inventory WHERE quantity <= reorder_level) AS low_inventory,
         (SELECT COUNT(*) FROM vitals WHERE created_at >= NOW() - INTERVAL '24 hours'
           AND (bp_systolic >= 140 OR bp_diastolic >= 90 OR fetal_movement = 'absent')) AS recent_alerts,
@@ -46,7 +46,7 @@ const getDashboard = async (req, res, next) => {
         COUNT(*) FILTER (WHERE delivery_type = 'NSD') as nsd,
         COUNT(*) FILTER (WHERE delivery_type = 'CS') as cs
       FROM deliveries
-      WHERE delivery_date >= NOW() - INTERVAL '6 months'
+      WHERE birth_recorded=true AND delivery_date >= NOW() - INTERVAL '6 months'
       GROUP BY DATE_TRUNC('month', delivery_date), TO_CHAR(delivery_date, 'Mon YYYY')
       ORDER BY DATE_TRUNC('month', delivery_date) ASC
     `);
@@ -117,10 +117,10 @@ const getPatientDashboard = async (req, res, next) => {
 
     const [nextAppt, activePregnancy, latestVitals, unpaidBills, immunizations, unreadMessages, openCareTasks, documentSummary, reviewSummary] = await Promise.all([
       query(`SELECT * FROM appointments WHERE patient_id = $1 AND scheduled_date >= CURRENT_DATE
-             AND status = 'scheduled' ORDER BY scheduled_date ASC LIMIT 1`, [patientId]),
+             AND status IN ('scheduled','confirmed') ORDER BY scheduled_date ASC, scheduled_time ASC LIMIT 1`, [patientId]),
       query("SELECT * FROM pregnancies WHERE patient_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1", [patientId]),
       query('SELECT * FROM vitals WHERE patient_id = $1 ORDER BY visit_date DESC LIMIT 1', [patientId]),
-      query("SELECT SUM(total_amount) as total FROM billing WHERE patient_id = $1 AND payment_status = 'pending'", [patientId]),
+      query("SELECT SUM(GREATEST(0,b.total_amount-b.opening_paid_amount-COALESCE((SELECT SUM(bp.amount) FROM billing_payments bp WHERE bp.bill_id=b.id),0))) as total FROM billing b WHERE b.patient_id = $1 AND b.payment_status IN ('pending','partial') AND b.needs_reconciliation=false", [patientId]),
       query('SELECT * FROM immunizations WHERE patient_id = $1 ORDER BY date_given DESC LIMIT 5', [patientId]),
       query(
         `SELECT COUNT(*)::int
@@ -184,9 +184,11 @@ const getBirthsMonthly = async (req, res, next) => {
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE delivery_type = 'NSD') as nsd,
         COUNT(*) FILTER (WHERE delivery_type = 'CS') as cs,
+        COUNT(*) FILTER (WHERE delivery_type = 'Forceps') as forceps,
+        COUNT(*) FILTER (WHERE delivery_type = 'Vacuum') as vacuum,
         AVG(birth_weight_kg) as avg_birth_weight
       FROM deliveries
-      WHERE delivery_date >= NOW() - INTERVAL '12 months'
+      WHERE birth_recorded=true AND delivery_date >= CURRENT_DATE - INTERVAL '12 months'
       GROUP BY TO_CHAR(delivery_date, 'YYYY-MM')
       ORDER BY month ASC
     `);

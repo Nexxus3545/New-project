@@ -2,11 +2,14 @@ import React, { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
+import { PregnancyRecords, ClinicalEntries, prescriptionFields } from './ClinicalWorkflows'
+import { useAuthStore } from '../store/authStore'
 
 const tabs = ['Overview', 'Vitals', 'Pregnancies', 'Labs', 'Prescriptions', 'Deliveries', 'Billing']
 
 export default function PatientDetailPage() {
   const { id } = useParams()
+  const role = useAuthStore(s => s.user?.role)
   const qc = useQueryClient()
   const [tab, setTab] = useState('Overview')
   const [vitalForm, setVitalForm] = useState({ visitDate: new Date().toISOString().split('T')[0], bpSystolic: '', bpDiastolic: '', weightKg: '', fetalHeartRate: '', fetalMovement: 'present', notes: '' })
@@ -30,12 +33,6 @@ export default function PatientDetailPage() {
     enabled: tab === 'Labs',
   })
 
-  const { data: rxData } = useQuery({
-    queryKey: ['prescriptions', id],
-    queryFn: () => api.get(`/emr/prescriptions/${id}`).then(r => r.data.data),
-    enabled: tab === 'Prescriptions',
-  })
-
   const { data: deliveriesData } = useQuery({
     queryKey: ['deliveries', id],
     queryFn: () => api.get(`/deliveries/patient/${id}`).then(r => r.data.data),
@@ -45,7 +42,7 @@ export default function PatientDetailPage() {
   const { data: billingData } = useQuery({
     queryKey: ['billing-patient', id],
     queryFn: () => api.get('/billing', { params: { patientId: id } }).then(r => r.data.data),
-    enabled: tab === 'Billing',
+    enabled: tab === 'Billing' && ['admin','doctor'].includes(role),
   })
 
   const vitalMutation = useMutation({
@@ -146,6 +143,7 @@ export default function PatientDetailPage() {
         ))}
       </div>
 
+      {tab === 'Pregnancies' && <PregnancyRecords patientId={id} />}
       {/* Overview */}
       {tab === 'Overview' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -302,30 +300,7 @@ export default function PatientDetailPage() {
       )}
 
       {/* Prescriptions */}
-      {tab === 'Prescriptions' && (
-        <div className="card">
-          <h3 className="section-title">Prescriptions</h3>
-          {!rxData || rxData.length === 0 ? (
-            <p className="text-gray-400 text-sm py-4">No prescriptions recorded</p>
-          ) : (
-            <div className="space-y-3">
-              {rxData.map(rx => (
-                <div key={rx.id} className="p-4 border border-gray-200 rounded-lg">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold text-gray-900">{rx.medication_name}</p>
-                      <p className="text-sm text-gray-600">{rx.dosage} · {rx.frequency} · {rx.route}</p>
-                      <p className="text-xs text-gray-400 mt-1">Duration: {rx.duration} · By: {rx.prescribed_by_name}</p>
-                    </div>
-                    <p className="text-xs text-gray-400">{new Date(rx.prescribed_date).toLocaleDateString('en-PH')}</p>
-                  </div>
-                  {rx.instructions && <p className="text-sm text-gray-500 mt-2 bg-gray-50 p-2 rounded">{rx.instructions}</p>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {tab === 'Prescriptions' && <ClinicalEntries patientId={id} kind="prescriptions" title="Prescription" fields={prescriptionFields} />}
 
       {/* Deliveries */}
       {tab === 'Deliveries' && (

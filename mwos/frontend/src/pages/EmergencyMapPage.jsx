@@ -1,3 +1,4 @@
+import { ReferralRecords } from '../components/common/CoordinationWorkflows'
 import React, { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import api from '../utils/api'
@@ -30,6 +31,7 @@ export default function EmergencyMapPage() {
 
   return (
     <div className="space-y-6">
+      <ReferralRecords />
       <div className="page-header">
         <div>
           <h1 className="page-title">Emergency Live Map</h1>
