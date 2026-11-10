@@ -45,21 +45,15 @@ const getPatientRecommendations = async (req, userId) => {
   const uploadedTypes = new Set(documents.rows.map((row) => row.document_type));
   const suggestions = [];
 
-  if (!uploadedTypes.has('PhilHealth ID')) {
-    suggestions.push(buildRecommendation('document', 'Upload your PhilHealth ID', 'Adding your PhilHealth ID helps billing and verification move faster.', { priority: 'high', route: '/my/profile' }));
-  }
-
-  if ((patient.care_type === 'maternal' || patient.pregnancy_status === 'active') && !uploadedTypes.has('Birthing ID')) {
-    suggestions.push(buildRecommendation('document', 'Upload your Birthing ID', 'Your birthing ID keeps admissions and care records aligned.', { priority: 'high', route: '/my/profile' }));
-  }
-
+  // Credential requirements are owned by the credential review workflow.
+  // Do not infer mandatory identity documents from general document uploads.
   if (patient.pregnancy_status === 'active' && (patient.risk_level === 'high' || patient.pregnancy_risk === 'high')) {
     suggestions.push(buildRecommendation('health-tip', 'High-risk pregnancy guidance', 'You have a high-risk profile. Review warning signs, follow-up plans, and emergency contact steps.', { priority: 'high', category: 'safety' }));
   }
 
   if (prescriptions.rows.length > 0) {
     const meds = prescriptions.rows.slice(0, 2).map((row) => row.medication_name).join(', ');
-    suggestions.push(buildRecommendation('medicine', 'Medication reminder', `Remember the current medication plan for ${meds}.`, { priority: 'medium' }));
+    suggestions.push(buildRecommendation('medicine', 'Review recorded prescriptions', `Your record includes ${meds}. Confirm with your clinician which prescriptions are still current before taking medication.`, { priority: 'medium' }));
   }
 
   providers.rows.forEach((provider) => {

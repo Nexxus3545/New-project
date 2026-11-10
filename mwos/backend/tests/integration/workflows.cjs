@@ -17,7 +17,7 @@ async function main(){
  const patients={};for(const role of ['patient','other'])patients[role]=(await pool.query("INSERT INTO patients(user_id,first_name,last_name,date_of_birth,care_type) VALUES($1,$2,'Verification','2000-01-01','maternal') RETURNING *",[users[role].id,role])).rows[0];
  server=require('../../src/index').listen(Number(process.env.MWOS_TEST_PORT || 5002),'127.0.0.1');await new Promise(r=>server.once('listening',r));
  const base=`http://127.0.0.1:${server.address().port}/api`,tokens={},step=require('../../src/utils/security').issueStepUpToken({userId:users.admin.id,role:'admin',purpose:'critical'});
- async function call(role,method,url,body,expected=200,withStep=true){const r=await fetch(base+url,{method,headers:{'Content-Type':'application/json',...(tokens[role]?{Authorization:'Bearer '+tokens[role]}:{}),...(role==='admin'&&withStep?{'X-Step-Up-Token':step}:{})},body:body===undefined?undefined:JSON.stringify(body)});const data=await r.json();assert.equal(r.status,expected,`${method} ${url}: ${JSON.stringify(data)}`);checks++;return data.data??data}
+ async function call(role,method,url,body,expected=200,withStep=true,raw=false){const r=await fetch(base+url,{method,headers:{'Content-Type':'application/json',...(tokens[role]?{Authorization:'Bearer '+tokens[role]}:{}),...(role==='admin'&&withStep?{'X-Step-Up-Token':step}:{})},body:body===undefined?undefined:JSON.stringify(body)});const data=await r.json();assert.equal(r.status,expected,`${method} ${url}: ${JSON.stringify(data)}`);checks++;return raw?data:(data.data??data)}
  for(const role of Object.keys(users)){const session=await call(role,'POST','/auth/login',{email:users[role].email,password});tokens[role]=session.accessToken;assert.ok(tokens[role])}
  const p=patients.patient.id,other=patients.other.id,today=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Manila'}),tomorrow=new Date(Date.now()+86400000).toLocaleDateString('en-CA',{timeZone:'Asia/Manila'});
  await call('admin','POST','/pregnancies',{patientId:p},403,false);
@@ -29,7 +29,10 @@ async function main(){
  const countBefore=(await pool.query('SELECT COUNT(*) FROM vitals')).rows[0].count;
  await call('admin','POST','/vitals',{patientId:other,pregnancyId:preg.id,visitDate:today},400);
  assert.equal((await pool.query('SELECT COUNT(*) FROM vitals')).rows[0].count,countBefore);
- await call('admin','POST','/vitals',{patientId:p,pregnancyId:preg.id,visitDate:today,bpSystolic:120,bpDiastolic:80,weightKg:62,heightCm:160},201);
+ const savedVitals=await call('admin','POST','/vitals',{patientId:p,pregnancyId:preg.id,visitDate:today,bpSystolic:120,bpDiastolic:80,weightKg:62,heightCm:160},201,true,true);
+ assert.equal(savedVitals.reviewRequired,true);
+ assert.equal(savedVitals.data.bp_category,'not_classified');
+ assert.equal(savedVitals.alerts,undefined);
  const delivery=await call('admin','POST','/deliveries',{patientId:p,pregnancyId:preg.id,deliveryDate:today,birthRecorded:false},201);
  await call('admin','POST','/postpartum',{patientId:p,deliveryId:delivery.id,visitDate:today},400);
  await call('admin','POST',`/deliveries/${delivery.id}/labor-progress`,{recordedAt:new Date().toISOString(),cervicalDilation:3.5,fetalHeartRate:140,notes:'Synthetic observation'},201);

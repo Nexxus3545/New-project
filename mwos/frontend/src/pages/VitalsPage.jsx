@@ -74,7 +74,9 @@ export default function VitalsPage() {
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['patient-vitals-summary', selectedPatientId] })
       queryClient.invalidateQueries({ queryKey: ['patient-vitals-stream', selectedPatientId] })
-      setNotice('Vitals saved successfully and the monitoring panel has been refreshed.')
+      setNotice(response.reviewRequired
+        ? 'Measurements saved for clinician review. Automatic diagnosis is unavailable.'
+        : 'Vitals saved successfully and the monitoring panel has been refreshed.')
       setAlerts(response.alerts || [])
       setForm((current) => ({
         ...EMPTY_FORM,

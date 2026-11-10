@@ -15,6 +15,7 @@ export default function PatientDetailPage() {
   const [vitalForm, setVitalForm] = useState({ visitDate: new Date().toISOString().split('T')[0], bpSystolic: '', bpDiastolic: '', weightKg: '', fetalHeartRate: '', fetalMovement: 'present', notes: '' })
   const [vitalError, setVitalError] = useState('')
   const [vitalAlerts, setVitalAlerts] = useState([])
+  const [vitalNotice, setVitalNotice] = useState('')
 
   const { data: summary, isLoading, error } = useQuery({
     queryKey: ['patient-summary', id],
@@ -51,6 +52,7 @@ export default function PatientDetailPage() {
       qc.invalidateQueries(['vitals', id])
       qc.invalidateQueries(['patient-summary', id])
       setVitalAlerts(res.data.alerts || [])
+      setVitalNotice(res.data.reviewRequired ? 'Measurements saved for clinician review. Automatic diagnosis is unavailable.' : 'Measurements saved.')
       setVitalForm({ visitDate: new Date().toISOString().split('T')[0], bpSystolic: '', bpDiastolic: '', weightKg: '', fetalHeartRate: '', fetalMovement: 'present', notes: '' })
       setVitalError('')
     },
@@ -61,6 +63,7 @@ export default function PatientDetailPage() {
     e.preventDefault()
     setVitalError('')
     setVitalAlerts([])
+    setVitalNotice('')
     vitalMutation.mutate({
       patientId: id,
       pregnancyId: summary?.activePregnancy?.id || null,
@@ -157,7 +160,7 @@ export default function PatientDetailPage() {
                       <p className="text-sm font-medium">{new Date(v.visit_date).toLocaleDateString('en-PH')}</p>
                       <p className="text-xs text-gray-500">BP: {v.bp_systolic}/{v.bp_diastolic} · Weight: {v.weight_kg}kg</p>
                     </div>
-                    <span className={`badge ${bpColor(v.bp_category)}`}>{v.bp_category?.replace(/_/g,' ') || 'normal'}</span>
+                    <span className={`badge ${bpColor(v.bp_category)}`}>{v.bp_category?.replace(/_/g,' ') || 'Not classified'}</span>
                   </div>
                 ))}
               </div>
@@ -219,6 +222,7 @@ export default function PatientDetailPage() {
 
           <div className="card">
             <h3 className="section-title">Record Vitals</h3>
+            {vitalNotice && <p role="status" className="mb-3 text-sm text-slate-600">{vitalNotice}</p>}
             {vitalAlerts.length > 0 && (
               <div className="mb-4 space-y-2">
                 {vitalAlerts.map((a, i) => (

@@ -187,22 +187,19 @@ export default function DashboardPage() {
   const trendData = useMemo(() => {
     const source = data?.usageTrend || []
     return source.map((entry, index) => {
-      const visits = Number(entry.events || 0)
       return {
         label: entry.day || `Day ${index + 1}`,
-        patients: visits,
-        followUps: Math.max(0, Math.round(visits * 0.72)),
+        events: Number(entry.events || 0),
       }
     })
   }, [data])
 
   const flowData = useMemo(() => {
-    return trendData.map((item, index) => ({
-      label: item.label,
-      admissions: item.patients,
-      discharge: Math.max(0, item.followUps - (index % 2)),
+    return (data?.deliveryTrend || []).map((item) => ({
+      label: item.month,
+      births: Number(item.total || 0),
     }))
-  }, [trendData])
+  }, [data])
 
   const reportItems = useMemo(() => {
     const items = []
@@ -297,9 +294,9 @@ export default function DashboardPage() {
           <div className="rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Hospital report</p>
-                <h3 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">Average Patients Visits</h3>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Weekly trend for patient load and follow-up activity.</p>
+                <p className="text-xs uppercase tracking-[0.28em] text-slate-400">System activity</p>
+                <h3 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">Recorded system activity</h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Audit events recorded over the last seven days. These counts describe system use.</p>
               </div>
               <span className="badge badge-gray">{trendData.length} points</span>
             </div>
@@ -316,8 +313,7 @@ export default function DashboardPage() {
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid #e2e8f0' }} />
-                    <Line type="monotone" dataKey="patients" stroke="#d9468b" strokeWidth={3} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="followUps" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 3 }} />
+                    <Line type="linear" dataKey="events" name="Recorded events" stroke="#d9468b" strokeWidth={3} dot={{ r: 3 }} />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -458,14 +454,14 @@ export default function DashboardPage() {
           <div className="rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Clinic flow</p>
-                <h3 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">Admissions vs Follow-ups</h3>
+                <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Birth records</p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">Completed births by month</h3>
               </div>
               <span className="badge badge-gray">Trend</span>
             </div>
             <div className="mt-4">
               {flowData.length === 0 ? (
-                <p className="text-sm text-slate-400">No flow data available yet.</p>
+                <p className="text-sm text-slate-400">No completed births recorded in this period.</p>
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <AreaChart data={flowData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
@@ -473,8 +469,7 @@ export default function DashboardPage() {
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid #e2e8f0' }} />
-                    <Area type="monotone" dataKey="admissions" stroke="#0f766e" fill="#99f6e4" fillOpacity={0.35} />
-                    <Area type="monotone" dataKey="discharge" stroke="#2563eb" fill="#bfdbfe" fillOpacity={0.25} />
+                    <Area type="linear" dataKey="births" name="Completed births" stroke="#0f766e" fill="#99f6e4" fillOpacity={0.35} />
                   </AreaChart>
                 </ResponsiveContainer>
               )}

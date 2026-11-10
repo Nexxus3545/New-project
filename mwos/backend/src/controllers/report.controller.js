@@ -7,10 +7,10 @@ const getDashboard = async (req, res, next) => {
       SELECT
         (SELECT COUNT(*) FROM patients) AS total_patients,
         (SELECT COUNT(*) FROM pregnancies WHERE status = 'active') AS active_pregnancies,
-        (SELECT COUNT(*) FROM appointments WHERE scheduled_date = CURRENT_DATE
+        (SELECT COUNT(*) FROM appointments WHERE scheduled_date = (NOW() AT TIME ZONE 'Asia/Manila')::date
           AND status NOT IN ('cancelled', 'no_show')) AS today_appointments,
         (SELECT COUNT(*) FROM deliveries WHERE birth_recorded=true AND DATE_TRUNC('month', delivery_date)
-          = DATE_TRUNC('month', CURRENT_DATE)) AS deliveries_this_month,
+          = DATE_TRUNC('month', (NOW() AT TIME ZONE 'Asia/Manila')::date) AND delivery_date <= (NOW() AT TIME ZONE 'Asia/Manila')::date) AS deliveries_this_month,
         (SELECT COUNT(*) FROM patients WHERE risk_level = 'high') AS high_risk_patients,
         (SELECT COUNT(*) FROM billing WHERE payment_status IN ('pending','partial')) AS pending_bills,
         (SELECT COUNT(*) FROM inventory WHERE quantity <= reorder_level) AS low_inventory,
@@ -44,9 +44,13 @@ const getDashboard = async (req, res, next) => {
       SELECT TO_CHAR(delivery_date, 'Mon YYYY') as month,
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE delivery_type = 'NSD') as nsd,
-        COUNT(*) FILTER (WHERE delivery_type = 'CS') as cs
+        COUNT(*) FILTER (WHERE delivery_type = 'CS') as cs,
+        COUNT(*) FILTER (WHERE delivery_type = 'Forceps') as forceps,
+        COUNT(*) FILTER (WHERE delivery_type = 'Vacuum') as vacuum,
+        COUNT(*) FILTER (WHERE delivery_type IS NULL OR delivery_type NOT IN ('NSD','CS','Forceps','Vacuum')) as unknown
       FROM deliveries
-      WHERE birth_recorded=true AND delivery_date >= NOW() - INTERVAL '6 months'
+      WHERE birth_recorded=true AND delivery_date >= DATE_TRUNC('month', (NOW() AT TIME ZONE 'Asia/Manila')::date) - INTERVAL '5 months'
+        AND delivery_date <= (NOW() AT TIME ZONE 'Asia/Manila')::date
       GROUP BY DATE_TRUNC('month', delivery_date), TO_CHAR(delivery_date, 'Mon YYYY')
       ORDER BY DATE_TRUNC('month', delivery_date) ASC
     `);
@@ -58,17 +62,17 @@ const getDashboard = async (req, res, next) => {
         p.risk_level
       FROM appointments a
       LEFT JOIN patients p ON p.id = a.patient_id
-      WHERE a.scheduled_date = CURRENT_DATE
+      WHERE a.scheduled_date = (NOW() AT TIME ZONE 'Asia/Manila')::date
       ORDER BY a.scheduled_time ASC
       LIMIT 10
     `);
 
     const usageTrend = await query(`
-      SELECT TO_CHAR(DATE(created_at), 'Mon DD') AS day, COUNT(*)::int AS events
+      SELECT TO_CHAR((created_at AT TIME ZONE 'Asia/Manila')::date, 'Mon DD') AS day, COUNT(*)::int AS events
       FROM audit_logs
       WHERE created_at >= NOW() - INTERVAL '7 days'
-      GROUP BY DATE(created_at)
-      ORDER BY DATE(created_at) ASC
+      GROUP BY (created_at AT TIME ZONE 'Asia/Manila')::date
+      ORDER BY (created_at AT TIME ZONE 'Asia/Manila')::date ASC
     `);
 
     res.json({
@@ -116,7 +120,7 @@ const getPatientDashboard = async (req, res, next) => {
     const patientId = patient.rows[0].id;
 
     const [nextAppt, activePregnancy, latestVitals, unpaidBills, immunizations, unreadMessages, openCareTasks, documentSummary, reviewSummary] = await Promise.all([
-      query(`SELECT * FROM appointments WHERE patient_id = $1 AND scheduled_date >= CURRENT_DATE
+      query(`SELECT * FROM appointments WHERE patient_id = $1 AND scheduled_date >= (NOW() AT TIME ZONE 'Asia/Manila')::date
              AND status IN ('scheduled','confirmed') ORDER BY scheduled_date ASC, scheduled_time ASC LIMIT 1`, [patientId]),
       query("SELECT * FROM pregnancies WHERE patient_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1", [patientId]),
       query('SELECT * FROM vitals WHERE patient_id = $1 ORDER BY visit_date DESC LIMIT 1', [patientId]),
@@ -186,9 +190,11 @@ const getBirthsMonthly = async (req, res, next) => {
         COUNT(*) FILTER (WHERE delivery_type = 'CS') as cs,
         COUNT(*) FILTER (WHERE delivery_type = 'Forceps') as forceps,
         COUNT(*) FILTER (WHERE delivery_type = 'Vacuum') as vacuum,
+        COUNT(*) FILTER (WHERE delivery_type IS NULL OR delivery_type NOT IN ('NSD','CS','Forceps','Vacuum')) as unknown,
         AVG(birth_weight_kg) as avg_birth_weight
       FROM deliveries
-      WHERE birth_recorded=true AND delivery_date >= CURRENT_DATE - INTERVAL '12 months'
+      WHERE birth_recorded=true AND delivery_date >= DATE_TRUNC('month', (NOW() AT TIME ZONE 'Asia/Manila')::date) - INTERVAL '11 months'
+        AND delivery_date <= (NOW() AT TIME ZONE 'Asia/Manila')::date
       GROUP BY TO_CHAR(delivery_date, 'YYYY-MM')
       ORDER BY month ASC
     `);

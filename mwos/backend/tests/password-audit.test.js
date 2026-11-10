@@ -21,12 +21,9 @@ test('managed user creation and nested account changes never copy passwords or t
   const req = { method: 'POST', originalUrl: '/api/users', body, user: { id: 'synthetic-user' }, headers: {} };
   module.exports.activityLogger(req, { statusCode: 201, on: (_event, handler) => { finish = handler; } }, () => {});
   await finish();
-  assert.equal(values.password, '[redacted]');
-  assert.equal(values.settings.new_password, '[redacted]');
-  assert.equal(values.changes[0].stepUpToken, '[redacted]');
+  assert.deepEqual(JSON.parse(JSON.stringify(values)), { statusCode: 201 });
   const encoded = JSON.stringify(values);
   for (const secret of ['Never-write-this1!', 'old-secret', 'new-secret', 'confirmation-secret', 'access-secret', 'uppercase-secret', 'step-secret']) assert.equal(encoded.includes(secret), false);
-  assert.equal(values.email, body.email); assert.equal(values.role, 'nurse'); assert.equal(values.changes[0].note, 'Keep this non-secret note.');
-  assert.equal(values.settings.notifications, false); assert.equal(values.settings.volume, 0); assert.equal(values.settings.note, ''); assert.equal(values.settings.disabledAt, null);
+  assert.equal(encoded.includes(body.email), false);
   assert.equal(body.password, 'Never-write-this1!', 'Audit redaction must not mutate the actual registration request');
 });

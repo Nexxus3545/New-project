@@ -1,6 +1,6 @@
 const { Pool } = require('pg');
+const { databaseConnectionOptions } = require('../utils/databaseTls');
 
-const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 const isServerlessRuntime = process.env.VERCEL === '1' || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
 const requestedPoolSize = Number.parseInt(process.env.DATABASE_POOL_MAX, 10);
 const requestedConnectionTimeout = Number.parseInt(process.env.DATABASE_CONNECTION_TIMEOUT_MS, 10);
@@ -19,19 +19,7 @@ const poolConfig = {
     : isServerlessRuntime ? 10000 : 2000,
 };
 
-if (connectionString) {
-  // Managed providers such as Neon require an encrypted connection.
-  poolConfig.connectionString = connectionString;
-  poolConfig.ssl = { rejectUnauthorized: false };
-} else {
-  Object.assign(poolConfig, {
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT, 10) || 5432,
-    database: process.env.DB_NAME || 'mwos_db',
-    user: process.env.DB_USER || 'mwos_user',
-    password: process.env.DB_PASSWORD || 'mwos_password_2024',
-  });
-}
+Object.assign(poolConfig, databaseConnectionOptions());
 
 const pool = new Pool(poolConfig);
 

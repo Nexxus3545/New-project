@@ -275,6 +275,7 @@ async function main() {
     console.error('Browser page errors:', errors);
     for (const context of browser.contexts()) for (const page of context.pages()) if (page.url().startsWith(origin)) {
       console.error('Synthetic diagnostics:', await page.evaluate(() => ({ devices: window.__deviceFixture, created: window.__dailyFixture?.created, destroyed: window.__dailyFixture?.destroyed })).catch(() => null));
+      console.error('Device panel:', await page.locator('section[aria-labelledby="telehealth-device-title"]').innerText().catch(() => 'not mounted'));
       await page.screenshot({ path: path.resolve(root, '../telehealth-video-failure.png'), fullPage: true }).catch(() => {});
     }
     throw error;

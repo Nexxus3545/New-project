@@ -129,6 +129,7 @@ async function main() {
     const broken = await fixture({ broken: true });
     await broken.tour.getByText('This clinic photograph is unavailable.', { exact: true }).waitFor();
     await broken.tour.getByRole('button', { name: 'Next clinic photo', exact: true }).click();
+    await broken.page.waitForFunction(() => document.querySelector('.clinic-slideshow')?.dataset.slide === '2');
     assert.equal(await selected(broken.tour), '2', 'Other real photos remain navigable after an image failure');
     await broken.context.close();
     assert.deepEqual(errors, []);

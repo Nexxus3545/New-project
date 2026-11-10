@@ -2,15 +2,6 @@ const { query } = require('../config/database');
 const { clinicalTransaction, linkedPatient } = require('../utils/clinicalWorkflow');
 const v = require('../utils/workflowValidation');
 
-const categorizeBP = (systolic, diastolic) => {
-  if (!systolic || !diastolic) return 'unknown';
-  if (systolic >= 180 || diastolic >= 120) return 'hypertensive_crisis';
-  if (systolic >= 140 || diastolic >= 90) return 'stage2_hypertension';
-  if (systolic >= 130 || diastolic >= 80) return 'stage1_hypertension';
-  if (systolic >= 120 && diastolic < 80) return 'elevated';
-  return 'normal';
-};
-
 const create = async (req, res, next) => {
   try {
     const {
@@ -26,7 +17,8 @@ const create = async (req, res, next) => {
 
     v.uuid(patientId, 'Patient'); v.date(visitDate, 'Visit date');
     for (const [key,value,max] of [['weight',weightKg,500],['height',heightCm,250],['systolic',bpSystolic,350],['diastolic',bpDiastolic,250],['pulse',pulseRate,300],['temperature',temperature,50],['FHR',fetalHeartRate,300]]) v.number(value,key,0,max);
-    const bpCategory = categorizeBP(bpSystolic, bpDiastolic);
+    // Store measurements for clinical review; no unapproved diagnostic classifier.
+    const bpCategory = 'not_classified';
     let bmi = null;
     if (weightKg && heightCm) {
       const heightM = heightCm / 100;
@@ -58,23 +50,11 @@ const create = async (req, res, next) => {
     return result.rows[0];
     });
 
-    const alerts = [];
-
-    if (['stage2_hypertension', 'hypertensive_crisis'].includes(bpCategory)) {
-      alerts.push({ type: 'critical', message: `High BP detected: ${bpSystolic}/${bpDiastolic} mmHg (${bpCategory.replace(/_/g,' ')})` });
-    }
-    if (fetalMovement === 'absent') {
-      alerts.push({ type: 'critical', message: 'Absent fetal movement reported — immediate assessment required' });
-    }
-    if (fetalHeartRate && (fetalHeartRate < 110 || fetalHeartRate > 160)) {
-      alerts.push({ type: 'warning', message: `Abnormal FHR: ${fetalHeartRate} bpm (normal: 110-160)` });
-    }
-
     res.status(201).json({
       success: true,
       message: 'Vitals recorded successfully',
       data: vitals,
-      alerts: alerts.length > 0 ? alerts : undefined,
+      reviewRequired: true,
     });
   } catch (err) {
     next(err);

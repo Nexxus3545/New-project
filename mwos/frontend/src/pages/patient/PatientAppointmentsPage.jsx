@@ -6,14 +6,34 @@ import api from '../../utils/api'
 import AppIcon from '../../components/common/AppIcon'
 import { appointmentLabel, generalAppointments, maternalAppointments, isMaternalAppointment } from '../../utils/patientCare'
 import { formatCareDate, formatCareTime } from '../../utils/recordedCare'
+import { WorkflowError } from '../../components/common/WorkflowForm'
 
 export default function PatientAppointmentsPage() {
   const queryClient = useQueryClient()
   const [care, setCare] = useState('general')
   const [form, setForm] = useState({ appointmentType: 'consultation', scheduledDate: '', scheduledTime: '', assignedTo: '', notes: '' })
   const [receipt, setReceipt] = useState(null)
+  const [action, setAction] = useState(null)
+  const [notice, setNotice] = useState('')
+  const [page, setPage] = useState(1)
   const patient = useQuery({ queryKey: ['patient-me-appointments'], queryFn: () => api.get('/patients/me').then((response) => response.data.data) })
-  const appointments = useQuery({ queryKey: ['patient-appointments'], queryFn: () => api.get('/appointments', { params: { limit: 100 } }).then((response) => response.data.data) })
+  const appointments = useQuery({ queryKey: ['patient-appointments', page], queryFn: () => api.get('/appointments', { params: { limit: 20, page } }).then((response) => response.data) })
+  const changeAppointment = useMutation({
+    mutationFn: ({ id, ...payload }) => api.patch(`/appointments/${id}`, payload),
+    onSuccess: (response) => {
+      const saved = response.data.data
+      setNotice(saved.status === 'cancelled' ? 'Appointment cancelled. Your updated status is saved in MWOS.' : 'Preferred schedule updated. Please wait for the clinic to confirm your visit.')
+      setAction(null)
+      if (receipt?.id === saved.id) setReceipt(null)
+      queryClient.invalidateQueries({ queryKey: ['patient-appointments'] })
+      queryClient.invalidateQueries({ queryKey: ['patient-dashboard'] })
+    },
+  })
+  const beginAction = (item, type) => {
+    changeAppointment.reset()
+    setNotice('')
+    setAction({ id: item.id, type, scheduledDate: new Date(item.scheduled_date).toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }), scheduledTime: String(item.scheduled_time).slice(0, 5) })
+  }
   const directory = useQuery({ queryKey: ['patient-appointment-directory'], queryFn: () => api.get('/interactions/directory').then((response) => response.data.data) })
   const booking = useMutation({
     mutationFn: (payload) => api.post('/appointments', payload, { timeout: 30000 }).then((response) => ({ ...response.data.data, notification: response.data.notification })),
@@ -61,7 +81,22 @@ export default function PatientAppointmentsPage() {
       </form>}
     </section>
     <section className="card" aria-label="Appointment history"><h2 className="section-title">Your appointment history</h2>
-      {appointments.isLoading ? <p role="status">Loading appointments...</p> : appointments.isError ? <div role="alert">Appointments could not be loaded. <button className="btn-secondary" onClick={() => appointments.refetch()}>Try again</button></div> : !appointments.data?.length ? <p className="text-sm text-slate-500">No appointments recorded yet.</p> : <ul className="divide-y divide-slate-200 dark:divide-slate-700">{appointments.data.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-4"><div><p className="font-semibold">{appointmentLabel(item.appointment_type)}</p><p className="mt-1 text-sm text-slate-500">{formatCareDate(item.scheduled_date)} | {formatCareTime(item.scheduled_time)}{item.assigned_to_name ? ` | ${item.assigned_to_name}` : ''}</p></div><span className="badge badge-gray">{item.status.replaceAll('_', ' ')}</span></li>)}</ul>}
+      <p className="mt-2 text-sm text-slate-500">You can change an unconfirmed schedule or cancel an open appointment. Contact the clinic to reschedule a confirmed visit. All times are Philippine time.</p>
+      {notice && <p role="status" className="mt-4 rounded-xl bg-teal-50 p-4 text-teal-950">{notice}</p>}
+      {action && <form aria-label={action.type === 'cancel' ? 'Cancel appointment' : 'Change preferred schedule'} className="my-4 space-y-4 rounded-xl border border-slate-200 p-4" onSubmit={(event) => {
+        event.preventDefault()
+        if (!changeAppointment.isPending) changeAppointment.mutate(action.type === 'cancel' ? { id: action.id, status: 'cancelled' } : { id: action.id, scheduledDate: action.scheduledDate, scheduledTime: action.scheduledTime })
+      }}>
+        <h3 className="font-semibold">{action.type === 'cancel' ? 'Cancel this appointment?' : 'Change preferred schedule'}</h3>
+        {action.type === 'cancel' ? <p className="text-sm">This releases your booked time. To book again, submit a new appointment request.</p> : <div className="grid gap-4 sm:grid-cols-2">
+          <div><label htmlFor="change-appointment-date" className="label">New preferred date</label><input id="change-appointment-date" className="input" type="date" required min={new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })} value={action.scheduledDate} disabled={changeAppointment.isPending} onChange={(event) => setAction({ ...action, scheduledDate: event.target.value })} /></div>
+          <div><label htmlFor="change-appointment-time" className="label">New preferred time</label><input id="change-appointment-time" className="input" type="time" required value={action.scheduledTime} disabled={changeAppointment.isPending} onChange={(event) => setAction({ ...action, scheduledTime: event.target.value })} /></div>
+        </div>}
+        <WorkflowError error={changeAppointment.error} />
+        <div className="flex flex-wrap gap-3"><button className="btn-primary" type="submit" disabled={changeAppointment.isPending}>{changeAppointment.isPending ? 'Saving...' : action.type === 'cancel' ? 'Confirm cancellation' : 'Save preferred schedule'}</button><button type="button" className="btn-secondary" disabled={changeAppointment.isPending} onClick={() => { setAction(null); changeAppointment.reset() }}>Keep appointment</button></div>
+      </form>}
+      {appointments.isLoading ? <p role="status">Loading appointments...</p> : appointments.isError ? <div role="alert">Appointments could not be loaded. <button className="btn-secondary" onClick={() => appointments.refetch()}>Try again</button></div> : !appointments.data?.data?.length ? <p className="text-sm text-slate-500">No appointments recorded yet.</p> : <ul className="divide-y divide-slate-200 dark:divide-slate-700">{appointments.data.data.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-4"><div><p className="font-semibold">{appointmentLabel(item.appointment_type)}</p><p className="mt-1 text-sm text-slate-500">{formatCareDate(item.scheduled_date)} | {formatCareTime(item.scheduled_time)}{item.assigned_to_name ? ` | ${item.assigned_to_name}` : ''}</p></div><span className="badge badge-gray">{item.status.replaceAll('_', ' ')}</span>{['scheduled', 'confirmed'].includes(item.status) && <div className="flex flex-wrap gap-2">{item.status === 'scheduled' && <button type="button" className="btn-secondary" disabled={changeAppointment.isPending} onClick={() => beginAction(item, 'reschedule')}>Change schedule</button>}<button type="button" className="btn-secondary" disabled={changeAppointment.isPending} onClick={() => beginAction(item, 'cancel')}>Cancel appointment</button></div>}</li>)}</ul>}
+      {(appointments.data?.pagination?.pages || 1) > 1 && <div className="mt-4 flex items-center gap-3"><button className="btn-secondary" disabled={page === 1 || appointments.isFetching} onClick={() => { setPage(page - 1); setAction(null) }}>Previous</button><span>Page {page} of {appointments.data.pagination.pages}</span><button className="btn-secondary" disabled={page >= appointments.data.pagination.pages || appointments.isFetching} onClick={() => { setPage(page + 1); setAction(null) }}>Next</button></div>}
     </section>
   </div>
 }

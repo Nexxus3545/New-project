@@ -1,0 +1,1 @@
+Synthetic test certificates only. These private keys are public test fixtures, never production secrets. The CA signing key was discarded. Do not install this CA into any system trust store or production configuration. Validity 2024-2099 prevents clock-dependent test failures. Used only by a loopback PostgreSQL TLS test double.

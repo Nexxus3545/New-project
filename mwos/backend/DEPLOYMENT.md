@@ -9,6 +9,7 @@ The MWOS web application and API are separate Vercel projects. The public patien
 3. Leave framework detection enabled. Vercel detects `src/index.js` as the Express entry point.
 4. Add the production environment variables from the clinic's secure password manager:
    - `DATABASE_URL` (preferred). For Supabase on Vercel, open the Supabase project, choose **Connect**, then copy the **Transaction pooler** URI. Replace the password placeholder and keep `sslmode=require` when it is included. Do not put this value in the frontend project or Git.
+   - Remote/production database TLS always verifies the server certificate and hostname. URL SSL flags cannot disable verification. If your database provider uses a private certificate authority, set `DATABASE_CA_CERT` to its trusted PEM certificate (literal or escaped newlines), or `DATABASE_CA_CERT_PATH` on a self-hosted server. Never set `rejectUnauthorized=false` to bypass a failed connection. Vercel production builds run the additive migration over this verified connection; a failed connection must block the release.
    - `DATABASE_POOL_MAX=1` for the Vercel serverless API
    - Optional `DATABASE_CONNECTION_TIMEOUT_MS` to override the serverless connection/queue timeout (default: `10000` milliseconds)
    - `JWT_SECRET`, `JWT_REFRESH_SECRET`
