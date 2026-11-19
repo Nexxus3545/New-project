@@ -45,19 +45,21 @@ const patientNav = [
 ]
 
 const staffNavSections = [
-  { title: 'Overview', items: staffNav.slice(0, 3) },
+  { title: 'Overview', items: [...staffNav.slice(0, 2), { to: '/patient-flow', icon: 'patients', label: 'Patient Check-in & Progress' }] },
+  { title: 'Appointments', items: [staffNav[2],{to:'/scheduling',icon:'calendar',label:'Doctor schedules & approvals'}] },
   { title: 'Clinical Monitoring', items: staffNav.slice(3, 8) },
   { title: 'Communication', items: staffNav.slice(8, 11) },
   { title: 'Operations', items: [...staffNav.slice(11, 14), { to: '/billing', icon: 'billing', label: 'Billing & Payments', roles: ['admin', 'doctor'] }] },
-  { title: 'System', items: staffNav.slice(14) },
+
 ]
 
 const patientNavSections = [
   { title: 'Care Overview', items: patientNav.slice(0, 2) },
-  { title: 'My Care', items: patientNav.slice(2, 5) },
+  { title: 'Appointments', items: [patientNav[2],{to:'/my/scheduling',icon:'calendar',label:'Doctor schedules & booking'}] },
+  { title: 'My Care', items: [...patientNav.slice(3, 5), { to: '/my/visit-progress', icon: 'calendar', label: 'Visit Progress' }] },
   { title: 'Communication', items: patientNav.slice(5, 8) },
   { title: 'Learning', items: patientNav.slice(8, 9) },
-  { title: 'Account', items: patientNav.slice(9) },
+  { title: 'Account', items: patientNav.slice(9,10) },
 ]
 
 export default function AppLayout({ patient = false }) {
@@ -83,7 +85,7 @@ export default function AppLayout({ patient = false }) {
           ? { to: '/my/vitals', icon: 'health', label: 'Clinic Readings' } : item) }))
     : [
         ...staffNavSections,
-        ...(user?.role === 'admin' ? [{ title: 'Admin', items: adminNav }] : []),
+        ...(user?.isSuperAdmin === true ? [{ title: 'Super Admin', items: adminNav }] : []),
       ].map((section) => ({ ...section, items: section.items.filter((item) => !item.roles || item.roles.includes(user?.role)) }))
 
   const currentPage = (() => {
@@ -182,10 +184,10 @@ export default function AppLayout({ patient = false }) {
 
         <nav aria-label={patient ? 'Patient modules' : 'Clinic modules'} className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
           {navSections.map((section) => (
-            <div key={section.title} className="space-y-2">
-              <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.26em] text-gray-400 dark:text-slate-500">
+            <details key={section.title} className="space-y-2" open={section.items.some(item=>location.pathname.startsWith(item.to)) || ['Overview','Care Overview'].includes(section.title)}>
+              <summary className="cursor-pointer rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                 {section.title}
-              </p>
+              </summary>
               <div className="space-y-1">
                 {section.items.map((link) => (
                   <NavLink
@@ -203,7 +205,7 @@ export default function AppLayout({ patient = false }) {
                   </NavLink>
                 ))}
               </div>
-            </div>
+            </details>
           ))}
         </nav>
 

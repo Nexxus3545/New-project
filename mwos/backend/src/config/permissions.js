@@ -1,5 +1,10 @@
 const ROLE_PERMISSION_MATRIX = {
-  admin: ['*'],
+  admin: [
+    'patients:read', 'patients:write', 'appointments:write',
+    'clinical:documents:review', 'operations:inventory:write',
+    'content:education:write', 'content:media:write', 'finance:billing:write',
+    'reports:read', 'communication:write',
+  ],
   doctor: [
     'patients:read',
     'patients:write',

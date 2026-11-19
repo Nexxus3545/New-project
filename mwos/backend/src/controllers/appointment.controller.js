@@ -180,6 +180,7 @@ const update = async (req, res, next) => {
     }
 
     const previousAppointment = existing.rows[0];
+    if (previousAppointment.availability_id) v.fail('Use the consultation approval and payment workflow to update this appointment.',409);
     if (['completed','cancelled','no_show'].includes(previousAppointment.status)) v.fail('This appointment is closed. Create a new request to book another visit.',409);
     if (req.user.role === 'patient' && previousAppointment.status === 'confirmed' && (scheduledDate || scheduledTime)) v.fail('Contact the clinic to reschedule a confirmed visit.',409);
     if ((scheduledDate || scheduledTime) && Date.parse(appointmentStartAt(scheduledDate || previousAppointment.scheduled_date,scheduledTime || previousAppointment.scheduled_time)) <= Date.now()) v.fail('Choose a future appointment date and time.');

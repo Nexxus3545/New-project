@@ -106,7 +106,7 @@ const requestOtp = async (req, res, next) => {
 
     res.json({
       success: true,
-      message: 'Verification code sent',
+      message: process.env.MWOS_LOCAL_DEMO === '1' ? 'Local demo verification code generated. No message was sent.' : 'Verification code sent',
       data: {
         challengeId: challenge.id,
         purpose,

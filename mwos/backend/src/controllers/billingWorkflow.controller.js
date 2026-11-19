@@ -12,6 +12,7 @@ const pay=async(req,res,next)=>{let client;try{
  const method=v.choice(b.paymentMethod,'payment method',['cash','bank_transfer','gcash','card','other']);client=await getClient();await client.query('BEGIN');
  await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[requestId]);
  const bill=(await client.query('SELECT * FROM billing WHERE id=$1 FOR UPDATE',[id])).rows[0];if(!bill)v.fail('Bill not found.',404);
+ if((await client.query('SELECT id FROM appointments WHERE billing_id=$1 AND availability_id IS NOT NULL',[id])).rows.length)v.fail('Verify this consultation payment from the appointment review screen.',409);
  const existing=(await client.query('SELECT * FROM billing_payments WHERE request_id=$1',[requestId])).rows[0];
  if(existing){if(existing.bill_id!==id||v.money(existing.amount)!==amount||existing.payment_method!==method)v.fail('Payment reference was already used with different details.',409);await client.query('COMMIT');return res.json({success:true,data:existing,duplicate:true});}
  if(bill.needs_reconciliation)v.fail('Reconcile the historical partial payment before adding another payment.',409);

@@ -1,3 +1,4 @@
+import AppointmentOverview from '../components/dashboard/AppointmentOverview'
 import BackupControls from '../components/common/BackupControls'
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -104,7 +105,7 @@ export default function DashboardPage() {
 
   const { data: upcomingAppointments = [] } = useQuery({
     queryKey: ['dashboard-upcoming-appointments'],
-    queryFn: () => api.get('/appointments', { params: { limit: 5 } }).then((response) => response.data.data),
+    queryFn: () => api.get('/appointments', { params: { limit: 200, from: new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Manila'}) } }).then((response) => response.data.data),
   })
 
   const { data: reviewSummary } = useQuery({
@@ -261,7 +262,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6"><AppointmentOverview />
       <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
         <div className="rounded-[32px] border border-white/80 bg-gradient-to-br from-[#fff6fb] via-white to-[#f4efff] p-6 shadow-[0_24px_60px_rgba(214,92,138,0.10)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">

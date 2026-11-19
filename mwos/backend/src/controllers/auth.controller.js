@@ -28,11 +28,15 @@ const buildUserPayload = async (user, client) => {
   ]);
 
   const patientId = patientResult.rows[0]?.id || null;
+  const access = user.role === 'admin'
+    ? (await executor.query('SELECT is_super_admin FROM users WHERE id=$1', [user.id])).rows[0]
+    : null;
 
   return {
     id: user.id,
     email: user.email,
     role: user.role,
+    isSuperAdmin: access?.is_super_admin === true,
     firstName: user.first_name,
     lastName: user.last_name,
     phone: user.phone,
@@ -317,7 +321,7 @@ const register = async (req, res, next) => {
     if (!['admin', 'doctor', 'midwife', 'nurse', 'patient'].includes(role)) {
       return res.status(400).json({ success: false, message: 'Invalid role' });
     }
-    const managedAccount = req.user?.role === 'admin';
+    const managedAccount = req.user?.role === 'admin' && req.user?.is_super_admin === true;
     if (role !== 'patient' && !managedAccount) {
       return res.status(403).json({ success: false, message: 'Public registration is for patients only. Staff accounts must be created by an authorized clinic administrator.' });
     }

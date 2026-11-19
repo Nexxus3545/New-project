@@ -2,6 +2,7 @@ import { WorkflowForm, WorkflowError, required } from '../components/common/Work
 import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
+import {Link} from 'react-router-dom'
 import CoverCard from '../components/common/CoverCard'
 import { clinicFacilities } from '../utils/clinicFacilities'
 
@@ -208,6 +209,7 @@ export default function AppointmentsPage() {
 
   return (
     <div className="space-y-6">
+      <Link className="btn-primary" to="/scheduling">Doctor availability & consultation approvals</Link>
       {listError && <div className="card" role="alert"><WorkflowError error={listError}/><button type="button" className="btn-secondary" onClick={()=>refetch()}>Reload appointments</button></div>}
       <WorkflowError error={updateMut.error || remind.error} />
       {notice && <p className="card" role="status">{notice}</p>}

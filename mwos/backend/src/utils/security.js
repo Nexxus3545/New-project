@@ -167,6 +167,9 @@ const verifyWebAuthnSessionToken = (token, expectedType) => {
 };
 
 const deliverOtp = async ({ user, code, purpose, context = 'step-up' }) => {
+  if (process.env.MWOS_LOCAL_DEMO === '1' && process.env.NODE_ENV === 'development' && process.env.DB_NAME === 'mwos_capstone_demo' && process.env.DB_HOST === '127.0.0.1' && process.env.DB_PORT === '55433' && !process.env.VERCEL) {
+    return { channel: 'SMS', deliveryMode: 'local-demo-only' };
+  }
   const isSignIn = context === 'sign-in';
   const text = isSignIn
     ? [

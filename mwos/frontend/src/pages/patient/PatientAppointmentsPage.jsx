@@ -3,6 +3,7 @@ import { clinicFacilities } from '../../utils/clinicFacilities'
 import React, { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../utils/api'
+import {Link} from 'react-router-dom'
 import AppIcon from '../../components/common/AppIcon'
 import { appointmentLabel, generalAppointments, maternalAppointments, isMaternalAppointment } from '../../utils/patientCare'
 import { formatCareDate, formatCareTime } from '../../utils/recordedCare'
@@ -54,6 +55,7 @@ export default function PatientAppointmentsPage() {
   const providers = (directory.data?.staff || []).filter((member) => ['doctor', 'midwife', 'nurse'].includes(member.role))
 
   return <div className="space-y-6">
+    <Link className="btn-primary" to="/my/scheduling">View doctor schedules & book a consultation</Link>
     <div className="page-header"><div><h1 className="page-title">My appointments</h1><p className="page-sub">Choose a general checkup or pregnancy-related visit. The clinic will confirm provider availability.</p></div></div>
       <FacilityPhoto facility={clinicFacilities.reception} />
     <section className="card" aria-label="Request a clinic appointment">

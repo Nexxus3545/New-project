@@ -20,8 +20,10 @@ import OAuthCallback from './pages/OAuthCallback'
 // Staff pages
 import DashboardPage from './pages/DashboardPage'
 import PatientsPage from './pages/PatientsPage'
+import PatientFlowPage from './pages/PatientFlowPage'
 import PatientDetailPage from './pages/PatientDetailPage'
 import AppointmentsPage from './pages/AppointmentsPage'
+import SchedulingPage from './pages/SchedulingPage'
 import VitalsPage from './pages/VitalsPage'
 import { DeliveryWorkspace, PostnatalWorkspace, PediatricWorkspace } from './pages/ClinicalWorkflows'
 import InventoryPage from './pages/InventoryPage'
@@ -57,12 +59,13 @@ import PatientEmergencyPage from './pages/patient/PatientEmergencyPage'
 const staffRoles = ['admin','doctor','midwife','nurse']
 const adminRoles = ['admin']
 
-const ProtectedRoute = ({ children, roles }) => {
+const ProtectedRoute = ({ children, roles, superAdminOnly = false }) => {
   const user = useAuthStore((s) => s.user)
   const isHydrating = useAuthStore((s) => s.isHydrating)
   if (isHydrating && !user) return <div className="flex min-h-screen items-center justify-center"><div className="loading-spinner w-10 h-10" /></div>
   if (!user) return <Navigate to="/login" replace />
   if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />
+  if (superAdminOnly && !user.isSuperAdmin) return <Navigate to="/dashboard" replace />
   return children
 }
 
@@ -106,8 +109,10 @@ export default function App() {
         }>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/patients" element={<PatientsPage />} />
+          <Route path="/patient-flow" element={<PatientFlowPage />} />
           <Route path="/patients/:id" element={<PatientDetailPage />} />
           <Route path="/appointments" element={<AppointmentsPage />} />
+          <Route path="/scheduling" element={<SchedulingPage />} />
           <Route path="/prenatal-care" element={<VitalsPage />} />
           <Route path="/prenatal-monitoring" element={<VitalsPage />} />
           <Route path="/vitals" element={<VitalsPage />} />
@@ -133,17 +138,17 @@ export default function App() {
           <Route path="/account" element={<AccountCenterPage key="staff-profile" />} />
           <Route path="/settings" element={<AccountCenterPage key="staff-settings" section="settings" />} />
           <Route path="/compliance" element={
-            <ProtectedRoute roles={adminRoles}>
+            <ProtectedRoute roles={adminRoles} superAdminOnly>
               <CompliancePage />
             </ProtectedRoute>
           } />
           <Route path="/users" element={
-            <ProtectedRoute roles={adminRoles}>
+            <ProtectedRoute roles={adminRoles} superAdminOnly>
               <UsersPage />
             </ProtectedRoute>
           } />
           <Route path="/staff-qualifications" element={
-            <ProtectedRoute roles={adminRoles}>
+            <ProtectedRoute roles={adminRoles} superAdminOnly>
               <UsersPage />
             </ProtectedRoute>
           } />
@@ -166,6 +171,8 @@ export default function App() {
           <Route path="/my/notifications" element={<PatientNotificationsPage />} />
           <Route path="/my/reports" element={<PatientReportsPage />} />
           <Route path="/my/appointments" element={<PatientAppointmentsPage />} />
+          <Route path="/my/visit-progress" element={<PatientFlowPage />} />
+          <Route path="/my/scheduling" element={<SchedulingPage />} />
           <Route path="/my/vitals" element={<PatientVitalsPage />} />
           <Route path="/my/pregnancy" element={<PatientVitalsPage />} />
           <Route path="/my/records" element={<PatientRecordsPage />} />

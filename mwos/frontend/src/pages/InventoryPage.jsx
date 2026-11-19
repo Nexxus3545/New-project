@@ -2,6 +2,7 @@ import { PickupRequests } from '../components/common/CoordinationWorkflows'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
+import StockMovements from '../components/common/StockMovements'
 
 const EMPTY_FORM = {
   itemName: '',
@@ -160,6 +161,7 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6">
+      <StockMovements />
       <PickupRequests />
       <div className="page-header">
         <div>

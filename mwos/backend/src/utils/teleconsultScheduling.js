@@ -51,9 +51,10 @@ const findSchedulingConflicts = async (client, { clinicianId, patientId, startAt
        UNION ALL
        SELECT 'appointment'::text AS kind,
               (scheduled_date + scheduled_time) AT TIME ZONE 'Asia/Manila' AS start_at,
-              ((scheduled_date + scheduled_time) AT TIME ZONE 'Asia/Manila') + INTERVAL '30 minutes' AS end_at
+              ((scheduled_date + scheduled_time) AT TIME ZONE 'Asia/Manila') + make_interval(mins => COALESCE((SELECT slot_minutes FROM provider_availability av WHERE av.id=appointments.availability_id),30)) AS end_at
        FROM appointments
-       WHERE status IN ('scheduled', 'confirmed') AND id IS DISTINCT FROM $6::uuid
+       WHERE status IN ('scheduled', 'confirmed','awaiting_payment','payment_review') AND id IS DISTINCT FROM $6::uuid
+         AND (teleconsult_id IS NULL OR teleconsult_id IS DISTINCT FROM $5::uuid)
          AND (assigned_to = $1::uuid OR patient_id = $2::uuid)
      )
      SELECT kind, start_at AS "startAt", end_at AS "endAt" FROM scheduling_bookings

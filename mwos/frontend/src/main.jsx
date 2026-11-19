@@ -26,6 +26,7 @@ useThemeStore.getState().initTheme()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <QueryClientProvider client={queryClient}>
+    {import.meta.env.VITE_LOCAL_DEMO === 'true' && <div role="note" style={{position:'fixed',bottom:0,left:0,right:0,zIndex:99999,padding:'8px 16px',background:'#71334d',color:'#fff',textAlign:'center',fontSize:13}}>LOCAL DEMO — All patients, staff, payments and reviews are fictional. External services are disabled.</div>}
     <App />
   </QueryClientProvider>
 )

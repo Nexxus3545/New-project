@@ -5,6 +5,7 @@ const {
   normalizePermissionRows,
 } = require('../config/permissions');
 const { resolveStepUpContext } = require('./stepUp');
+const { isSuperAdmin } = require('./superAdmin');
 const { PROFESSIONAL_ROLES, loadProfessionalCredential, isCurrentProfessionalCredential } = require('./professionalCredential');
 
 const loadRolePermissions = async (role) => {
@@ -14,6 +15,7 @@ const loadRolePermissions = async (role) => {
   );
 
   if (result.rows.length > 0) {
+    if (role === 'admin' && result.rows.some(row => row.permission_key === '*' && row.is_allowed !== false)) return new Set(ROLE_PERMISSION_MATRIX.admin);
     return normalizePermissionRows(result.rows);
   }
 
@@ -48,6 +50,13 @@ const authorizePermission = (permissionKey, options = {}) => {
       for (const override of await loadPermissionOverrides(req.user.id)) {
         if (override.effect === 'grant') permissions.add(override.permission_key);
         if (override.effect === 'deny') permissions.delete(override.permission_key);
+      }
+
+      // An old wildcard row or a staff override must not confer owner privileges.
+      if (isSuperAdmin(req.user)) permissions.add('*');
+      else {
+        const ceiling = new Set(ROLE_PERMISSION_MATRIX[req.user.role] || []);
+        for (const permission of permissions) if (!ceiling.has(permission)) permissions.delete(permission);
       }
 
       if (!permissions.has('*') && !permissions.has(permissionKey)) {

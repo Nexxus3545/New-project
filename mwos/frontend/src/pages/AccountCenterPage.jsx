@@ -16,6 +16,7 @@ import { hasMaternalCare } from '../utils/patientCare'
 import { settingsSections, useSettingsStore } from '../store/settingsStore'
 import SettingsPanel from '../components/common/SettingsPanel'
 import AccountCredentials from '../components/credentials/AccountCredentials'
+import PatientQrCard from '../components/patient/PatientQrCard'
 import PasswordRequirements from '../components/common/PasswordRequirements'
 import { passwordPolicyError, passwordMeetsPolicy } from '../utils/passwordPolicy'
 
@@ -540,6 +541,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
         </div>
       </section>
 
+      {!isSettings && account?.role === 'patient' && <PatientQrCard key={account.id} />}
       <nav aria-label="Account navigation" className="flex flex-wrap gap-2">
         <NavLink to={account?.role === 'patient' ? '/my/profile' : '/account'} className={({ isActive }) => isActive ? 'btn-primary' : 'btn-secondary'}><AppIcon name="profile" />Profile</NavLink>
         <NavLink to={account?.role === 'patient' ? '/my/settings' : '/settings'} className={({ isActive }) => isActive ? 'btn-primary' : 'btn-secondary'}><AppIcon name="settings" />Settings</NavLink>

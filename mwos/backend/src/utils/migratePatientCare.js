@@ -20,6 +20,9 @@ async function migratePatientCare(client) {
     await client.query(accountCredentialsMigrationSql);
     await client.query(credentialScanningMigrationSql);
     await client.query(completeWorkflowSql);
+    await client.query(fs.readFileSync(path.join(__dirname, '../config/migrations/20261118-panel-access.sql'), 'utf8'));
+    await client.query(fs.readFileSync(path.join(__dirname, '../config/migrations/20261118-panel-scheduling.sql'), 'utf8'));
+    await client.query(fs.readFileSync(path.join(__dirname, '../config/migrations/20261118-panel-clinic.sql'), 'utf8'));
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');

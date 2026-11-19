@@ -72,21 +72,23 @@ const FORM_STEPS = [
 export default function PatientsPage() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [filters,setFilters]=useState({pregnancy:'',patient_type:'',status:'',sort:'registered',direction:'desc'})
   const [showForm, setShowForm] = useState(false)
   const [formStep, setFormStep] = useState(0)
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['patients', search],
-    queryFn: () => api.get('/patients', { params: { search, limit: 50 } }).then((r) => r.data),
-    keepPreviousData: true,
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ['patients', search, page, filters],
+    queryFn: () => api.get('/patients', { params: { search, limit: 50, page, ...filters } }).then((r) => r.data),
+    placeholderData: (previousData) => previousData,
   })
 
   const createMutation = useMutation({
     mutationFn: (body) => api.post('/patients', body),
     onSuccess: () => {
-      qc.invalidateQueries(['patients'])
+      qc.invalidateQueries({ queryKey: ['patients'] })
       setShowForm(false)
       setForm(EMPTY_FORM)
       setFormStep(0)
@@ -96,19 +98,25 @@ export default function PatientsPage() {
   })
 
   const patients = data?.data || []
+  const exportPage = () => {
+    const cell = value => '"'+String(value??'').replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"';
+    const rows=[['Patient ID','Full name','Age','Address','Patient type','Pregnancy status','Registered','Last visit','Status'],...patients.map(p=>[p.patient_code,p.first_name+' '+p.last_name,p.age,p.address,p.patient_type,p.pregnancy_status==='active'?'Pregnant':'No active pregnancy',p.created_at,p.last_visit,p.is_active?'Active':'Inactive'])];
+    const url=URL.createObjectURL(new Blob(['\uFEFF'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));
+    const a=document.createElement('a');a.href=url;a.download='MWOS-patients-page-'+page+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
   const patientMetrics = useMemo(() => {
-    const total = patients.length
+    const total = data?.pagination?.total
     const activePregnancies = patients.filter((patient) => patient.pregnancy_status === 'active').length
     const highRisk = patients.filter((patient) => patient.risk_level === 'high').length
     const reachable = patients.filter((patient) => patient.phone || patient.email).length
 
     return [
-      { label: 'Registered', value: total, helper: 'Patient profiles in the system' },
-      { label: 'Active pregnancies', value: activePregnancies, helper: 'Currently monitored cases' },
-      { label: 'High risk', value: highRisk, helper: 'Needs closer follow-up' },
-      { label: 'Reachable', value: reachable, helper: 'Has phone or email on file' },
+      { label: 'Registered', value: total ?? '—', helper: search ? 'Patient profiles matching this search' : 'Patient profiles in the system' },
+      { label: 'Active pregnancies', value: data ? activePregnancies : '—', helper: 'On this page · currently monitored' },
+      { label: 'High risk', value: data ? highRisk : '—', helper: 'On this page · recorded high risk' },
+      { label: 'Reachable', value: data ? reachable : '—', helper: 'On this page · phone or email on file' },
     ]
-  }, [patients])
+  }, [patients, data, search])
 
   const openForm = () => {
     setShowForm(true)
@@ -164,7 +172,7 @@ export default function PatientsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6"><Link className="btn-secondary" to="/patient-flow">QR check-in & patient progress</Link>
       <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
         <div className="rounded-[32px] border border-white/80 bg-gradient-to-br from-[#fff6fb] via-white to-[#f4efff] p-6 shadow-[0_24px_60px_rgba(214,92,138,0.10)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/70">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -206,12 +214,23 @@ export default function PatientsPage() {
         <input
           type="search"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(1) }}
           className="input"
           placeholder="Search by name, birthing ID, patient code, phone, or PhilHealth ID..."
         />
       </div>
 
+      <div className="flex flex-wrap items-end gap-3">
+        {[
+          ['pregnancy','Pregnancy',[['','All'],['active','Pregnant'],['none','No active pregnancy']]],
+          ['patient_type','Patient type',[['','All'],['new','New'],['returning','Returning']]],
+          ['status','Status',[['','All'],['active','Active'],['inactive','Inactive']]],
+          ['sort','Sort by',[['registered','Registration'],['name','Name'],['age','Age'],['last_visit','Last visit']]],
+          ['direction','Order',[['desc','Descending'],['asc','Ascending']]],
+        ].map(([key,label,options])=><label key={key} className="text-sm">{label}<select aria-label={label} className="input" value={filters[key]} onChange={e=>{setFilters(f=>({...f,[key]:e.target.value}));setPage(1)}}>{options.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>)}
+        <button className="btn-secondary" disabled={!patients.length||isFetching} onClick={exportPage}>Export this page</button>
+        <p className="text-xs text-slate-500">Returning means a completed appointment or clinic visit is recorded.</p>
+      </div>
       {error && (
         <div className="alert-critical">
           <span>Failed to load patients</span>
@@ -232,8 +251,7 @@ export default function PatientsPage() {
             <thead>
               <tr>
                 <th>Patient</th>
-                <th>Contact</th>
-                <th>PhilHealth</th>
+                <th>Age</th><th>Address</th><th>Patient type</th><th>Registered</th><th>Last visit</th><th>Status</th>
                 <th>Risk</th>
                 <th>Pregnancy</th>
                 <th>Actions</th>
@@ -250,11 +268,12 @@ export default function PatientsPage() {
                       <p className="text-xs text-gray-500">{hasMaternalCare(patient) ? 'Pregnancy / postnatal care' : 'General clinic care'}</p>
                     </div>
                   </td>
-                  <td>
-                    <p>{patient.phone || '-'}</p>
-                    <p className="text-xs text-gray-400">{patient.city || ''}</p>
-                  </td>
-                  <td>{patient.philhealth_id || <span className="text-gray-400">-</span>}</td>
+                  <td>{patient.age ?? '—'}</td>
+                  <td className="max-w-xs whitespace-normal">{patient.address || 'Not recorded'}</td>
+                  <td>{patient.patient_type}</td>
+                  <td>{new Date(patient.created_at).toLocaleDateString('en-PH')}</td>
+                  <td>{patient.last_visit ? new Date(patient.last_visit).toLocaleDateString('en-PH') : 'No completed visit'}</td>
+                  <td>{patient.is_active ? 'Active' : 'Inactive'}</td>
                   <td>
                     <span className={`badge ${
                       patient.risk_level === 'high' ? 'badge-danger'
@@ -281,6 +300,14 @@ export default function PatientsPage() {
           </table>
         )}
       </div>
+
+      {data?.pagination && !error && <nav aria-label="Patient list pages" className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-slate-500" role="status">{isFetching ? 'Updating patients…' : `${data.pagination.total} patient profiles · Page ${page} of ${Math.max(1, data.pagination.pages)}`}</p>
+        <div className="flex gap-2">
+          <button type="button" className="btn-secondary" disabled={page <= 1 || isFetching} onClick={() => setPage((current) => current - 1)}>Previous page</button>
+          <button type="button" className="btn-secondary" disabled={page >= data.pagination.pages || isFetching} onClick={() => setPage((current) => current + 1)}>Next page</button>
+        </div>
+      </nav>}
 
       {showForm && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 p-4 backdrop-blur-sm">

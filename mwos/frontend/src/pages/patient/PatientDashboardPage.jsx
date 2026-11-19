@@ -1,3 +1,4 @@
+import AppointmentOverview from '../../components/dashboard/AppointmentOverview'
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -72,7 +73,7 @@ export default function PatientDashboardPage() {
   const featuredTips = education.slice(0, 3)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6"><AppointmentOverview patient />
       <MaternalCareOverview dashboard={dashboard} patientName={user?.firstName}
         tasks={tasksQuery.data || []} tasksLoading={tasksQuery.isLoading} tasksError={tasksQuery.isError}
         requirements={requirementsQuery.data || []} requirementsLoading={requirementsQuery.isLoading} requirementsError={requirementsQuery.isError} />

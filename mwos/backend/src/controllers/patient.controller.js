@@ -131,68 +131,35 @@ const deriveBiometricBmi = ({ heightCm, weightKg, explicitBmi, fallbackHeightCm,
 
 const getAll = async (req, res, next) => {
   try {
-    const { search, risk_level: riskLevel, page = 1, limit = 20 } = req.query;
-    const offset = (Number(page) - 1) * Number(limit);
-    const conditions = [];
-    const params = [];
-    let idx = 1;
-
-    if (search) {
-      conditions.push(`(${SEARCH_FIELDS.map((field) => `${field} ILIKE $${idx}`).join(' OR ')})`);
-      params.push(`%${search}%`);
-      idx += 1;
-    }
-
-    if (riskLevel) {
-      conditions.push(`p.risk_level = $${idx}`);
-      params.push(riskLevel);
-      idx += 1;
-    }
-
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-    const countResult = await query(`SELECT COUNT(*) FROM patients p ${where}`, params);
-    const total = Number.parseInt(countResult.rows[0].count, 10);
-
-    params.push(Number(limit), offset);
-    const result = await query(
-      `SELECT p.*,
-        pr.id AS active_pregnancy_id,
-        pr.edd,
-        pr.status AS pregnancy_status,
-        (
-          SELECT d.delivery_code
-          FROM deliveries d
-          WHERE d.patient_id = p.id
-          ORDER BY d.delivery_date DESC, d.created_at DESC
-          LIMIT 1
-        ) AS latest_delivery_code,
-        (
-          SELECT COUNT(*)
-          FROM appointments a
-          WHERE a.patient_id = p.id AND a.status = 'scheduled'
-        ) AS upcoming_appointments
-       FROM patients p
-       LEFT JOIN pregnancies pr ON pr.patient_id = p.id AND pr.status = 'active'
-       ${where}
-       ORDER BY p.created_at DESC
-       LIMIT $${idx} OFFSET $${idx + 1}`,
-      params
-    );
-
-    res.json({
-      success: true,
-      data: result.rows,
-      pagination: {
-        page: Number.parseInt(page, 10),
-        limit: Number.parseInt(limit, 10),
-        total,
-        pages: Math.ceil(total / Number(limit)),
-      },
-    });
-  } catch (err) {
-    next(err);
-  }
+    const v = require('../utils/workflowValidation');
+    const page = v.number(req.query.page || 1, 'Page', 1, 100000, true, true);
+    const limit = v.number(req.query.limit || 20, 'Page size', 1, 200, true, true);
+    const params = [], conditions = [];
+    const add = (sql,value) => { params.push(value); conditions.push(sql.replace('?', '$'+params.length)); };
+    const search = v.text(req.query.search, 'Search', 200, false);
+    if(search) {params.push('%'+search+'%'); conditions.push('('+SEARCH_FIELDS.map(f=>f+' ILIKE $'+params.length).join(' OR ')+')');}
+    if(req.query.risk_level) add('p.risk_level = ?',v.choice(req.query.risk_level,'Risk',['low','moderate','high']));
+    if(req.query.status) add('p.is_active = ?',v.choice(req.query.status,'Status',['active','inactive'])==='active');
+    const prior = "EXISTS(SELECT 1 FROM appointments av WHERE av.patient_id=p.id AND av.status='completed') OR EXISTS(SELECT 1 FROM patient_visits pv WHERE pv.patient_id=p.id AND pv.status='completed')";
+    if(req.query.patient_type) conditions.push((v.choice(req.query.patient_type,'Patient type',['new','returning'])==='new'?'NOT ':'')+'('+prior+')');
+    if(req.query.pregnancy) conditions.push((v.choice(req.query.pregnancy,'Pregnancy',['active','none'])==='none'?'NOT ':'')+"EXISTS(SELECT 1 FROM pregnancies pg WHERE pg.patient_id=p.id AND pg.status='active')");
+    const sorting = {registered:'p.created_at',name:'p.last_name',age:'age',last_visit:'last_visit'};
+    const sort = sorting[v.choice(req.query.sort,'Sort',Object.keys(sorting),'registered')];
+    const direction=v.choice(req.query.direction,'Direction',['asc','desc'],'desc').toUpperCase();
+    const where=conditions.length?'WHERE '+conditions.join(' AND '):'';
+    const total=Number((await query('SELECT count(*) FROM patients p '+where,params)).rows[0].count);
+    params.push(limit,(page-1)*limit);
+    const result=await query(`SELECT p.*,EXTRACT(YEAR FROM age(CURRENT_DATE,p.date_of_birth))::int AS age,
+      CASE WHEN (${prior}) THEN 'Returning' ELSE 'New' END AS patient_type,
+      GREATEST((SELECT MAX(av.scheduled_date) FROM appointments av WHERE av.patient_id=p.id AND av.status='completed'),
+        (SELECT MAX(pv.updated_at::date) FROM patient_visits pv WHERE pv.patient_id=p.id AND pv.status='completed')) AS last_visit,
+      pr.id AS active_pregnancy_id,pr.edd,pr.status AS pregnancy_status,
+      (SELECT d.delivery_code FROM deliveries d WHERE d.patient_id=p.id ORDER BY d.delivery_date DESC,d.created_at DESC LIMIT 1) AS latest_delivery_code,
+      (SELECT count(*) FROM appointments a WHERE a.patient_id=p.id AND a.status IN('scheduled','confirmed','awaiting_payment','payment_review') AND a.scheduled_date>=CURRENT_DATE) AS upcoming_appointments
+      FROM patients p LEFT JOIN LATERAL (SELECT id,edd,status FROM pregnancies WHERE patient_id=p.id AND status='active' ORDER BY created_at DESC LIMIT 1) pr ON true
+      ${where} ORDER BY ${sort} ${direction} NULLS LAST,p.id LIMIT $${params.length-1} OFFSET $${params.length}`,params);
+    res.json({success:true,data:result.rows,pagination:{page,limit,total,pages:Math.ceil(total/limit)}});
+  } catch(err) { next(err); }
 };
 
 const getOne = async (req, res, next) => {

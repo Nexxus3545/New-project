@@ -80,6 +80,7 @@ router.post('/reviews', reviewCtrl.create);
 
 // Audit/activity logging for state-changing authenticated actions
 router.use(authenticate, activityLogger);
+router.use(require('../middleware/superAdmin').requireSuperAdminForAdministration);
 
 // Onboarding remains accessible while clinical credentials await review.
 router.get('/credentials/mine', credentialCtrl.getMine);
@@ -95,6 +96,31 @@ router.use((req, res, next) => {
   if (isCredentialSelfServiceRoute(req)) return next();
   return requireCurrentProfessionalCredential(req, res, next);
 });
+
+const scheduling=require('../controllers/panelScheduling.controller');
+const clinicPanel=require('../controllers/panelClinic.controller');
+router.get('/patient-qr/mine',authorize('patient'),clinicPanel.qr);
+router.post('/patient-qr/lookup',authorize('admin','doctor','midwife','nurse'),clinicPanel.lookup);
+router.get('/patient-flow',clinicPanel.listVisits);
+router.post('/patient-flow',authorize('admin','doctor','midwife','nurse'),clinicPanel.startVisit);
+router.patch('/patient-flow/:id',authorize('admin','doctor','midwife','nurse'),clinicPanel.advance);
+router.get('/inventory/:id/history',authorize('admin','doctor','midwife','nurse'),clinicPanel.stockHistory);
+router.post('/inventory/:id/stock',authorizePermission('operations:inventory:write'),clinicPanel.stock);
+router.get('/clinical-outcomes',authorize('admin','doctor'),clinicPanel.outcomes);
+router.post('/clinical-outcomes',authorize('doctor'),requireStepUp('critical'),clinicPanel.outcome);
+router.get('/reports/clinic-analytics',authorize('admin','doctor','midwife','nurse'),clinicPanel.analytics);
+router.get('/scheduling/providers',scheduling.providers);
+router.get('/scheduling/availability',scheduling.availability);
+router.get('/scheduling/availability/:id/slots',scheduling.slots);
+router.post('/scheduling/availability',authorize('admin','doctor'),scheduling.saveAvailability);
+router.patch('/scheduling/availability/:id',authorize('admin','doctor'),scheduling.blockAvailability);
+router.get('/scheduling/requests',scheduling.requests);
+router.post('/scheduling/requests',authorize('patient'),scheduling.book);
+router.post('/scheduling/requests/:id/review',authorize('admin','doctor'),scheduling.review);
+router.post('/scheduling/requests/:id/payment',authorize('patient'),scheduling.submitPayment);
+router.post('/scheduling/requests/:id/verify-payment',authorizePermission('finance:billing:write'),scheduling.verifyPayment);
+router.post('/scheduling/requests/:id/cancel',scheduling.cancel);
+router.post('/scheduling/requests/:id/complete',authorize('admin','doctor'),scheduling.complete);
 
 router.get('/account/activity', accountCtrl.getActivity);
 router.get('/account/security', accountSecurity.status);
