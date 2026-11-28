@@ -105,11 +105,12 @@ export default function NotificationBell({ patient = false, userId, onNavigate }
   }
 
   return <div ref={containerRef} className="relative">
-    <button ref={triggerRef} type="button" className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-rose-100 bg-rose-50 text-[var(--accent-strong)] transition hover:bg-rose-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] dark:border-slate-700 dark:bg-slate-800 dark:text-rose-200" aria-label={`Notifications${unreadTotal ? `, ${unreadTotal} unread` : ''}`} aria-expanded={open} aria-controls={open ? panelId : undefined} aria-haspopup="dialog" onClick={() => setOpenAt(open ? null : location.key)}>
+    <button ref={triggerRef} type="button" className="relative inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-2.5 text-sm font-semibold text-[var(--accent-strong)] transition hover:bg-rose-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] sm:px-3 dark:border-slate-700 dark:bg-slate-800 dark:text-rose-200" aria-label={`Notifications${unreadTotal ? `, ${unreadTotal} unread` : ''}`} aria-expanded={open} aria-controls={open ? panelId : undefined} aria-haspopup="dialog" onClick={() => setOpenAt(open ? null : location.key)}>
       <AppIcon name="notifications" className="h-5 w-5" />
+      <span className="hidden sm:inline">Notifications</span>
       {unreadTotal > 0 ? <span aria-label={`${unreadTotal} unread updates`} className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-strong)] px-1 text-[10px] font-bold text-white">{unreadTotal > 99 ? '99+' : unreadTotal}</span> : null}
     </button>
-    {open ? <div id={panelId} role="dialog" aria-label="Notifications and messages" className="absolute right-0 mt-2 flex max-h-[calc(100dvh-9rem)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl lg:left-0 lg:right-auto dark:border-slate-700 dark:bg-slate-900">
+    {open ? <div id={panelId} role="dialog" aria-label="Notifications and messages" className="absolute right-0 mt-2 flex max-h-[calc(100dvh-9rem)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800"><div><p className="font-semibold text-slate-900 dark:text-white">Notifications</p><p className="text-xs text-slate-500">Messages and important clinic updates</p></div><span className="badge badge-gray">{unreadTotal} new</span></div>
       <div className="min-h-0 max-h-96 overflow-y-auto overscroll-contain p-2">
         {(notificationsQuery.isError || messagesQuery.isError) && (

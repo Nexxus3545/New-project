@@ -160,9 +160,6 @@ export default function AppLayout({ patient = false }) {
   return (
     <AssistantSession key={user?.id} patient={patient}>
     <div className="futuristic-shell flex h-screen bg-[#fff8fb] dark:bg-slate-950 overflow-hidden">
-      <div className="absolute right-4 top-5 z-40 lg:left-[14.25rem] lg:right-auto">
-        <NotificationBell key={user?.id} patient={patient} userId={user?.id} onNavigate={() => setSidebarOpen(false)} />
-      </div>
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-20 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
@@ -176,11 +173,9 @@ export default function AppLayout({ patient = false }) {
       `}
       >
         <div
-          className="relative shrink-0 border-b border-rose-100 bg-white px-5 py-5 pr-16 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50"
+          className="shrink-0 border-b border-rose-100 bg-white px-5 py-5 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50"
         >
-          <div className="relative flex items-start justify-between gap-3">
-            <BrandMark compact sublabel={patient ? 'Patient experience' : 'Birthing home operations'} />
-          </div>
+          <BrandMark compact sublabel={patient ? 'Patient experience' : 'Birthing home operations'} />
         </div>
 
         <nav aria-label={patient ? 'Patient modules' : 'Clinic modules'} className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
@@ -252,12 +247,17 @@ export default function AppLayout({ patient = false }) {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="lg:hidden flex shrink-0 items-center gap-3 px-4 py-3 pr-20 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800">
-          <button type="button" aria-controls="app-sidebar" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)} className="inline-flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800">
+        <header aria-label="Workspace controls" className="relative z-40 flex shrink-0 items-center gap-2 border-b border-rose-100 bg-white px-3 py-2 sm:gap-3 sm:px-5 lg:px-6 dark:border-slate-800 dark:bg-slate-900">
+          <button type="button" aria-label="Menu" aria-controls="app-sidebar" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg px-2 hover:bg-gray-100 lg:hidden dark:hover:bg-slate-800">
             <AppIcon name="menu" />
-            Menu
+            <span className="hidden sm:inline">Menu</span>
           </button>
-          <BrandMark compact sublabel="Birthing home clinic workspace" />
+          <div className="min-w-0 lg:hidden">
+            <BrandMark compact sublabel={patient ? 'Patient experience' : 'Clinic workspace'} />
+          </div>
+          <div className="ml-auto shrink-0">
+            <NotificationBell patient={patient} userId={user?.id} onNavigate={() => setSidebarOpen(false)} />
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
