@@ -38,6 +38,7 @@ async function migrate({ reset = false, closePool = true } = {}) {
     await client.query(fs.readFileSync(path.join(__dirname, '../config/migrations/20261118-panel-access.sql'), 'utf8'));
     await client.query(fs.readFileSync(path.join(__dirname, '../config/migrations/20261118-panel-scheduling.sql'), 'utf8'));
     await client.query(fs.readFileSync(path.join(__dirname, '../config/migrations/20261118-panel-clinic.sql'), 'utf8'));
+    await client.query(fs.readFileSync(path.join(__dirname, '../config/migrations/20261128-ward-operations.sql'), 'utf8'));
     await client.query('COMMIT');
 
     console.log('Migration completed successfully!');

@@ -47,7 +47,7 @@ test('registration, admin-created accounts, password changes and resets reject w
   for (const weak of ['abcdefgh1', 'abcdefgh!', '12345678!', 'abc12345 ', 'x1!', 'a1!' + 'x'.repeat(70), 123456789]) {
     for (const [handler, body, user] of [
       [controller.register, { ...registration, password: weak }],
-      [controller.register, { ...registration, role: 'nurse', password: weak }, { id: 'admin-fixture', role: 'admin' }],
+      [controller.register, { ...registration, role: 'nurse', password: weak }, { id: 'admin-fixture', role: 'admin', is_super_admin: true }],
       [controller.changePassword, { currentPassword: 'legacy-password', newPassword: weak }],
       [controller.resetPassword, { token: 'synthetic-reset-token', newPassword: weak }],
     ]) {

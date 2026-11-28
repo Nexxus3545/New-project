@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
 import CoverCard from '../components/common/CoverCard'
+import PatientSearchSelect from '../components/common/PatientSearchSelect'
 import { clinicFacilities } from '../utils/clinicFacilities'
 
 const STATUS_BADGES = {
@@ -34,26 +35,19 @@ const formatDate = (value) => (value ? new Date(value).toLocaleDateString('en-PH
 
 export default function ExaminationsPage() {
   const qc = useQueryClient()
-  const [selectedPatientId, setSelectedPatientId] = useState('')
+  const [patientChoice, setPatientChoice] = useState()
   const [labForm, setLabForm] = useState(LAB_FORM)
   const [ultrasoundForm, setUltrasoundForm] = useState(ULTRASOUND_FORM)
   const [labError, setLabError] = useState('')
   const [ultrasoundError, setUltrasoundError] = useState('')
 
-  const { data: patientsResponse } = useQuery({
-    queryKey: ['examination-patients'],
-    queryFn: () => api.get('/patients', { params: { limit: 200 } }).then((response) => response.data),
+  const { data: firstPatient } = useQuery({
+    queryKey: ['patients', 'picker-default'],
+    queryFn: () => api.get('/patients', { params: { limit: 1, status: 'active' } }).then((response) => response.data.data[0] ?? null),
+    enabled: patientChoice === undefined,
   })
-
-  const patients = patientsResponse?.data || []
-
-  useEffect(() => {
-    if (!selectedPatientId && patients.length > 0) {
-      setSelectedPatientId(patients[0].id)
-    }
-  }, [patients, selectedPatientId])
-
-  const selectedPatient = patients.find((patient) => String(patient.id) === String(selectedPatientId))
+  const selectedPatient = patientChoice === undefined ? firstPatient : patientChoice
+  const selectedPatientId = selectedPatient?.id ?? ''
 
   const { data: labs = [], isLoading: labsLoading } = useQuery({
     queryKey: ['examination-labs', selectedPatientId],
@@ -179,18 +173,14 @@ export default function ExaminationsPage() {
       <div className="card">
         <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
           <div>
-            <label className="label">Select patient</label>
-            <select
-              className="input"
+            <PatientSearchSelect
+              id="examination-patient"
+              label="Select patient"
               value={selectedPatientId}
-              onChange={(event) => setSelectedPatientId(event.target.value)}
-            >
-              {patients.map((patient) => (
-                <option key={patient.id} value={patient.id}>
-                  {patient.first_name} {patient.last_name} | {patient.patient_code || 'Patient code pending'}
-                </option>
-              ))}
-            </select>
+              selectedPatient={selectedPatient}
+              status="active"
+              onChange={(_id, patient) => setPatientChoice(patient ?? null)}
+            />
           </div>
           <div className="rounded-[28px] border border-white/80 bg-[#fff7fb] px-4 py-4">
             <p className="text-xs uppercase tracking-[0.22em] text-rose-400">Patient summary</p>

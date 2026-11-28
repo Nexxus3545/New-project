@@ -106,13 +106,14 @@ test('permission checks exempt administrative licensing but retain step-up and r
   const permissions = loadModule('middleware/permissions.js', {
     '../config/database': { query: async (sql) => ({ rows: [] }) },
     '../config/permissions': { ROLE_PERMISSION_MATRIX: { admin: ['*'], doctor: ['clinical:vitals:write'] }, SENSITIVE_PERMISSIONS: new Set(['clinical:vitals:write']), normalizePermissionRows: () => new Set() },
+    './superAdmin': require('../src/middleware/superAdmin'),
     './stepUp': { resolveStepUpContext: () => { stepUps++; return {}; } },
     './professionalCredential': { PROFESSIONAL_ROLES: helper.PROFESSIONAL_ROLES, loadProfessionalCredential: async () => { clinicalLookups++; return {}; }, isCurrentProfessionalCredential: () => eligibility },
   });
   const invoke = async (role) => {
     let status = 200, payload, accepted = false;
     const res = { status(code) { status = code; return this; }, json(value) { payload = value; return this; } };
-    await permissions.authorizePermission('clinical:vitals:write')({ user: { id: role, role } }, res, () => { accepted = true; });
+    await permissions.authorizePermission('clinical:vitals:write')({ user: { id: role, role, is_super_admin: role === 'admin' } }, res, () => { accepted = true; });
     return { status, payload, accepted };
   };
   assert.equal((await invoke('admin')).accepted, true);

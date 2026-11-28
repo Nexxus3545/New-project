@@ -1,11 +1,13 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import api from '../utils/api'
 import CoverCard from '../components/common/CoverCard'
+import { WorkflowError } from '../components/common/WorkflowForm'
 import { clinicFacilities } from '../utils/clinicFacilities'
 import PatientCareFields from '../components/patient/PatientCareFields'
 import { hasMaternalCare, genderOptions } from '../utils/patientCare'
+import { useAuthStore } from '../store/authStore'
 
 const EMPTY_FORM = {
   firstName: '',
@@ -71,19 +73,62 @@ const FORM_STEPS = [
 
 export default function PatientsPage() {
   const qc = useQueryClient()
-  const [search, setSearch] = useState('')
+  const role = useAuthStore((state) => state.user?.role)
+  const canManageArchive = ['admin', 'doctor', 'midwife'].includes(role)
+  const { state } = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const status = ['archived', 'inactive'].includes(searchParams.get('status')) ? 'archived' : 'active'
+  const [search, setSearch] = useState(() => typeof state?.patientSearch === 'string' ? state.patientSearch.slice(0, 200) : '')
   const [page, setPage] = useState(1)
-  const [filters,setFilters]=useState({pregnancy:'',patient_type:'',status:'',sort:'registered',direction:'desc'})
+  const [filters,setFilters]=useState({pregnancy:'',patient_type:'',sort:'registered',direction:'desc'})
   const [showForm, setShowForm] = useState(false)
   const [formStep, setFormStep] = useState(0)
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
+  const [archiveNotice, setArchiveNotice] = useState('')
 
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ['patients', search, page, filters],
-    queryFn: () => api.get('/patients', { params: { search, limit: 50, page, ...filters } }).then((r) => r.data),
-    placeholderData: (previousData) => previousData,
+    queryKey: ['patients', status, search, page, filters],
+    queryFn: () => api.get('/patients', { params: { search, limit: 50, page, status, ...filters } }).then((r) => r.data),
+    placeholderData: (previousData, previousQuery) => previousQuery?.queryKey[1] === status ? previousData : undefined,
   })
+
+  useEffect(() => { setPage(1) }, [status])
+
+  useEffect(() => {
+    if (isFetching || !data?.pagination) return
+    const lastPage = Math.max(1, data.pagination.pages)
+    if (page > lastPage) setPage(lastPage)
+  }, [data?.pagination, isFetching, page])
+
+  const archiveMutation = useMutation({
+    mutationFn: ({ id, archived }) => api.patch(`/patients/${id}/archive`, { archived }),
+    onSuccess: async (_response, { id, archived }) => {
+      setArchiveNotice(archived ? 'Patient moved to the archive. Their clinic history is available for future visits.' : 'Patient record restored. They can now check in for their next visit.')
+      await Promise.all([
+        ['patients'], ['patient', id], ['patient-summary', id], ['users-admin'], ['patient-flow'],
+      ].map((queryKey) => qc.invalidateQueries({ queryKey })))
+    },
+  })
+
+  const changeArchiveView = (nextStatus) => {
+    const params = new URLSearchParams(searchParams)
+    if (nextStatus === 'archived') params.set('status', 'archived')
+    else params.delete('status')
+    setPage(1)
+    setSearchParams(params, { state })
+  }
+
+  const updateArchiveStatus = (patient) => {
+    const archived = patient.is_active
+    const name = `${patient.first_name} ${patient.last_name}`
+    const prompt = archived
+      ? `Archive the clinic record for ${name}? Their visit history and portal access will be kept.`
+      : `Restore the clinic record for ${name} for their next visit?`
+    if (!window.confirm(prompt)) return
+    setArchiveNotice('')
+    archiveMutation.mutate({ id: patient.id, archived })
+  }
 
   const createMutation = useMutation({
     mutationFn: (body) => api.post('/patients', body),
@@ -100,7 +145,7 @@ export default function PatientsPage() {
   const patients = data?.data || []
   const exportPage = () => {
     const cell = value => '"'+String(value??'').replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"';
-    const rows=[['Patient ID','Full name','Age','Address','Patient type','Pregnancy status','Registered','Last visit','Status'],...patients.map(p=>[p.patient_code,p.first_name+' '+p.last_name,p.age,p.address,p.patient_type,p.pregnancy_status==='active'?'Pregnant':'No active pregnancy',p.created_at,p.last_visit,p.is_active?'Active':'Inactive'])];
+    const rows=[['Patient ID','Full name','Age','Address','Patient type','Pregnancy status','Registered','Last visit','Status'],...patients.map(p=>[p.patient_code,p.first_name+' '+p.last_name,p.age,p.address,p.patient_type,p.pregnancy_status==='active'?'Pregnant':'No active pregnancy',p.created_at,p.last_visit,p.is_active?'Active':'Archived'])];
     const url=URL.createObjectURL(new Blob(['\uFEFF'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));
     const a=document.createElement('a');a.href=url;a.download='MWOS-patients-page-'+page+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
@@ -111,12 +156,12 @@ export default function PatientsPage() {
     const reachable = patients.filter((patient) => patient.phone || patient.email).length
 
     return [
-      { label: 'Registered', value: total ?? '—', helper: search ? 'Patient profiles matching this search' : 'Patient profiles in the system' },
+      { label: status === 'archived' ? 'Archived' : 'Active patients', value: total ?? '—', helper: search ? 'Patient profiles matching this search' : 'Patient profiles in this view' },
       { label: 'Active pregnancies', value: data ? activePregnancies : '—', helper: 'On this page · currently monitored' },
       { label: 'High risk', value: data ? highRisk : '—', helper: 'On this page · recorded high risk' },
       { label: 'Reachable', value: data ? reachable : '—', helper: 'On this page · phone or email on file' },
     ]
-  }, [patients, data, search])
+  }, [patients, data, search, status])
 
   const openForm = () => {
     setShowForm(true)
@@ -211,12 +256,19 @@ export default function PatientsPage() {
       </div>
 
       <div className="rounded-[28px] border border-white/80 bg-white/90 p-4 shadow-[0_24px_60px_rgba(15,118,110,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+        <div role="group" aria-label="Patient directory view" className="mb-4 flex flex-wrap gap-2">
+          <button type="button" className={status === 'active' ? 'btn-primary' : 'btn-secondary'} aria-pressed={status === 'active'} onClick={() => changeArchiveView('active')}>Active patients</button>
+          <button type="button" className={status === 'archived' ? 'btn-primary' : 'btn-secondary'} aria-pressed={status === 'archived'} onClick={() => changeArchiveView('archived')}>Archived patients</button>
+        </div>
+        {status === 'archived' && <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">Search and view the original clinic record. Restore it before the patient’s next check-in.</p>}
         <input
           type="search"
+          aria-label="Search patients"
           value={search}
+          maxLength={200}
           onChange={(e) => { setSearch(e.target.value); setPage(1) }}
           className="input"
-          placeholder="Search by name, birthing ID, patient code, phone, or PhilHealth ID..."
+          placeholder="Patient ID, Birthing ID, or name"
         />
       </div>
 
@@ -224,7 +276,6 @@ export default function PatientsPage() {
         {[
           ['pregnancy','Pregnancy',[['','All'],['active','Pregnant'],['none','No active pregnancy']]],
           ['patient_type','Patient type',[['','All'],['new','New'],['returning','Returning']]],
-          ['status','Status',[['','All'],['active','Active'],['inactive','Inactive']]],
           ['sort','Sort by',[['registered','Registration'],['name','Name'],['age','Age'],['last_visit','Last visit']]],
           ['direction','Order',[['desc','Descending'],['asc','Ascending']]],
         ].map(([key,label,options])=><label key={key} className="text-sm">{label}<select aria-label={label} className="input" value={filters[key]} onChange={e=>{setFilters(f=>({...f,[key]:e.target.value}));setPage(1)}}>{options.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>)}
@@ -236,6 +287,8 @@ export default function PatientsPage() {
           <span>Failed to load patients</span>
         </div>
       )}
+      {archiveNotice && <p role="status" className="alert-success">{archiveNotice}</p>}
+      <WorkflowError error={archiveMutation.error} />
 
       <div className="table-container">
         {isLoading ? (
@@ -244,7 +297,7 @@ export default function PatientsPage() {
           </div>
         ) : patients.length === 0 ? (
           <div className="py-12 text-center text-gray-400">
-            <p>No patients found</p>
+            <p>{status === 'archived' ? 'No archived patients match this search' : 'No active patients match this search'}</p>
           </div>
         ) : (
           <table className="table">
@@ -273,7 +326,7 @@ export default function PatientsPage() {
                   <td>{patient.patient_type}</td>
                   <td>{new Date(patient.created_at).toLocaleDateString('en-PH')}</td>
                   <td>{patient.last_visit ? new Date(patient.last_visit).toLocaleDateString('en-PH') : 'No completed visit'}</td>
-                  <td>{patient.is_active ? 'Active' : 'Inactive'}</td>
+                  <td><span className={`badge ${patient.is_active ? 'badge-success' : 'badge-gray'}`}>{patient.is_active ? 'Active' : 'Archived'}</span></td>
                   <td>
                     <span className={`badge ${
                       patient.risk_level === 'high' ? 'badge-danger'
@@ -290,9 +343,14 @@ export default function PatientsPage() {
                     ) : <span className="text-xs text-gray-400">-</span>}
                   </td>
                   <td>
-                    <Link to={`/patients/${patient.id}`} className="btn-secondary btn-sm">
-                      View
-                    </Link>
+                    <div className="flex flex-wrap gap-2">
+                      <Link to={`/patients/${patient.id}`} className="btn-secondary btn-sm">View</Link>
+                      {canManageArchive && typeof patient.is_active === 'boolean' && (
+                        <button type="button" className="btn-secondary btn-sm" disabled={archiveMutation.isPending || isFetching} onClick={() => updateArchiveStatus(patient)}>
+                          {patient.is_active ? 'Archive record' : 'Restore record'}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -2,7 +2,7 @@ import React from 'react'
 import { Outlet, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import BrandMark from './BrandMark'
-import { getPortalDestination, getPortalIntent } from '../../utils/portalNavigation'
+import { getPortalDestinationFromSearch } from '../../utils/portalNavigation'
 
 const clinicPriorities = [
   { label: 'Coordinated care', value: 'Prenatal to postnatal follow-up' },
@@ -19,7 +19,7 @@ export default function AuthLayout() {
   const isRecovery = ['/forgot-password', '/reset-password', '/reactivate-account'].includes(location.pathname)
 
   // A new OAuth patient must finish the required birth details before leaving this screen.
-  if (user && !isOAuthCallback && !isRecovery) return <Navigate to={getPortalDestination(user, getPortalIntent(location.search))} replace />
+  if (user && !isOAuthCallback && !isRecovery) return <Navigate to={getPortalDestinationFromSearch(user, location.search)} replace />
   if (isHydrating) {
     return <div className="flex min-h-screen items-center justify-center"><div className="loading-spinner h-10 w-10" /></div>
   }

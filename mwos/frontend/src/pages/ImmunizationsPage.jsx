@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
 import CoverCard from '../components/common/CoverCard'
+import PatientSearchSelect from '../components/common/PatientSearchSelect'
 
 const IMMUNIZATION_FORM = {
   vaccineName: '',
@@ -16,25 +17,18 @@ const formatDate = (value) => (value ? new Date(value).toLocaleDateString('en-PH
 
 export default function ImmunizationsPage() {
   const qc = useQueryClient()
-  const [selectedPatientId, setSelectedPatientId] = useState('')
+  const [patientChoice, setPatientChoice] = useState()
   const [form, setForm] = useState(IMMUNIZATION_FORM)
   const [formError, setFormError] = useState('')
 
-  const { data: patientsResponse } = useQuery({
-    queryKey: ['immunization-patients'],
-    queryFn: () => api.get('/patients', { params: { limit: 200 } }).then((response) => response.data),
+  const { data: firstPatient } = useQuery({
+    queryKey: ['patients', 'picker-default'],
+    queryFn: () => api.get('/patients', { params: { limit: 1, status: 'active' } }).then((response) => response.data.data[0] ?? null),
+    enabled: patientChoice === undefined,
   })
-
-  const patients = patientsResponse?.data || []
-
-  useEffect(() => {
-    if (!selectedPatientId && patients.length > 0) {
-      setSelectedPatientId(patients[0].id)
-    }
-  }, [patients, selectedPatientId])
-
+  const selectedPatient = patientChoice === undefined ? firstPatient : patientChoice
+  const selectedPatientId = selectedPatient?.id ?? ''
   const {data: deliveries=[]} = useQuery({queryKey:['deliveries',selectedPatientId],queryFn:()=>api.get(`/deliveries/patient/${selectedPatientId}`).then(r=>r.data.data),enabled:!!selectedPatientId})
-  const selectedPatient = patients.find((patient) => String(patient.id) === String(selectedPatientId))
 
   const { data: immunizations = [], isLoading } = useQuery({
     queryKey: ['immunizations', selectedPatientId],
@@ -129,18 +123,17 @@ export default function ImmunizationsPage() {
       <div className="card">
         <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
           <div>
-            <label className="label">Select patient</label>
-            <select
-              className="input"
+            <PatientSearchSelect
+              id="immunization-patient"
+              label="Select patient"
               value={selectedPatientId}
-              onChange={(event) => setSelectedPatientId(event.target.value)}
-            >
-              {patients.map((patient) => (
-                <option key={patient.id} value={patient.id}>
-                  {patient.first_name} {patient.last_name} | {patient.patient_code || 'Patient code pending'}
-                </option>
-              ))}
-            </select>
+              selectedPatient={selectedPatient}
+              status="active"
+              onChange={(id, patient) => {
+                setPatientChoice(patient ?? null)
+                if (id !== selectedPatientId) setForm((current) => ({ ...current, deliveryId: '' }))
+              }}
+            />
           </div>
           <div className="rounded-[28px] border border-white/80 bg-[#fff7fb] px-4 py-4">
             <p className="text-xs uppercase tracking-[0.22em] text-rose-400">Patient summary</p>

@@ -1,4 +1,4 @@
-const { query } = require('../config/database');
+const { getClient, query } = require('../config/database');
 const { generateUniqueCode, toNullableNumber, calculateBmi } = require('../utils/identifiers');
 const { normalizePatientCare } = require('../utils/patientCare');
 
@@ -47,6 +47,8 @@ const SEARCH_FIELDS = [
   'p.first_name',
   'p.last_name',
   'p.middle_name',
+  "concat_ws(' ', p.first_name, p.last_name)",
+  "concat_ws(' ', p.first_name, NULLIF(BTRIM(p.middle_name), ''), p.last_name, NULLIF(BTRIM(p.suffix), ''))",
   'p.patient_code',
   'p.birthing_id',
   'p.philhealth_id',
@@ -136,10 +138,18 @@ const getAll = async (req, res, next) => {
     const limit = v.number(req.query.limit || 20, 'Page size', 1, 200, true, true);
     const params = [], conditions = [];
     const add = (sql,value) => { params.push(value); conditions.push(sql.replace('?', '$'+params.length)); };
-    const search = v.text(req.query.search, 'Search', 200, false);
-    if(search) {params.push('%'+search+'%'); conditions.push('('+SEARCH_FIELDS.map(f=>f+' ILIKE $'+params.length).join(' OR ')+')');}
+    const search = v.text(req.query.search, 'Search', 200, false)?.replace(/\s+/g, ' ');
+    if (search) {
+      params.push(`%${search.replace(/[\\%_]/g, '\\$&')}%`);
+      const matches = SEARCH_FIELDS.map(field => `${field} ILIKE $${params.length}`);
+      if (/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(search)) {
+        params.push(search);
+        matches.push(`p.id = $${params.length}::uuid`);
+      }
+      conditions.push(`(${matches.join(' OR ')})`);
+    }
     if(req.query.risk_level) add('p.risk_level = ?',v.choice(req.query.risk_level,'Risk',['low','moderate','high']));
-    if(req.query.status) add('p.is_active = ?',v.choice(req.query.status,'Status',['active','inactive'])==='active');
+    if(req.query.status) add('p.is_active = ?',v.choice(req.query.status,'Status',['active','archived','inactive'])==='active');
     const prior = "EXISTS(SELECT 1 FROM appointments av WHERE av.patient_id=p.id AND av.status='completed') OR EXISTS(SELECT 1 FROM patient_visits pv WHERE pv.patient_id=p.id AND pv.status='completed')";
     if(req.query.patient_type) conditions.push((v.choice(req.query.patient_type,'Patient type',['new','returning'])==='new'?'NOT ':'')+'('+prior+')');
     if(req.query.pregnancy) conditions.push((v.choice(req.query.pregnancy,'Pregnancy',['active','none'])==='none'?'NOT ':'')+"EXISTS(SELECT 1 FROM pregnancies pg WHERE pg.patient_id=p.id AND pg.status='active')");
@@ -191,6 +201,64 @@ const getOne = async (req, res, next) => {
     }
 
     res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const setArchiveStatus = async (req, res, next) => {
+  const v = require('../utils/workflowValidation');
+  try {
+    const patientId = v.uuid(req.params.id, 'Patient');
+    const { archived } = req.body || {};
+    if (typeof archived !== 'boolean') v.fail('Choose whether to archive or restore the patient record.');
+
+    const isActive = !archived;
+    const client = await getClient();
+    let patient;
+    try {
+      await client.query('BEGIN');
+      // Check-in locks the same patient row before opening a visit.
+      const { rows } = await client.query('SELECT id, is_active FROM patients WHERE id = $1 FOR UPDATE', [patientId]);
+      patient = rows[0];
+      if (!patient) v.fail('Patient record not found.', 404);
+
+      if (patient.is_active !== isActive) {
+        if (archived) {
+          const { rowCount } = await client.query(
+            `SELECT 1 FROM patient_visits WHERE patient_id = $1 AND status = 'open'
+             UNION ALL
+             SELECT 1 FROM deliveries d
+             JOIN pregnancies p ON p.id = d.pregnancy_id AND p.patient_id = d.patient_id
+             WHERE d.patient_id = $1 AND d.birth_recorded IS FALSE
+               AND COALESCE(d.status, 'active') = 'active' AND p.status = 'active'
+             LIMIT 1`,
+            [patientId]
+          );
+          if (rowCount) v.fail('Close the open visit or labor admission before archiving this patient.', 409);
+        }
+
+        const updated = await client.query(
+          'UPDATE patients SET is_active = $1, updated_at = NOW() WHERE id = $2 RETURNING id, is_active',
+          [isActive, patientId]
+        );
+        await client.query(
+          `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, old_values, new_values, request_id)
+           VALUES ($1, $2, 'patients', $3, $4, $5, $6)`,
+          [req.user.id, archived ? 'patient_archived' : 'patient_restored', patientId,
+            { is_active: patient.is_active }, { is_active: isActive }, req.requestId || null]
+        );
+        patient = updated.rows[0];
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    res.json({ success: true, data: patient });
   } catch (err) {
     next(err);
   }
@@ -439,4 +507,4 @@ const getSummary = async (req, res, next) => {
   }
 };
 
-module.exports = { getAll, getOne, getMe, create, update, updateMe, getSummary };
+module.exports = { getAll, getOne, getMe, create, update, updateMe, getSummary, setArchiveStatus };

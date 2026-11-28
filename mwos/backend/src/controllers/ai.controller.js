@@ -1,4 +1,5 @@
 const { query } = require('../config/database');
+const { guideReply } = require('../utils/assistantGuide');
 
 const buildRecommendation = (type, title, description, meta = {}) => ({
   id: `${type}-${title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
@@ -186,7 +187,17 @@ const search = async (req, res, next) => {
   }
 };
 
+const assistant = (req, res) => {
+  const message = req.body?.message;
+  if (typeof message !== 'string' || !message.trim() || message.length > 800) {
+    return res.status(400).json({ success: false, message: 'Enter a question of up to 800 characters.' });
+  }
+  const previousTopic = typeof req.body?.previousTopic === 'string' ? req.body.previousTopic.slice(0, 64) : null;
+  return res.json({ success: true, data: guideReply(message.trim(), req.user.role, previousTopic) });
+};
+
 module.exports = {
   getRecommendations,
   search,
+  assistant,
 };

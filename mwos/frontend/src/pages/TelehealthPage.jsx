@@ -6,6 +6,8 @@ import { useAuthStore } from '../store/authStore'
 import DeviceCheck from '../components/telehealth/DeviceCheck'
 import ConsultationVideo from '../components/telehealth/ConsultationVideo'
 import ConsultationReview from '../components/telehealth/ConsultationReview'
+import ConsultationBilling from '../components/telehealth/ConsultationBilling'
+import PatientSearchSelect from '../components/common/PatientSearchSelect'
 import { telehealthProviderLabel } from '../utils/telehealthProviders'
 
 const SESSION_FILTERS = [
@@ -199,6 +201,7 @@ export default function TelehealthPage() {
         queryClient.invalidateQueries({ queryKey: ['notifications'] })
       }} /></div> : null}
 
+      {!videoActive ? <ConsultationBilling role={user?.role} /> : null}
       {!videoActive ? <DeviceCheck ref={deviceRef} sessionKey={selectedThreadId || "no-consultation"} stopSignal={deviceStopSignal} /> : null}
 
       <div className="grid gap-5 lg:grid-cols-[18rem,minmax(0,1fr)]">
@@ -315,13 +318,7 @@ export default function TelehealthPage() {
         <Modal onClose={() => { setShowRequest(false); setRequestError('') }}>
           <form onSubmit={submitRequest} className="space-y-4">
             {!patientMode ? (
-              <div>
-                <label htmlFor="telehealth-request-patient" className="label">Patient</label>
-                <select id="telehealth-request-patient" value={requestForm.patientId} onChange={(event) => setRequestForm((current) => ({ ...current, patientId: event.target.value }))} className="input">
-                  <option value="">Choose patient</option>
-                  {(directory.patients || []).map((person) => <option key={person.id} value={person.id}>{person.first_name} {person.last_name}</option>)}
-                </select>
-              </div>
+              <PatientSearchSelect id="telehealth-request-patient" label="Patient" value={requestForm.patientId} onChange={patientId => setRequestForm(current => ({ ...current, patientId }))} status="active" disabled={createMutation.isPending} required />
             ) : null}
             <div>
               <label htmlFor="telehealth-request-clinician" className="label">Provider or clinic coordinator</label>

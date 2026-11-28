@@ -4,7 +4,9 @@ import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
 import BrandMark from './BrandMark'
 import AppIcon from './AppIcon'
+import NotificationBell from './NotificationBell'
 import { hasMaternalCare } from '../../utils/patientCare'
+import { AssistantSession } from '../communication/ClinicAssistant'
 
 const staffNav = [
   { to: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
@@ -21,7 +23,6 @@ const staffNav = [
   { to: '/inventory', icon: 'inventory', label: 'Inventory' },
   { to: '/health-education', icon: 'education', label: 'Health Education' },
   { to: '/reports-analytics', icon: 'reports', label: 'Reports / Analytics' },
-  { to: '/settings', icon: 'settings', label: 'Settings' },
 ]
 
 const adminNav = [
@@ -38,10 +39,7 @@ const patientNav = [
   { to: '/my/baby', icon: 'baby', label: 'Baby / Newborn' },
   { to: '/my/telehealth', icon: 'video', label: 'Telehealth' },
   { to: '/my/messages', icon: 'messages', label: 'Messages' },
-  { to: '/my/notifications', icon: 'notifications', label: 'Notifications' },
   { to: '/my/health-tips', icon: 'health', label: 'Health Tips' },
-  { to: '/my/profile', icon: 'profile', label: 'Profile' },
-  { to: '/my/settings', icon: 'settings', label: 'Settings' },
 ]
 
 const staffNavSections = [
@@ -54,12 +52,11 @@ const staffNavSections = [
 ]
 
 const patientNavSections = [
-  { title: 'Care Overview', items: patientNav.slice(0, 2) },
+  { title: 'Care Overview', items: [...patientNav.slice(0, 2), { to: '/my/birth-plan', icon: 'delivery', label: 'My Birth Plan' }] },
   { title: 'Appointments', items: [patientNav[2],{to:'/my/scheduling',icon:'calendar',label:'Doctor schedules & booking'}] },
   { title: 'My Care', items: [...patientNav.slice(3, 5), { to: '/my/visit-progress', icon: 'calendar', label: 'Visit Progress' }] },
-  { title: 'Communication', items: patientNav.slice(5, 8) },
-  { title: 'Learning', items: patientNav.slice(8, 9) },
-  { title: 'Account', items: patientNav.slice(9,10) },
+  { title: 'Communication', items: patientNav.slice(5, 7) },
+  { title: 'Learning', items: patientNav.slice(7, 8) },
 ]
 
 export default function AppLayout({ patient = false }) {
@@ -94,6 +91,7 @@ export default function AppLayout({ patient = false }) {
           ['/my/dashboard', ['Patient Dashboard', 'Your next clinic visit, follow-ups, messages, and saved records in one place.']],
           ['/my/vitals', ['Clinic Readings', 'Review measurements recorded during clinic visits.']],
           ['/my/pregnancy', [maternal ? 'My Pregnancy' : 'Clinic Readings', 'Review your saved clinic readings and provider guidance.']],
+          ['/my/birth-plan', ['My Birth Plan', 'Share birth preferences and questions for clinic review.']],
           ['/my/appointments', ['Appointments', 'Request a general checkup, follow-up, or pregnancy-related visit.']],
           ['/my/health-records', ['Health Records', 'Review your documents, laboratory results, prescriptions, and medical notes.']],
           ['/my/baby', [maternal ? 'Baby / Newborn' : 'Clinic Reports', 'Review saved care summaries and clinic records.']],
@@ -130,6 +128,10 @@ export default function AppLayout({ patient = false }) {
   })()
 
   const hasFocusedWorkspaceHeader = [
+    '/users',
+    '/staff-qualifications',
+    '/notifications',
+    '/my/notifications',
     '/messages',
     '/telehealth',
     '/my/messages',
@@ -156,7 +158,11 @@ export default function AppLayout({ patient = false }) {
   })
 
   return (
+    <AssistantSession key={user?.id} patient={patient}>
     <div className="futuristic-shell flex h-screen bg-[#fff8fb] dark:bg-slate-950 overflow-hidden">
+      <div className="absolute right-4 top-5 z-40 lg:left-[14.25rem] lg:right-auto">
+        <NotificationBell key={user?.id} patient={patient} userId={user?.id} onNavigate={() => setSidebarOpen(false)} />
+      </div>
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-20 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
@@ -164,21 +170,16 @@ export default function AppLayout({ patient = false }) {
       <aside
         id="app-sidebar"
         className={`
-        fixed lg:static inset-y-0 left-0 z-30 w-72 flex flex-col bg-white dark:bg-slate-900
+        fixed lg:static inset-y-0 left-0 z-30 w-72 shrink-0 flex flex-col bg-white dark:bg-slate-900
         border-r border-gray-200 dark:border-slate-800 transform transition-transform duration-200
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}
       >
         <div
-          className="relative overflow-hidden border-b border-rose-100 bg-white px-5 py-5 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50"
+          className="relative shrink-0 border-b border-rose-100 bg-white px-5 py-5 pr-16 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50"
         >
-          <div className="relative">
+          <div className="relative flex items-start justify-between gap-3">
             <BrandMark compact sublabel={patient ? 'Patient experience' : 'Birthing home operations'} />
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="hero-chip">{patient ? 'Patient portal' : 'Clinic workspace'}</span>
-              <span className="hero-chip">Role based</span>
-              <span className="hero-chip">Emergency ready</span>
-            </div>
           </div>
         </div>
 
@@ -251,7 +252,7 @@ export default function AppLayout({ patient = false }) {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800">
+        <header className="lg:hidden flex shrink-0 items-center gap-3 px-4 py-3 pr-20 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800">
           <button type="button" aria-controls="app-sidebar" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)} className="inline-flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800">
             <AppIcon name="menu" />
             Menu
@@ -292,5 +293,6 @@ export default function AppLayout({ patient = false }) {
         </main>
       </div>
     </div>
+    </AssistantSession>
   )
 }

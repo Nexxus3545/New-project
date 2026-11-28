@@ -226,7 +226,7 @@ test('existing Google patients finish callback and exchange without creating ano
 
 test('patient and authorized admin-created registration reuse the transaction without leaking staff sessions', async () => {
   for (const role of ['patient', 'admin']) {
-    const result = await invoke(auth.register, { user: role === 'admin' ? { ...user, role: 'admin' } : user, body: {
+    const result = await invoke(auth.register, { user: role === 'admin' ? { ...user, role: 'admin', is_super_admin: true } : user, body: {
       email: `${role}@example.invalid`, password: 'Test-only-password1!', role,
       firstName: 'Test', lastName: 'Account', dateOfBirth: '2000-01-01',
     } });

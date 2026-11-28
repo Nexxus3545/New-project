@@ -14,6 +14,7 @@ async function main(){
  await require('../../src/utils/migrate').migrate({closePool:false});const c=await pool.connect();try{await require('../../src/utils/migratePatientCare').migratePatientCare(c)}finally{c.release()}
  const password='Verify!'+crypto.randomBytes(16).toString('hex'),hash=await require('bcryptjs').hash(password,10);
  const users={};for(const role of ['admin','patient','other','nurse']){const dbRole=role==='other'?'patient':role;users[role]=(await pool.query("INSERT INTO users(email,password,role,first_name,last_name,is_active) VALUES($1,$2,$3,$4,'Verification',true) RETURNING *",[`${role}@mwos-verification.invalid`,hash,dbRole,role])).rows[0]}
+ await pool.query('UPDATE users SET is_super_admin=true WHERE id=$1',[users.admin.id]);
  const patients={};for(const role of ['patient','other'])patients[role]=(await pool.query("INSERT INTO patients(user_id,first_name,last_name,date_of_birth,care_type) VALUES($1,$2,'Verification','2000-01-01','maternal') RETURNING *",[users[role].id,role])).rows[0];
  server=require('../../src/index').listen(Number(process.env.MWOS_TEST_PORT || 5002),'127.0.0.1');await new Promise(r=>server.once('listening',r));
  const base=`http://127.0.0.1:${server.address().port}/api`,tokens={},step=require('../../src/utils/security').issueStepUpToken({userId:users.admin.id,role:'admin',purpose:'critical'});

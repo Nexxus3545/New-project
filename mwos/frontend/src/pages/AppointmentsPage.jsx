@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
 import {Link} from 'react-router-dom'
 import CoverCard from '../components/common/CoverCard'
+import PatientSearchSelect from '../components/common/PatientSearchSelect'
 import { clinicFacilities } from '../utils/clinicFacilities'
 
 const APPOINTMENT_TYPES = {
@@ -65,7 +66,12 @@ export default function AppointmentsPage() {
   const [calendarMonth, setCalendarMonth] = useState(() => new Date())
   const [selectedDateKey, setSelectedDateKey] = useState(TODAY_KEY)
   const [form, setForm] = useState(DEFAULT_FORM)
+  const [bookingPatient, setBookingPatient] = useState(null)
   const [error, setError] = useState('')
+  const selectBookingPatient = (patientId, patient) => {
+    setBookingPatient(patient ?? null)
+    setForm(current => ({ ...current, patientId }))
+  }
 
   const calendarRange = useMemo(() => {
     const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
@@ -88,12 +94,6 @@ export default function AppointmentsPage() {
       } while (page <= pages)
       return rows
     },
-  })
-
-  const { data: patients } = useQuery({
-    queryKey: ['patients-list'],
-    queryFn: () => api.get('/patients', { params: { limit: 200 } }).then((r) => r.data.data),
-    enabled: showForm,
   })
 
   const createMut = useMutation({
@@ -405,22 +405,7 @@ export default function AppointmentsPage() {
             {error ? <div className="alert-critical mt-4 text-sm">{error}</div> : null}
 
             <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-              <div>
-                <label className="label">Patient</label>
-                <select
-                  value={form.patientId}
-                  onChange={(event) => setForm((current) => ({ ...current, patientId: event.target.value }))}
-                  className="input"
-                  required
-                >
-                  <option value="">Select patient...</option>
-                  {(patients || []).map((patient) => (
-                    <option key={patient.id} value={patient.id}>
-                      {patient.first_name} {patient.last_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <PatientSearchSelect id="appointment-patient" label="Patient" value={form.patientId} selectedPatient={bookingPatient} onChange={selectBookingPatient} status="active" required />
 
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
@@ -532,7 +517,7 @@ export default function AppointmentsPage() {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl dark:bg-slate-950">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-slate-950">
             <div className="flex items-center justify-between border-b border-slate-200 p-5 dark:border-slate-800">
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">Schedule Appointment</h2>
@@ -545,22 +530,7 @@ export default function AppointmentsPage() {
             <div className="p-5">
               {error ? <div className="alert-critical mb-3 text-sm">{error}</div> : null}
               <form onSubmit={handleSubmit} className="space-y-3">
-                <div>
-                  <label className="label">Patient</label>
-                  <select
-                    value={form.patientId}
-                    onChange={(event) => setForm((current) => ({ ...current, patientId: event.target.value }))}
-                    className="input"
-                    required
-                  >
-                    <option value="">Select patient...</option>
-                    {(patients || []).map((patient) => (
-                      <option key={patient.id} value={patient.id}>
-                        {patient.first_name} {patient.last_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <PatientSearchSelect id="appointment-modal-patient" label="Patient" value={form.patientId} selectedPatient={bookingPatient} onChange={selectBookingPatient} status="active" required />
                 <div>
                   <label className="label">Type</label>
                   <select

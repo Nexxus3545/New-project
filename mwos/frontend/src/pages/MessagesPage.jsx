@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import api from '../utils/api'
 import { useAuthStore } from '../store/authStore'
+import AppIcon from '../components/common/AppIcon'
+import { AssistantPanel, MWOS_SUPPORT_NAME } from '../components/communication/ClinicAssistant'
 
 const MESSAGE_TYPES = [
   ['care_team', 'Care team'],
@@ -53,7 +55,9 @@ function Modal({ title, subtitle, children, onClose }) {
 export default function MessagesPage() {
   const user = useAuthStore((state) => state.user)
   const location = useLocation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const supportOpen = new URLSearchParams(location.search).get('view') === 'support'
   const patientMode = user?.role === 'patient'
   const isStaff = ['admin', 'doctor', 'midwife', 'nurse'].includes(user?.role)
   const [selectedThreadId, setSelectedThreadId] = useState(null)
@@ -67,6 +71,7 @@ export default function MessagesPage() {
   const [staffThreadForm, setStaffThreadForm] = useState(emptyStaffThread)
   const [patientThreadForm, setPatientThreadForm] = useState(emptyPatientThread)
   const markReadRef = useRef(null)
+  const supportHeadingRef = useRef(null)
 
   const directoryQuery = useQuery({
     queryKey: ['message-directory'],
@@ -91,8 +96,12 @@ export default function MessagesPage() {
   const threadDetailQuery = useQuery({
     queryKey: ['message-thread', selectedThreadId],
     queryFn: () => api.get(`/interactions/threads/${selectedThreadId}`).then((response) => response.data.data),
-    enabled: Boolean(selectedThreadId),
+    enabled: Boolean(selectedThreadId) && !supportOpen,
   })
+
+  useEffect(() => {
+    if (supportOpen) supportHeadingRef.current?.focus()
+  }, [supportOpen])
 
   useEffect(() => {
     if (!threads.length) {
@@ -128,6 +137,7 @@ export default function MessagesPage() {
       setStaffThreadForm(emptyStaffThread)
       setPatientThreadForm(emptyPatientThread)
       setSelectedThreadId(thread.id)
+      if (supportOpen) navigate(location.pathname)
       invalidate()
     },
     onError: (error) => setComposerError(error.response?.data?.message || 'We could not start this conversation. Please try again.'),
@@ -155,11 +165,16 @@ export default function MessagesPage() {
   })
 
   useEffect(() => {
-    if (!selectedThread || !threadDetailQuery.data || selectedThread.unread_count <= 0) return
+    if (supportOpen || !selectedThread || !threadDetailQuery.data || selectedThread.unread_count <= 0) return
     if (markReadRef.current === selectedThread.id) return
     markReadRef.current = selectedThread.id
     markReadMutation.mutate(selectedThread.id)
-  }, [selectedThread, threadDetailQuery.data])
+  }, [selectedThread, supportOpen, threadDetailQuery.data])
+
+  const openConversation = (id) => {
+    setSelectedThreadId(id)
+    if (supportOpen) navigate(location.pathname)
+  }
 
   const toggleParticipant = (id) => {
     setStaffThreadForm((current) => ({
@@ -231,7 +246,7 @@ export default function MessagesPage() {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[18rem,minmax(0,1fr)]">
-        <aside className="card h-fit">
+        <aside className={`card h-fit${supportOpen ? ' hidden lg:block' : ''}`}>
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="section-title mb-1">Conversations</h2>
@@ -239,6 +254,20 @@ export default function MessagesPage() {
             </div>
             <span className="badge badge-gray">{threads.length}</span>
           </div>
+
+          <Link
+            to="?view=support"
+            aria-label={MWOS_SUPPORT_NAME}
+            aria-current={supportOpen ? 'page' : undefined}
+            aria-controls="message-conversation"
+            className={`mt-4 flex items-center gap-3 rounded-2xl border p-3 transition-colors ${supportOpen ? 'border-rose-200 bg-rose-50 dark:border-rose-900/60 dark:bg-rose-950/20' : 'border-slate-200 hover:border-rose-200 hover:bg-rose-50/50 dark:border-slate-800 dark:hover:border-slate-700'}`}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-[var(--accent-strong)] dark:bg-slate-800 dark:text-rose-200"><AppIcon name="assistant" /></span>
+            <span>
+              <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">{MWOS_SUPPORT_NAME}</span>
+              <span className="block text-xs text-slate-500 dark:text-slate-400">Automated help</span>
+            </span>
+          </Link>
 
           <div className="mt-4 grid gap-2">
             <select value={threadTypeFilter} onChange={(event) => setThreadTypeFilter(event.target.value)} className="input" aria-label="Filter conversations by type">
@@ -258,8 +287,8 @@ export default function MessagesPage() {
               <button
                 key={thread.id}
                 type="button"
-                onClick={() => setSelectedThreadId(thread.id)}
-                className={`w-full rounded-2xl border p-3 text-left transition-colors ${thread.id === selectedThreadId ? 'border-rose-200 bg-rose-50 dark:border-rose-900/60 dark:bg-rose-950/20' : 'border-slate-200 bg-white hover:border-rose-200 hover:bg-rose-50/50 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700'}`}
+                onClick={() => openConversation(thread.id)}
+                className={`w-full rounded-2xl border p-3 text-left transition-colors ${!supportOpen && thread.id === selectedThreadId ? 'border-rose-200 bg-rose-50 dark:border-rose-900/60 dark:bg-rose-950/20' : 'border-slate-200 bg-white hover:border-rose-200 hover:bg-rose-50/50 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700'}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{thread.title}</p>
@@ -273,8 +302,13 @@ export default function MessagesPage() {
           </div>
         </aside>
 
-        <section className="card min-h-[38rem]">
-          {!selectedThreadId ? (
+        <section id="message-conversation" className="card min-h-[38rem]">
+          {supportOpen ? (
+            <>
+              <Link to={location.pathname} className="btn-secondary btn-sm mb-4 lg:hidden">Back to conversations</Link>
+              <AssistantPanel headingRef={supportHeadingRef} />
+            </>
+          ) : !selectedThreadId ? (
             <div className="flex min-h-[32rem] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 px-6 text-center dark:border-slate-700">
               <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Choose a conversation</h2>
               <p className="mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">Select a conversation on the left, or start a new message for the clinic care team.</p>

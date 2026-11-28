@@ -1,6 +1,7 @@
 import React from 'react'
 
 const artwork = {
+  assistant: <><rect x="3" y="7" width="18" height="13" rx="5" /><path d="M12 7V4m-2 12c1.2 1.2 2.8 1.2 4 0M1 12v3m22-3v3" /><circle cx="12" cy="3" r="1" /><path d="M8 11.5v1M16 11.5v1" /></>,
   dashboard: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>,
   patients: <><path d="M14 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M17 14a4 4 0 0 1 4 4v3M16 3a4 4 0 0 1 0 8" /><circle cx="8.5" cy="7" r="4" /></>,
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18m-13 5 2 2 5-5" /></>,

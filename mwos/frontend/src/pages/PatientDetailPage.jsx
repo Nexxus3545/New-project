@@ -88,7 +88,7 @@ export default function PatientDetailPage() {
       {/* Header */}
       <div className="page-header">
         <div className="flex items-center gap-3">
-          <Link to="/patients" className="btn-ghost btn-sm">← Back</Link>
+          <Link to={patient.is_active === false ? '/patients?status=archived' : '/patients'} className="btn-ghost btn-sm">← Back</Link>
           <div>
             <h1 className="page-title">{patient.first_name} {patient.last_name}</h1>
             <p className="page-sub">DOB: {new Date(patient.date_of_birth).toLocaleDateString('en-PH')} · {patient.blood_type || 'Blood type unknown'}</p>
@@ -98,6 +98,8 @@ export default function PatientDetailPage() {
           {patient.risk_level} risk
         </span>
       </div>
+
+      {patient.is_active === false && <div className="alert-info mb-6"><span>This patient’s clinic record is archived. Visit history remains available. Restore the record in the patient archive before check-in.</span></div>}
 
       {/* Info cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

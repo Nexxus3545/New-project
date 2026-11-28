@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Area, AreaChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import api from '../utils/api'
 import CoverCard from '../components/common/CoverCard'
+import PatientSearchSelect from '../components/common/PatientSearchSelect'
 import { clinicFacilities } from '../utils/clinicFacilities'
 
 const today = new Date().toISOString().slice(0, 10)
@@ -38,23 +39,18 @@ const formatDate = (value) => new Date(value).toLocaleDateString('en-PH', {
 
 export default function VitalsPage() {
   const queryClient = useQueryClient()
-  const [selectedPatientId, setSelectedPatientId] = useState('')
+  const [patientChoice, setPatientChoice] = useState()
   const [form, setForm] = useState(EMPTY_FORM)
   const [notice, setNotice] = useState('')
   const [alerts, setAlerts] = useState([])
 
-  const { data: patientsResponse, isLoading: patientsLoading } = useQuery({
-    queryKey: ['vitals-patients'],
-    queryFn: () => api.get('/patients', { params: { limit: 150 } }).then((response) => response.data),
+  const { data: firstPatient } = useQuery({
+    queryKey: ['patients', 'picker-default'],
+    queryFn: () => api.get('/patients', { params: { limit: 1, status: 'active' } }).then((response) => response.data.data[0] ?? null),
+    enabled: patientChoice === undefined,
   })
-
-  const patients = patientsResponse?.data || []
-
-  useEffect(() => {
-    if (!selectedPatientId && patients.length > 0) {
-      setSelectedPatientId(patients[0].id)
-    }
-  }, [patients, selectedPatientId])
+  const selectedPatient = patientChoice === undefined ? firstPatient : patientChoice
+  const selectedPatientId = selectedPatient?.id ?? ''
 
   const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useQuery({
     queryKey: ['patient-vitals-summary', selectedPatientId],
@@ -154,24 +150,18 @@ export default function VitalsPage() {
       <div className="card">
         <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
           <div>
-            <label className="label">Select patient</label>
-            <select
-              className="input"
+            <PatientSearchSelect
+              id="vitals-patient"
+              label="Select patient"
               value={selectedPatientId}
-              onChange={(event) => {
-                setSelectedPatientId(event.target.value)
+              selectedPatient={selectedPatient}
+              status="active"
+              onChange={(_id, patient) => {
+                setPatientChoice(patient ?? null)
                 setNotice('')
                 setAlerts([])
               }}
-            >
-              {patientsLoading ? <option>Loading patients...</option> : null}
-              {!patientsLoading && patients.length === 0 ? <option>No patients available</option> : null}
-              {patients.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.first_name} {item.last_name} | {item.patient_code || 'Patient code pending'}
-                </option>
-              ))}
-            </select>
+            />
           </div>
           <div className="rounded-[28px] border border-slate-200 bg-slate-50 px-4 py-4">
             <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Current patient summary</p>

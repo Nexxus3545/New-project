@@ -25,7 +25,17 @@ const formatDateTime = (value) => new Date(value).toLocaleString('en-PH', {
   minute: '2-digit',
 })
 
-export default function PatientNotificationsPage() {
+const patientLinks = new Map([
+  ['/my/settings', 'Review security settings'],
+  ['/my/appointments', 'Review appointment'],
+  ['/my/health-records', 'Open health records'],
+  ['/my/scheduling', 'Review consultation schedule'],
+])
+const staffLinks = new Map([
+  ['/scheduling', 'Review consultation schedule'],
+])
+
+export default function PatientNotificationsPage({ patient = true }) {
   const queryClient = useQueryClient()
 
   const { data, isLoading, error } = useQuery({
@@ -37,6 +47,7 @@ export default function PatientNotificationsPage() {
     mutationFn: (id) => api.patch(`/notifications/${id}/read`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['patient-notifications'] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
   })
 
@@ -47,7 +58,7 @@ export default function PatientNotificationsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Notifications</h1>
-          <p className="page-sub">Clinic alerts, support updates, and care activity in the same portal styling.</p>
+          <p className="page-sub">Review clinic alerts, reminders, and schedule changes.</p>
         </div>
       </div>
 
@@ -59,28 +70,32 @@ export default function PatientNotificationsPage() {
         <div className="card text-sm text-gray-500">No notifications yet.</div>
       ) : (
         <div className="space-y-4">
-          {notifications.map((item) => (
-            <div key={item.id} className={`card ${!item.is_read ? 'border-rose-200 bg-rose-50/40' : ''}`}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap gap-2">
-                    <span className={`badge ${badgeTone[item.type] || 'badge-info'}`}>{item.type || 'info'}</span>
-                    {!item.is_read ? <span className="badge badge-gray">New</span> : null}
+          {notifications.map((item) => {
+            const route = item.metadata?.route
+            const linkLabel = (patient ? patientLinks : staffLinks).get(route)
+            return (
+              <div key={item.id} className={`card ${!item.is_read ? 'border-rose-200 bg-rose-50/40' : ''}`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`badge ${badgeTone[item.type] || 'badge-info'}`}>{item.type || 'info'}</span>
+                      {!item.is_read ? <span className="badge badge-gray">New</span> : null}
+                    </div>
+                    <p className="mt-3 text-lg font-semibold text-gray-900">{item.title}</p>
+                    <p className="mt-2 text-sm text-gray-600">{item.body}</p>
+                    {emailStatus[item.email_status] ? <p className="mt-2 text-xs text-slate-500">{emailStatus[item.email_status]}</p> : null}
+                    {linkLabel ? <Link className="mt-3 inline-block text-sm font-semibold text-[var(--accent)] underline" to={route}>{linkLabel}</Link> : null}
+                    <p className="mt-3 text-xs text-gray-400">{formatDateTime(item.created_at)}</p>
                   </div>
-                  <p className="mt-3 text-lg font-semibold text-gray-900">{item.title}</p>
-                  <p className="mt-2 text-sm text-gray-600">{item.body}</p>
-                  {emailStatus[item.email_status] ? <p className="mt-2 text-xs text-slate-500">{emailStatus[item.email_status]}</p> : null}
-                  {['/my/settings', '/my/appointments'].includes(item.metadata?.route) ? <Link className="mt-3 inline-block text-sm font-semibold text-[var(--accent)] underline" to={item.metadata.route}>{item.metadata.route === '/my/settings' ? 'Review security settings' : 'Review appointment'}</Link> : null}
-                  <p className="mt-3 text-xs text-gray-400">{formatDateTime(item.created_at)}</p>
+                  {!item.is_read ? (
+                    <button type="button" className="btn-secondary btn-sm" onClick={() => markReadMutation.mutate(item.id)}>
+                      Mark read
+                    </button>
+                  ) : null}
                 </div>
-                {!item.is_read ? (
-                  <button type="button" className="btn-secondary btn-sm" onClick={() => markReadMutation.mutate(item.id)}>
-                    Mark read
-                  </button>
-                ) : null}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

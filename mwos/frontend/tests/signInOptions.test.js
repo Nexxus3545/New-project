@@ -165,13 +165,15 @@ test('every patient, staff, and admin navigation module uses an icon without rem
   const originalUser = snapshot.user
   // SSR needs each fixture's current role rather than Zustand's module-load snapshot.
   try {
-    for (const [role, count] of [['patient', 11], ['nurse', 15], ['midwife', 15], ['doctor', 16], ['admin', 19]]) {
-      snapshot.user = { id: 'test-user', role, firstName: 'Test', lastName: 'User', careType: 'maternal' }
+    for (const [role, count, isSuperAdmin=false] of [['patient', 11], ['nurse', 16], ['midwife', 16], ['doctor', 17], ['admin', 17], ['admin',20,true]]) {
+      snapshot.user = { id: 'test-user', role, isSuperAdmin, firstName: 'Test', lastName: 'User', careType: 'maternal' }
       const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: role === 'patient' ? '/my/settings' : '/settings' },
-        React.createElement(Layout, { patient: role === 'patient' })))
+        React.createElement(QueryClientProvider, { client: new QueryClient() }, React.createElement(Layout, { patient: role === 'patient' }))))
       const nav = html.match(/<nav aria-label="(?:Patient|Clinic) modules"[\s\S]*?<\/nav>/)[0]
       const links = [...nav.matchAll(/<a\s[^>]*>[\s\S]*?<\/a>/g)].map((match) => match[0])
       assert.equal(links.length, count)
+      assert.ok(links.some(link => link.includes(`href="${role === 'patient' ? '/my/messages' : '/messages'}"`) && link.includes('Messages')))
+      assert.doesNotMatch(html, /MWOS Support/)
       for (const link of links) {
         assert.equal((link.match(/<svg /g) || []).length, 1)
         assert.match(link, /aria-hidden="true"/)
@@ -180,10 +182,11 @@ test('every patient, staff, and admin navigation module uses an icon without rem
         assert.match(link, /<span>[^<]+<\/span>/)
         assert.doesNotMatch(link, />[A-Z]{2}<\//)
       }
-      assert.match(nav, /aria-current="page"[^>]*>[\s\S]*?data-app-icon="settings"/)
+      assert.match(html, /data-app-icon="settings"/)
       assert.match(html, /data-app-icon="menu"/)
       assert.match(html, /data-app-icon="signOut"/)
-      if (role !== 'admin') assert.doesNotMatch(nav, /User Management|Staff Credentials|Compliance/)
+      assert.doesNotMatch(nav, /<span>Settings<\/span>/)
+      if (!isSuperAdmin) assert.doesNotMatch(nav, /User Management|Staff Credentials|Compliance/)
       if (['admin', 'doctor'].includes(role)) assert.match(nav, /Billing &amp; Payments/)
       else assert.doesNotMatch(nav, /Billing &amp; Payments/)
     }
@@ -199,9 +202,28 @@ test('general-care navigation does not label a patient as pregnant', async () =>
   const originalUser = snapshot.user
   try {
     snapshot.user = { role: 'patient', patientGender: 'male', careType: 'general' }
-    const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: '/my/dashboard' }, React.createElement(Layout, { patient: true })))
+    const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: '/my/dashboard' }, React.createElement(QueryClientProvider, { client: new QueryClient() }, React.createElement(Layout, { patient: true }))))
     assert.match(html, /Clinic Readings/)
     assert.doesNotMatch(html, /My Pregnancy|Baby \/ Newborn|Your pregnancy status/)
+  } finally { snapshot.user = originalUser }
+})
+
+test('sidebar uses one notification bell and keeps account settings at the bottom', async () => {
+  const { useAuthStore } = await server.ssrLoadModule('/src/store/authStore.js')
+  const { default: Layout } = await server.ssrLoadModule('/src/components/common/AppLayout.jsx')
+  const snapshot = useAuthStore.getInitialState()
+  const originalUser = snapshot.user
+  try {
+    snapshot.user = { id: 'test-user', role: 'patient', firstName: 'Test', lastName: 'Patient' }
+    const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: '/my/dashboard' },
+      React.createElement(QueryClientProvider, { client: new QueryClient() }, React.createElement(Layout, { patient: true }))))
+    const nav = html.match(/<nav aria-label="Patient modules"[\s\S]*?<\/nav>/)[0]
+    assert.equal((html.match(/aria-label="Notifications"/g) || []).length, 1)
+    const sidebar = html.match(/<aside\s[^>]*id="app-sidebar"[\s\S]*?<\/aside>/)[0]
+    assert.doesNotMatch(sidebar, /aria-label="Notifications"/)
+    assert.match(html, /Account settings/)
+    assert.doesNotMatch(nav, /Notifications|Profile|Settings/)
+    assert.doesNotMatch(html, /Patient portal|Role based|Emergency ready/)
   } finally { snapshot.user = originalUser }
 })
 
@@ -213,7 +235,7 @@ test('only clinical staff with an explicitly unverified profile see the professi
   try {
     for (const [role, verified, shown] of [['doctor', false, true], ['nurse', false, true], ['midwife', false, true], ['admin', false, false], ['patient', false, false], ['doctor', true, false], ['nurse', undefined, false]]) {
       snapshot.user = { role, firstName: 'Test', lastName: 'User', staffProfile: verified === undefined ? null : { isVerified: verified } }
-      const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: role === 'patient' ? '/my/dashboard' : '/dashboard' }, React.createElement(Layout, { patient: role === 'patient' })))
+      const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: role === 'patient' ? '/my/dashboard' : '/dashboard' }, React.createElement(QueryClientProvider, { client: new QueryClient() }, React.createElement(Layout, { patient: role === 'patient' }))))
       assert.equal(html.includes('Professional credentials required'), shown)
       if (shown) assert.match(html, /href="\/settings#account-credentials"/)
     }

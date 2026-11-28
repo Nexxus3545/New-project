@@ -8,6 +8,9 @@ const accountCredentialsMigrationSql = fs.readFileSync(path.join(__dirname, '../
 const credentialScanningMigrationSql = fs.readFileSync(path.join(__dirname, '../../supabase/migrations/20261028233717_credential_scanning.sql'), 'utf8');
 
 const completeWorkflowSql = fs.readFileSync(path.join(__dirname, '../config/migrations/20261101-complete-workflows.sql'), 'utf8');
+const birthPlanSql = fs.readFileSync(path.join(__dirname, '../config/migrations/20261121-birth-plans.sql'), 'utf8');
+const newbornScreeningSql = fs.readFileSync(path.join(__dirname, '../config/migrations/20261121-newborn-screening.sql'), 'utf8');
+const wardOperationsSql = fs.readFileSync(path.join(__dirname, '../config/migrations/20261128-ward-operations.sql'), 'utf8');
 
 async function migratePatientCare(client) {
   await client.query('BEGIN');
@@ -23,6 +26,9 @@ async function migratePatientCare(client) {
     await client.query(fs.readFileSync(path.join(__dirname, '../config/migrations/20261118-panel-access.sql'), 'utf8'));
     await client.query(fs.readFileSync(path.join(__dirname, '../config/migrations/20261118-panel-scheduling.sql'), 'utf8'));
     await client.query(fs.readFileSync(path.join(__dirname, '../config/migrations/20261118-panel-clinic.sql'), 'utf8'));
+    await client.query(birthPlanSql);
+    await client.query(newbornScreeningSql);
+    await client.query(wardOperationsSql);
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');

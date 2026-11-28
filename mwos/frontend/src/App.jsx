@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
-import { getPortalDestination, getPortalIntent } from './utils/portalNavigation'
+import { getPortalDestinationFromSearch } from './utils/portalNavigation'
 import LandingPage from './pages/LandingPage'
 
 // Layouts
@@ -26,6 +26,7 @@ import AppointmentsPage from './pages/AppointmentsPage'
 import SchedulingPage from './pages/SchedulingPage'
 import VitalsPage from './pages/VitalsPage'
 import { DeliveryWorkspace, PostnatalWorkspace, PediatricWorkspace } from './pages/ClinicalWorkflows'
+import PatientBirthPlanPage from './pages/patient/PatientBirthPlanPage'
 import InventoryPage from './pages/InventoryPage'
 import BillingPage from './pages/BillingPage'
 import ReportsPage from './pages/ReportsPage'
@@ -74,7 +75,7 @@ const EntryRoute = () => {
   const isHydrating = useAuthStore((s) => s.isHydrating)
   const location = useLocation()
   if (isHydrating && !user) return <div className="flex min-h-screen items-center justify-center"><div className="loading-spinner w-10 h-10" /></div>
-  return <Navigate to={getPortalDestination(user, getPortalIntent(location.search))} replace />
+  return <Navigate to={getPortalDestinationFromSearch(user, location.search)} replace />
 }
 
 export default function App() {
@@ -134,6 +135,8 @@ export default function App() {
           <Route path="/interactions" element={<InteractionsPage />} />
           <Route path="/telehealth" element={<TelehealthPage />} />
           <Route path="/messages" element={<MessagesPage />} />
+          <Route path="/notifications" element={<PatientNotificationsPage patient={false} />} />
+          <Route path="/assistant" element={<Navigate to="/messages?view=support" replace />} />
           <Route path="/emergency-map" element={<EmergencyMapPage />} />
           <Route path="/account" element={<AccountCenterPage key="staff-profile" />} />
           <Route path="/settings" element={<AccountCenterPage key="staff-settings" section="settings" />} />
@@ -144,12 +147,12 @@ export default function App() {
           } />
           <Route path="/users" element={
             <ProtectedRoute roles={adminRoles} superAdminOnly>
-              <UsersPage />
+              <UsersPage key="user-management" />
             </ProtectedRoute>
           } />
           <Route path="/staff-qualifications" element={
             <ProtectedRoute roles={adminRoles} superAdminOnly>
-              <UsersPage />
+              <UsersPage key="staff-credentials" staffCredentials />
             </ProtectedRoute>
           } />
         </Route>
@@ -175,6 +178,7 @@ export default function App() {
           <Route path="/my/scheduling" element={<SchedulingPage />} />
           <Route path="/my/vitals" element={<PatientVitalsPage />} />
           <Route path="/my/pregnancy" element={<PatientVitalsPage />} />
+          <Route path="/my/birth-plan" element={<PatientBirthPlanPage />} />
           <Route path="/my/records" element={<PatientRecordsPage />} />
           <Route path="/my/health-records" element={<PatientRecordsPage />} />
           <Route path="/my/baby" element={<PediatricWorkspace />} />
@@ -183,6 +187,7 @@ export default function App() {
           <Route path="/my/interactions" element={<MessagesPage />} />
           <Route path="/my/telehealth" element={<TelehealthPage />} />
           <Route path="/my/messages" element={<MessagesPage />} />
+          <Route path="/my/assistant" element={<Navigate to="/my/messages?view=support" replace />} />
           <Route path="/my/emergency" element={<PatientEmergencyPage />} />
           <Route path="/my/profile" element={<AccountCenterPage key="patient-profile" />} />
           <Route path="/my/settings" element={<AccountCenterPage key="patient-settings" section="settings" />} />

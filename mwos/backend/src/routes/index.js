@@ -15,6 +15,9 @@ const patientCtrl = require('../controllers/patient.controller');
 const vitalsCtrl = require('../controllers/vitals.controller');
 const apptCtrl = require('../controllers/appointment.controller');
 const deliveryCtrl = require('../controllers/delivery.controller');
+const wardCtrl = require('../controllers/ward.controller');
+const birthPlanCtrl = require('../controllers/birthPlan.controller');
+const newbornScreeningCtrl = require('../controllers/newbornScreening.controller');
 const reportCtrl = require('../controllers/report.controller');
 const notificationCtrl = require('../controllers/notification.controller');
 const operationsCtrl = require('../controllers/operations.controller');
@@ -173,6 +176,7 @@ router.patch('/medicines/:id', authenticate, authorizePermission('pharmacy:write
 // AI
 router.get('/ai/recommendations', aiCtrl.getRecommendations);
 router.get('/ai/search', aiCtrl.search);
+router.post('/ai/assistant', aiCtrl.assistant);
 
 // ── PATIENTS ──────────────────────────────────────────────────
 router.get('/patients', authenticate, authorize('admin','doctor','midwife','nurse'), patientCtrl.getAll);
@@ -180,6 +184,7 @@ router.post('/patients', authenticate, authorizePermission('patients:write'), pa
 router.get('/patients/me', authenticate, authorize('patient'), patientCtrl.getMe);
 router.patch('/patients/me', authenticate, authorize('patient'), patientCtrl.updateMe);
 router.get('/patients/:id', authenticate, requireOwnPatient, patientCtrl.getOne);
+router.patch('/patients/:id/archive', authenticate, authorizePermission('patients:write'), patientCtrl.setArchiveStatus);
 router.patch('/patients/:id', authenticate, authorizePermission('patients:write'), patientCtrl.update);
 router.get('/patients/:id/summary', authenticate, requireOwnPatient, patientCtrl.getSummary);
 
@@ -189,6 +194,15 @@ const { query } = require('../config/database');
 router.get('/pregnancies', authenticate, ownPatientQuery, clinical.listPregnancies);
 router.post('/pregnancies', authenticate, authorize('admin','doctor','midwife'), authorizePermission('patients:write'), clinical.savePregnancy);
 router.patch('/pregnancies/:id', authenticate, authorize('admin','doctor','midwife'), authorizePermission('patients:write'), clinical.savePregnancy);
+
+// ── BIRTH PLANS ───────────────────────────────────────────────
+router.get('/birth-plans/patient/:patientId', authenticate, requireOwnPatient, birthPlanCtrl.listByPatient);
+router.get('/birth-plans/me', authenticate, authorize('patient'), birthPlanCtrl.mine);
+router.post('/birth-plans/me', authenticate, authorize('patient'), birthPlanCtrl.submitMine);
+router.post('/birth-plans', authenticate, authorize('admin','doctor','midwife'), authorizePermission('patients:write'), birthPlanCtrl.save);
+router.patch('/birth-plans/:id/review', authenticate, authorize('admin','doctor','midwife'), authorizePermission('patients:write'), birthPlanCtrl.review);
+router.get('/newborn-screenings/patient/:patientId', authenticate, requireOwnPatient, newbornScreeningCtrl.list);
+router.post('/newborn-screenings', authenticate, authorize('admin','doctor','midwife','nurse'), authorizePermission('clinical:immunizations:write'), newbornScreeningCtrl.create);
 
 // ── APPOINTMENTS ──────────────────────────────────────────────
 // Structured pickup and referral coordination; patients remain scoped to their own records.
@@ -211,6 +225,9 @@ router.get('/vitals/patient/:patientId', authenticate, requireOwnPatient, vitals
 router.get('/vitals/trend/:pregnancyId', authenticate, ownLinkedRecord('pregnancies','pregnancyId'), vitalsCtrl.getTrend);
 
 // ── DELIVERIES ────────────────────────────────────────────────
+router.get('/deliveries/ward', authorize(...wardCtrl.WARD_STAFF), authorizePermission('patients:read'), wardCtrl.getWard);
+router.post('/deliveries/ward/tasks', authorize(...wardCtrl.WARD_STAFF), authorizePermission('communication:write'), wardCtrl.createWardTask);
+router.patch('/deliveries/ward/tasks/:id/complete', authorize(...wardCtrl.WARD_STAFF), authorizePermission('communication:write'), wardCtrl.completeWardTask);
 router.patch('/deliveries/:id', authenticate, authorizePermission('clinical:deliveries:write'), deliveryCtrl.update);
 router.post('/deliveries', authenticate, authorizePermission('clinical:deliveries:write'), deliveryCtrl.create);
 router.get('/deliveries/patient/:patientId', authenticate, requireOwnPatient, deliveryCtrl.getByPatient);
@@ -288,10 +305,14 @@ router.get('/reports/audit-logs', authenticate, authorize('admin'), reportCtrl.g
 router.post('/users', authenticate, authorize('admin'), requireStepUp('critical'), authCtrl.register);
 router.get('/users', authenticate, authorize('admin'), async (req, res, next) => {
   try {
-    const { search, role, status } = req.query;
+    const { search, role, status, scope } = req.query;
     const params = [];
     const conditions = [];
     let idx = 1;
+
+    if (scope !== undefined && workflowValidation.choice(scope, 'account scope', ['all', 'staff']) === 'staff') {
+      conditions.push("u.role IN ('admin', 'doctor', 'nurse', 'midwife')");
+    }
 
     if (search) {
       conditions.push(`(
@@ -329,6 +350,8 @@ router.get('/users', authenticate, authorize('admin'), async (req, res, next) =>
          u.created_at,
          u.last_login_at,
          u.last_seen_at,
+         linked_patient.id AS patient_record_id,
+         linked_patient.is_active AS patient_is_active,
          ac.status AS credential_status,
          ac.kind AS credential_kind,
          ac.document_type AS credential_document_type,
@@ -361,6 +384,12 @@ router.get('/users', authenticate, authorize('admin'), async (req, res, next) =>
            ELSE 'offline'
          END AS activity_status
        FROM users u
+       LEFT JOIN LATERAL (
+         SELECT (array_agg(p.id))[1] AS id, bool_and(p.is_active) AS is_active
+         FROM patients p
+         WHERE p.user_id = u.id
+         HAVING count(*) = 1
+       ) linked_patient ON u.role = 'patient'
        LEFT JOIN staff_registry sr ON sr.user_id = u.id
        LEFT JOIN account_credentials ac ON ac.user_id = u.id
        LEFT JOIN users verifier ON verifier.id = sr.verified_by
@@ -383,16 +412,16 @@ router.get('/users', authenticate, authorize('admin'), async (req, res, next) =>
 
 router.patch('/users/:id/toggle', authenticate, authorize('admin'), requireStepUp('critical'), async (req, res, next) => {
   try {
-    workflowValidation.uuid(req.params.id);
-    if (req.params.id === req.user.id) return res.status(409).json({success:false,message:'You cannot deactivate your own administrator account.'});
+    const id = workflowValidation.uuid(req.params.id).toLowerCase();
+    if (id === req.user.id.toLowerCase()) return res.status(409).json({success:false,message:'You cannot deactivate your own administrator account.'});
     const result = await query(
       `UPDATE users SET is_active = NOT is_active, refresh_token = NULL, sessions_revoked_at = NOW(), updated_at = NOW()
-       WHERE id = $1 AND NOT EXISTS (
+       WHERE id = $1 AND role IN ('admin', 'doctor', 'nurse', 'midwife') AND NOT EXISTS (
          SELECT 1 FROM account_security_requests WHERE user_id = $1 AND purpose = 'delete' AND confirmed_at IS NOT NULL
        ) RETURNING id, email, role, is_active`,
-      [req.params.id]
+      [id]
     );
-    if (result.rows.length === 0) return res.status(409).json({ success: false, message: 'Account not found or a verified deletion request requires a separate clinic review.' });
+    if (result.rows.length === 0) return res.status(409).json({ success: false, message: 'Only staff access can be changed here. Confirmed deletion requests require a separate clinic review.' });
     res.json({ success: true, data: result.rows[0] });
   } catch (err) { next(err); }
 });

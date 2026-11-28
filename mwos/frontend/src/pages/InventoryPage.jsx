@@ -4,6 +4,31 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
 import StockMovements from '../components/common/StockMovements'
 
+const inventoryViews = [
+  ['catalog', 'All clinic products'],
+  ['medicines', 'Medicine management'],
+  ['pickups', 'Pickup requests'],
+]
+
+export default function InventoryPage() {
+  const [view, setView] = useState('catalog')
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Inventory views">
+        {inventoryViews.map(([key, label]) => (
+          <button key={key} type="button" className={key === view ? 'btn-primary' : 'btn-secondary'} aria-pressed={key === view} onClick={() => setView(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {view === 'catalog' && <StockMovements />}
+      {view === 'medicines' && <MedicineManagement />}
+      {view === 'pickups' && <PickupRequests />}
+    </div>
+  )
+}
+
 const EMPTY_FORM = {
   itemName: '',
   dosage: '',
@@ -43,7 +68,7 @@ const usagePreview = (item) => {
   return item.usage_instructions || item.purpose || item.description || 'Usage guidance not set yet.'
 }
 
-export default function InventoryPage() {
+function MedicineManagement() {
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
@@ -103,6 +128,7 @@ export default function InventoryPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['medicines'] })
+      queryClient.invalidateQueries({ queryKey: ['inventory-stock'] })
       setShowForm(false)
       setEditingItem(null)
       setForm(EMPTY_FORM)
@@ -161,11 +187,9 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6">
-      <StockMovements />
-      <PickupRequests />
       <div className="page-header">
         <div>
-          <h1 className="page-title">Medicine Management</h1>
+          <h2 className="section-title">Medicine management</h2>
           <p className="page-sub">Organize every medicine with an image, purpose, step-by-step usage, safety guidance, and live stock visibility.</p>
         </div>
         <button type="button" onClick={openCreate} className="btn-primary">Add medicine</button>

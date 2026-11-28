@@ -5,7 +5,8 @@ import { useAuthStore } from '../store/authStore'
 import api from '../utils/api'
 import useSignInProviders from '../hooks/useSignInProviders'
 import { GoogleProviderIcon } from '../components/common/AuthProviderIcons'
-import { getPortalDestination, getPortalIntent } from '../utils/portalNavigation'
+import { getPortalDestinationFromSearch, getPortalIntent } from '../utils/portalNavigation'
+import { getConsultationBillId } from '../utils/consultationBilling'
 
 const oauthErrors = {
   google_unavailable: 'Google sign-in is not available yet. Please use your MWOS email and password.',
@@ -26,6 +27,7 @@ export default function LoginPage() {
   const { login, loginWithPasskey, isLoading, error, clearError } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
+  const billingIntent = getConsultationBillId(location.search)
   const [providerError, setProviderError] = useState('')
   const [providerNotice, setProviderNotice] = useState('')
   const { providers: providerStatus, note: providerNote } = useSignInProviders()
@@ -53,7 +55,7 @@ export default function LoginPage() {
 
     const result = await login(form.email.trim(), form.password)
     if (result.success) {
-      navigate(getPortalDestination(result.user, getPortalIntent(location.search)))
+      navigate(getPortalDestinationFromSearch(result.user, location.search))
     }
   }
 
@@ -61,7 +63,7 @@ export default function LoginPage() {
     if (!form.email) return
     const result = await loginWithPasskey(form.email.trim())
     if (result.success) {
-      navigate(getPortalDestination(result.user, getPortalIntent(location.search)))
+      navigate(getPortalDestinationFromSearch(result.user, location.search))
     }
   }
 
@@ -82,7 +84,7 @@ export default function LoginPage() {
         <p className="auth-kicker">Secure clinic access</p>
         <h2>Sign in to MWOS</h2>
         <p>
-          Use the account issued by TMC Copino to continue to your care information or clinic workspace.
+          {billingIntent ? 'Sign in with your MWOS account to view the linked consultation bill.' : 'Use the account issued by TMC Copino to continue to your care information or clinic workspace.'}
         </p>
       </div>
 

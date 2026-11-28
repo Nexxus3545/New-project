@@ -1169,7 +1169,7 @@ const getTasks = async (req, res, next) => {
   try {
     const { status, includeCompleted } = req.query;
     const params = [];
-    const conditions = [];
+    const conditions = ['ct.ward_category IS NULL'];
     let index = 1;
 
     if (req.user.role === 'patient') {
@@ -1327,7 +1327,7 @@ const updateTask = async (req, res, next) => {
   try {
     await client.query('BEGIN');
 
-    const taskResult = await client.query('SELECT * FROM care_tasks WHERE id = $1 LIMIT 1', [req.params.id]);
+    const taskResult = await client.query('SELECT * FROM care_tasks WHERE id = $1 AND ward_category IS NULL LIMIT 1', [req.params.id]);
     if (taskResult.rows.length === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({ success: false, message: 'Task not found' });
