@@ -3,21 +3,12 @@ import { Link } from 'react-router-dom'
 import PlatformLogo from './PlatformLogo'
 import { getDevicePlatform, requestAppInstall, useInstallApp } from '../../utils/installApp'
 
-export const platformOptions = [
-  { id: 'windows', name: 'Windows', type: 'Desktop web app', description: 'Launch your clinic workspace from your Start menu or desktop.', browser: 'Microsoft Edge or Google Chrome', steps: ['Open this page in Microsoft Edge or Google Chrome on Windows.', 'Choose Install MWOS below when available, or use the browser menu: Apps → Install this site as an app (Edge), or Cast, save and share → Install page as app (Chrome).', 'Confirm installation. Open MWOS from your Start menu and sign in with your existing account.'] },
-  { id: 'android', name: 'Android', type: 'Mobile web app', description: 'Keep appointments, messages, and telehealth on your home screen.', browser: 'Google Chrome', steps: ['Open this page in Google Chrome on your Android phone.', 'Choose Install MWOS below when available. You can also open the browser menu (⋮), then choose Add to Home screen → Install.', 'Open the MWOS icon on your home screen and sign in. Allow camera and microphone access when joining a consultation.'] },
-  { id: 'macos', name: 'macOS', type: 'Desktop web app', description: 'Open the same MWOS system in its own window from your Dock.', browser: 'Safari on macOS Sonoma or later, or Chrome', steps: ['Open this page in Safari on macOS Sonoma (14) or later.', 'Choose File → Add to Dock, name the app MWOS, then select Add. In Chrome, use Install MWOS when offered, or the browser’s install menu.', 'Launch MWOS from your Dock or Applications and sign in. On older versions of Safari, use the web portal or Chrome.'] },
-  { id: 'ios', name: 'iOS', type: 'Mobile web app', description: 'Add MWOS to your iPhone or iPad and open your care portal directly.', browser: 'Safari', steps: ['Open this page in Safari on your iPhone or iPad.', 'Open Share (or the page menu, then Share), and choose Add to Home Screen. Keep Open as Web App enabled if that option appears, then tap Add.', 'Open MWOS from your home screen and sign in. Allow camera and microphone access when joining a consultation.'] },
-]
-
-export default function PlatformSetup({ platform, focusOnChange }) {
+export default function PlatformSetup({ card, focusOnChange }) {
   const { installed, canInstall } = useInstallApp()
-  const device = getDevicePlatform()
-  const card = platformOptions.find(item => item.id === platform) || platformOptions[0]
   const heading = useRef(null)
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
-  const sameDevice = !device || device === card.id
+  const sameDevice = getDevicePlatform() === card.id
 
   useEffect(() => {
     setNotice('')
@@ -25,7 +16,7 @@ export default function PlatformSetup({ platform, focusOnChange }) {
       heading.current?.focus({ preventScroll: true })
       heading.current?.scrollIntoView({ block: 'start' })
     }
-  }, [platform, focusOnChange])
+  }, [card.id, focusOnChange])
 
   const install = async () => {
     setBusy(true)
@@ -54,7 +45,7 @@ export default function PlatformSetup({ platform, focusOnChange }) {
     <div className="download-setup-steps">
       <h3>{installed && sameDevice ? 'For another device' : 'Install on your device'}</h3>
       <ol>{card.steps.map(step => <li key={step}>{step}</li>)}</ol>
-      <p>Internet is required. This installs the MWOS web app; it is not an APK, EXE, or App Store download.</p>
+      <p>Install MWOS from your browser and connect to the internet to use your clinic account.</p>
     </div>
   </section>
 }

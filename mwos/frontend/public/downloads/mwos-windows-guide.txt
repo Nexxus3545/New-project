@@ -8,4 +8,4 @@ Open portal: https://tmc-copino-mwos.vercel.app/portal
 3. Open MWOS from the Start menu or desktop and sign in.
 
 Use your existing patient or clinic staff account. Internet is required for appointments, records, messages, and telehealth.
-This installs the MWOS web app. Native APK, EXE, and App Store releases are not published here. If installation is not offered, open the portal directly in your browser.
+These steps install the browser-based MWOS web app. You can also open the portal directly in your browser.

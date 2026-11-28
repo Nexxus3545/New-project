@@ -7,6 +7,7 @@ import AppIcon from '../components/common/AppIcon'
 import PlatformLogo from '../components/common/PlatformLogo'
 import ClinicSlideshow from '../components/common/ClinicSlideshow'
 import ClinicContact from '../components/common/ClinicContact'
+import { platformOptions } from '../utils/appPlatforms'
 import { clinicContact } from '../utils/clinicContact'
 import { useAuthStore } from '../store/authStore'
 import useLandingScrollMotion from '../hooks/useLandingScrollMotion'
@@ -153,7 +154,26 @@ export default function LandingPage() {
 
       <section id="questions" className="clinic-faq-section clinic-container" aria-labelledby="faq-title"><SectionHeading eyebrow="Before your visit" title="A few things you might be wondering." id="faq-title">If your question is about your own health or records, use the secure portal rather than a public review.</SectionHeading><div className="clinic-faq-list">{faqs.map(([question, answer]) => <details key={question}><summary>{question}<span aria-hidden="true">+</span></summary><p>{answer}</p></details>)}</div></section>
 
-      <section id="downloads" className="clinic-download-section clinic-container" aria-labelledby="downloads-title"><div><p className="clinic-eyebrow">Your care, connected</p><h2 id="downloads-title">The clinic portal.<br /><em>Wherever you begin.</em></h2><p>Open the full MWOS portal or install the web app on your device. Your appointments, records, and consultations stay connected to the same account.</p><div className="clinic-actions"><Link className="clinic-button" to="/portal">Open Web Version <span aria-hidden="true">&rarr;</span></Link><Link className="clinic-quiet-link" to="/download">Visit Download Center <span aria-hidden="true">&rarr;</span></Link></div></div><div className="clinic-platforms">{[["windows", "Windows"], ["android", "Android"], ["macos", "macOS"], ["ios", "iOS"]].map(([platform, label]) => <Link key={platform} className="clinic-platform-card" to={`/download#${platform}`} aria-label={`${label}: install or open MWOS`}><PlatformLogo platform={platform} /><span>{label}</span></Link>)}<p>Choose your device to install the MWOS web app or open your portal. Internet required.</p><Link to="/register">New here? Create a patient account</Link></div></section>
+      <section id="downloads" className="clinic-download-section clinic-container" aria-labelledby="downloads-title">
+        <div>
+          <p className="clinic-eyebrow">Your care, connected</p>
+          <h2 id="downloads-title">The clinic portal.<br /><em>Wherever you begin.</em></h2>
+          <p>Open the MWOS portal in your browser or install the web app on Windows or Android. Your appointments, records, and consultations stay connected to the same account.</p>
+          <div className="clinic-actions">
+            <Link className="clinic-button" to="/portal">Open Web Version <span aria-hidden="true">&rarr;</span></Link>
+            <Link className="clinic-quiet-link" to="/download">Visit Download Center <span aria-hidden="true">&rarr;</span></Link>
+          </div>
+        </div>
+        <div className="clinic-platforms">
+          {platformOptions.map(({ id, name }) => (
+            <Link key={id} className="clinic-platform-card" to={`/download#${id}`} aria-label={`${name}: install or open MWOS`}>
+              <PlatformLogo platform={id} />
+              <span>{name}</span>
+            </Link>
+          ))}
+          <Link to="/register">New here? Create a patient account</Link>
+        </div>
+      </section>
     </main>
 
     <footer className="clinic-footer clinic-container"><div><BrandMark compact sublabel="Birthing home & medical clinic" /><p>Maternal care. Connected with you.</p></div><div><strong>{clinicContact.address}</strong><a href="#contact">Open 24 hours daily. Hours & contact</a><a href={clinicContact.phoneHref}>{clinicContact.phone}</a><a href={`mailto:${clinicContact.email}`}>{clinicContact.email}</a><a href={clinicPage} target="_blank" rel="noopener noreferrer">Clinic Facebook page</a><Link to="/download">Download Center</Link></div><p className="clinic-footer-safety">MWOS is not an emergency response service. For urgent help, contact local emergency services directly. Online appointment and transport requests need clinic confirmation.</p></footer>

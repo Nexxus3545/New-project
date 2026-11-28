@@ -5,6 +5,11 @@ const fs = require('node:fs');
 const { chromium } = require(process.env.MWOS_PLAYWRIGHT_MODULE || 'C:/Users/shane/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
 const origin = 'http://127.0.0.1:4194';
 const windows = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
+const android = 'Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36';
+const appleDevices = [
+  ['macos', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15'],
+  ['ios', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'],
+];
 
 async function main() {
   const { preview } = await import('vite');
@@ -32,11 +37,13 @@ async function main() {
   }
   try {
     const { page, context } = await fixture();
-    for (const [id, name] of [['windows', 'Windows'], ['android', 'Android'], ['macos', 'macOS'], ['ios', 'iOS']]) {
+    for (const [id, name] of [['windows', 'Windows'], ['android', 'Android']]) {
       await page.goto(origin);
+      assert.deepEqual(await page.locator('.clinic-platform-card').allTextContents(), ['Windows', 'Android']);
       await page.getByRole('link', { name: `${name}: install or open MWOS`, exact: true }).click();
       await page.getByRole('heading', { name: `MWOS for ${name}`, exact: true }).waitFor();
       assert.equal(new URL(page.url()).hash, '#' + id);
+      assert.deepEqual(await page.locator('.download-platform-card h3').allTextContents(), ['Windows', 'Android']);
       assert.equal(await page.locator('.download-setup-steps li').count(), 3);
       await page.getByRole('link', { name: `Open MWOS for ${name}`, exact: true }).click();
       await page.waitForURL('**/login');
@@ -95,11 +102,13 @@ async function main() {
     await page.waitForURL('**/login');
     await context.close();
 
-    const phone = await fixture({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });
+    const phone = await fixture({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, userAgent: android });
     await phone.page.goto(origin + '/download');
-    await phone.page.getByRole('heading', { name: 'MWOS for iOS', exact: true }).waitFor();
-    await phone.page.getByText(/Open Share.*Add to Home Screen/).waitFor();
-    assert.equal(await phone.page.getByRole('button', { name: 'Install MWOS', exact: true }).count(), 0, 'Safari gets honest manual steps');
+    await phone.page.getByRole('heading', { name: 'MWOS for Android', exact: true }).waitFor();
+    await phone.page.getByText(/open the browser menu.*Add to Home screen/).waitFor();
+    await sendPrompt(phone.page, 'accepted');
+    await phone.page.getByRole('button', { name: 'Install MWOS', exact: true }).click();
+    await phone.page.getByRole('status').filter({ hasText: 'Installation requested' }).waitFor();
     for (const width of [390, 320]) {
       await phone.page.setViewportSize({ width, height: 844 });
       assert.ok(await phone.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No overflow on phone');
@@ -107,8 +116,22 @@ async function main() {
     await phone.page.setViewportSize({ width: 390, height: 844 });
     await phone.page.screenshot({ path: path.join(process.env.TEMP, 'mwos-platform-setup-phone.png'), fullPage: true });
     await phone.context.close();
+
+    for (const [id, userAgent] of appleDevices) {
+      const fallback = await fixture({ userAgent });
+      await fallback.page.goto(origin + '/download#' + id);
+      await fallback.page.getByRole('heading', { name: 'Install on Windows or Android', exact: true }).waitFor();
+      assert.equal(await fallback.page.locator('.download-setup').count(), 0);
+      assert.deepEqual(await fallback.page.locator('.download-platform-card h3').allTextContents(), ['Windows', 'Android']);
+      await sendPrompt(fallback.page, 'accepted');
+      assert.equal(await fallback.page.getByRole('button', { name: 'Install MWOS', exact: true }).count(), 0);
+      assert.equal(fs.existsSync(path.resolve(__dirname, `../../dist/downloads/mwos-${id}-guide.txt`)), false);
+      await fallback.page.getByRole('link', { name: 'Open Web Version' }).click();
+      await fallback.page.waitForURL('**/login');
+      await fallback.context.close();
+    }
     assert.deepEqual(errors, []);
-    console.log('Platform flow passed: all four homepage buttons reach setup and login, valid installable manifest/icons, prompt accepted/cancelled/error states, installed state, phone layout, offline screen/reconnection, and no private response caching.');
+    console.log('Platform flow passed: Windows and Android setup and login, browser access from old platform links, installable manifest and icons, install prompt states, responsive layout, offline reconnection, and private response cache exclusion.');
   } finally { await browser.close(); await new Promise(resolve => server.httpServer.close(resolve)); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

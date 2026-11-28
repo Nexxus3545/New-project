@@ -1,6 +1,6 @@
 import { canAccessConsultationBilling, getConsultationBillId } from './consultationBilling.js'
 
-const patientDestinations = { appointment: '/my/appointments', team: '/my/doctors' }
+const patientDestinations = { appointment: '/my/appointments', team: '/my/doctors', telehealth: '/my/telehealth' }
 const staffRoles = new Set(['admin', 'doctor', 'midwife', 'nurse'])
 
 export const getPortalIntent = (search = '') => {

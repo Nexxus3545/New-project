@@ -9,12 +9,10 @@ const publish = change => {
   subscribers.forEach(notify => notify())
 }
 
-export function getDevicePlatform(device = navigator) {
-  const agent = device.userAgent || ''
-  if (/iPhone|iPad|iPod/i.test(agent) || (/Macintosh/i.test(agent) && device.maxTouchPoints > 1)) return 'ios'
+export function getDevicePlatform(device = globalThis.navigator) {
+  const agent = device?.userAgent || ''
   if (/Android/i.test(agent)) return 'android'
   if (/Windows/i.test(agent)) return 'windows'
-  if (/Macintosh|Mac OS/i.test(agent)) return 'macos'
   return ''
 }
 

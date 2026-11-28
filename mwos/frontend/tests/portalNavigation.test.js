@@ -12,6 +12,13 @@ test('public entry keeps appointment and team intent behind patient authenticati
   assert.equal(getPortalDestination({ role: 'patient' }), '/my/dashboard')
 })
 
+test('mobile Telehealth handoff keeps the consultation workspace behind patient sign-in', () => {
+  const intent = getPortalIntent('?intent=telehealth')
+  assert.equal(getPortalDestination(null, intent), '/login?intent=telehealth')
+  assert.equal(getPortalDestination({ role: 'patient' }, intent), '/my/telehealth')
+  assert.equal(getPortalDestination({ role: 'admin' }, intent), '/dashboard')
+})
+
 test('portal routing uses only fixed local destinations and existing staff roles', () => {
   for (const role of ['admin', 'doctor', 'midwife', 'nurse']) assert.equal(getPortalDestination({ role }, 'appointment'), '/dashboard')
   assert.equal(getPortalDestination({ role: 'unknown' }, 'appointment'), '/')

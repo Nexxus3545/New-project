@@ -258,7 +258,6 @@
   .clinic-landing .clinic-review-grid { grid-template-columns: 1fr; }
   .clinic-landing .clinic-contact-layout, .clinic-landing .clinic-team-section, .clinic-landing .clinic-faq-section { grid-template-columns: minmax(0, 1fr); gap: 36px; }
   .clinic-landing .clinic-download-section { grid-template-columns: 1fr; }
-  .clinic-landing .clinic-platforms { grid-template-columns: repeat(4, 1fr); }
   .clinic-landing .clinic-platforms > .clinic-platform-card { font-size: 20px; text-align: center; }
 }
 @media (max-width: 620px) {

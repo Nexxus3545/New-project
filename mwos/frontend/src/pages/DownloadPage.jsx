@@ -6,13 +6,15 @@ import BrandMark from '../components/common/BrandMark'
 import PlatformLogo from '../components/common/PlatformLogo'
 import '../styles/download.css'
 import { useAuthStore } from '../store/authStore'
-import PlatformSetup, { platformOptions } from '../components/common/PlatformSetup'
+import PlatformSetup from '../components/common/PlatformSetup'
+import { platformOptions } from '../utils/appPlatforms'
 import { getDevicePlatform } from '../utils/installApp'
 
 export default function DownloadPage() {
   const { hash, key } = useLocation()
-  const selectedPlatform = platformOptions.find(card => `#${card.id}` === hash)?.id
-  const platform = selectedPlatform || getDevicePlatform() || 'windows'
+  const selectedPlatform = platformOptions.find(card => `#${card.id}` === hash)
+  const devicePlatform = getDevicePlatform()
+  const platform = selectedPlatform || platformOptions.find(card => card.id === devicePlatform)
   useEffect(() => {
     if (hash === '#review') document.getElementById('review')?.scrollIntoView({ block: 'center' })
   }, [hash])
@@ -56,11 +58,11 @@ export default function DownloadPage() {
           </div>
         </section>
         <section id="platforms" className="download-platform-section" aria-labelledby="platform-title">
-          <div className="download-section-heading"><div><p className="download-eyebrow">FIND YOUR PLATFORM</p><h2 id="platform-title">A familiar home, on every screen.</h2></div><p>Install the MWOS web app on your device,<br />or open the full system in your browser.</p></div>
+          <div className="download-section-heading"><div><p className="download-eyebrow">FIND YOUR PLATFORM</p><h2 id="platform-title">Install on Windows or Android</h2></div><p>Use the MWOS web app on your device, or open the full portal in your browser.</p></div>
           <div className="download-platform-grid" aria-label="MWOS device options">
-            {platformOptions.map((card, index) => (
-              <article key={card.id} id={card.id} className="download-platform-card" data-selected={platform === card.id}>
-                <div className="download-card-top"><span className={'download-logo download-logo-' + card.id}><PlatformLogo platform={card.id} /></span><span className="download-card-number">0{index + 1}</span></div>
+            {platformOptions.map((card) => (
+              <article key={card.id} id={card.id} className="download-platform-card" data-selected={platform?.id === card.id}>
+                <div className="download-card-top"><span className={'download-logo download-logo-' + card.id}><PlatformLogo platform={card.id} /></span></div>
                 <p className="download-eyebrow">{card.type}</p>
                 <h3>{card.name}</h3>
                 <p className="download-card-description">{card.description}</p>
@@ -68,8 +70,8 @@ export default function DownloadPage() {
               </article>
             ))}
           </div>
-          <PlatformSetup platform={platform} focusOnChange={selectedPlatform ? key : ''} />
-          <div className="download-note"><span aria-hidden="true">ⓘ</span><p><strong>One account, the same care.</strong> Sign in to your patient or staff workspace from any supported device. Internet is required; native APK, EXE, and App Store releases are not published here.</p><Link to="/portal">Open portal →</Link></div>
+          {platform && <PlatformSetup card={platform} focusOnChange={selectedPlatform ? key : ''} />}
+          <div className="download-note"><span aria-hidden="true">ⓘ</span><p>MWOS uses the same account in your browser and in the installed web app. Connect to the internet to access your workspace.</p><Link to="/portal">Open portal →</Link></div>
         </section>
         <div className="download-feedback-heading"><p className="download-eyebrow">BETTER CARE, TOGETHER</p><h2>Your experience matters.</h2><p>Read community feedback or share a thought about MWOS.</p></div>
         <div className="download-feedback-grid">
