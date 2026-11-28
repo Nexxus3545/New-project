@@ -645,6 +645,8 @@ const changePassword = async (req, res, next) => {
   }
 };
 
+const PASSWORD_RECOVERY_RESPONSE = 'If the account is eligible, a reset link will be sent to its Google-verified email.';
+
 const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
@@ -654,15 +656,16 @@ const forgotPassword = async (req, res, next) => {
     if (!isEmailConfigured()) return res.status(503).json({ success: false, message: 'Clinic email recovery is unavailable. Contact the clinic for assistance.' });
 
     const userResult = await query(
-      `SELECT u.id, u.email, COALESCE(oi.provider_email, u.email) AS recovery_email
-       FROM users u LEFT JOIN oauth_identities oi ON oi.user_id = u.id AND oi.provider = 'google'
-       WHERE u.is_active = TRUE AND (LOWER(u.email) = $1 OR LOWER(oi.provider_email) = $1)
+      `SELECT u.id, oi.provider_email AS recovery_email
+       FROM users u JOIN oauth_identities oi ON oi.user_id = u.id AND oi.provider = 'google'
+       WHERE u.is_active = TRUE AND NULLIF(BTRIM(oi.provider_email), '') IS NOT NULL
+         AND (LOWER(u.email) = $1 OR LOWER(oi.provider_email) = $1)
        ORDER BY (LOWER(oi.provider_email) = $1) DESC NULLS LAST LIMIT 1`,
       [email.toLowerCase().trim()]
     );
 
     if (userResult.rows.length === 0) {
-      return res.json({ success: true, message: 'If the email exists, a reset link has been sent' });
+      return res.json({ success: true, message: PASSWORD_RECOVERY_RESPONSE });
     }
 
     const user = userResult.rows[0];
@@ -688,7 +691,7 @@ const forgotPassword = async (req, res, next) => {
       text: `Reset your MWOS password using this single-use link: ${resetUrl.toString()} . It expires in 30 minutes. This changes only your MWOS password, not your Google password. If this was not you, ignore this email and review your Google account security.`,
     });
 
-    res.json({ success: true, message: 'If the email exists, a reset link has been sent' });
+    res.json({ success: true, message: PASSWORD_RECOVERY_RESPONSE });
   } catch (err) {
     next(err);
   }

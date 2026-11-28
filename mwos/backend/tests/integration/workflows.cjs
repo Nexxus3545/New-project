@@ -61,6 +61,35 @@ async function main(){
  const concurrent=await Promise.all([500,500].map(amount=>fetch(base+`/billing/${bill.id}/pay`,{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tokens.admin,'X-Step-Up-Token':step},body:JSON.stringify({amount,paymentMethod:'cash',requestId:crypto.randomUUID()})})));
  assert.deepEqual(concurrent.map(r=>r.status).sort(),[200,400]);checks++;
  statement=await call('admin','GET',`/billing/${bill.id}`);assert.equal(Number(statement.bill.balance),100);
+ assert.equal(statement.bill.philhealth_payment_status,'not_recorded');
+ // A historical reference must never masquerade as a verified reimbursement or
+ // appear in the API lists that replaced the preparation workflow.
+ await pool.query("UPDATE billing SET philhealth_claim_no='LEGACY TEST REF', philhealth_amount=250 WHERE id=$1",[bill.id]);
+ const otherBill=await call('admin','POST','/billing',{patientId:other,serviceType:'Second synthetic service',amount:200},201);
+ const statusRoute=`/billing/${bill.id}/philhealth-status`;
+ await call('admin','PATCH',statusRoute,{status:'processing'},403,false);
+ await call('patient','PATCH',statusRoute,{status:'processing'},403);
+ await call('admin','PATCH',statusRoute,{status:'claim_sent'},400);
+ const processing=await call('admin','PATCH',statusRoute,{status:'processing'});
+ assert.equal(processing.philhealth_payment_status,'processing');
+ assert.ok(Number.isFinite(Date.parse(processing.philhealth_status_updated_at)));
+ const own=await call('patient','GET',`/billing/mine?patientId=${other}`);
+ assert.deepEqual(own.map(row=>row.id),[bill.id]);
+ assert.equal(own[0].philhealth_payment_status,'processing');
+ for(const field of ['philhealth_claim_no','philhealth_amount','notes','patient_id','created_by']) assert.ok(!Object.hasOwn(own[0],field));
+ assert.deepEqual((await call('other','GET','/billing/mine')).map(row=>row.id),[otherBill.id]);
+ await call('admin','GET','/billing/mine',undefined,403);
+ const paid=await call('admin','PATCH',statusRoute,{status:'paid'});
+ assert.equal(paid.philhealth_payment_status,'paid');
+ assert.deepEqual(await call('admin','PATCH',statusRoute,{status:'paid'}),paid);
+ const paidBill=await call('admin','GET',`/billing/${bill.id}`);
+ assert.equal(paidBill.bill.philhealth_payment_status,'paid');
+ assert.equal(Number(paidBill.bill.balance),100);
+ assert.equal(paidBill.payments.length,2);
+ assert.ok(!Object.hasOwn(paidBill.bill,'philhealth_claim_no'));
+ assert.equal((await call('patient','GET','/billing/mine'))[0].philhealth_payment_status,'paid');
+ assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM audit_logs WHERE action='BILL_PHILHEALTH_STATUS_UPDATED' AND entity_id=$1",[bill.id])).rows[0].n,2);
+ assert.deepEqual((await pool.query('SELECT philhealth_claim_no, philhealth_amount FROM billing WHERE id=$1',[bill.id])).rows[0],{philhealth_claim_no:'LEGACY TEST REF',philhealth_amount:'250.00'});
  const medication=(await pool.query("INSERT INTO inventory(item_name,category,quantity,unit,reorder_level,availability_status) VALUES('Synthetic medicine','medication',3,'unit',1,'available') RETURNING *")).rows[0];
  const pickupBody={requestId:crypto.randomUUID(),items:[{id:medication.id,quantity:2}]};
  const pickup=await call('patient','POST','/pharmacy/pickups',pickupBody,201);assert.equal((await call('patient','POST','/pharmacy/pickups',pickupBody,201)).id,pickup.id);

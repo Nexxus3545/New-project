@@ -46,9 +46,8 @@ const { passport } = require('../config/oauth');
 
 // ── AUTH ──────────────────────────────────────────────────────
 router.post('/auth/login', authCtrl.login);
-// SMS is reserved for verified contacts/recovery, not public passwordless sign-in.
-router.post(['/auth/sms-login/request', '/auth/sms-login/verify'], (_req, res) =>
-  res.status(410).json({ success: false, message: 'SMS sign-in is no longer offered. Sign in with Google or your clinic account.' })
+router.post(['/auth/sms-login/request', '/auth/sms-login/verify', '/auth/otp/request', '/auth/otp/verify'], (_req, res) =>
+  res.status(410).json({ success: false, code: 'SMS_AUTH_RETIRED', message: 'Use Google or your MWOS account to sign in. Staff can use a passkey for protected actions.' })
 );
 router.post('/auth/register', authCtrl.register);
 router.post('/auth/forgot-password', authCtrl.forgotPassword);
@@ -61,8 +60,6 @@ router.get('/auth/me', authenticate, authCtrl.getMe);
 router.patch('/auth/profile', authenticate, authCtrl.updateProfile);
 router.patch('/auth/preferences', authenticate, authCtrl.updatePreferences);
 router.patch('/auth/change-password', authenticate, authCtrl.changePassword);
-router.post('/auth/otp/request', authenticate, authorize('admin','doctor','midwife','nurse'), securityCtrl.requestOtp);
-router.post('/auth/otp/verify', authenticate, authorize('admin','doctor','midwife','nurse'), securityCtrl.verifyOtp);
 router.post('/auth/webauthn/register/start', authenticate, authorize('admin','doctor','midwife','nurse'), securityCtrl.startWebAuthnRegistration);
 router.post('/auth/webauthn/register/finish', authenticate, authorize('admin','doctor','midwife','nurse'), securityCtrl.finishWebAuthnRegistration);
 router.post('/auth/webauthn/login/start', securityCtrl.startWebAuthnLogin);
@@ -251,10 +248,12 @@ router.get('/pediatric/:patientId', authenticate, requireOwnPatient, clinical.li
 router.post('/pediatric', authenticate, authorizePermission('clinical:vitals:write'), clinical.create('pediatric'));
 
 router.get('/billing', authenticate, authorize('admin','doctor'), billingWorkflow.list);
+router.get('/billing/mine', authorize('patient'), billingWorkflow.listMine);
 router.get('/billing/:id', authenticate, authorize('admin','doctor'), billingWorkflow.detail);
 router.post('/billing', authenticate, authorizePermission('finance:billing:write'), billingWorkflow.create);
 router.patch('/billing/:id/pay', authenticate, authorizePermission('finance:billing:write'), billingWorkflow.pay);
 router.patch('/billing/:id/reconcile', authenticate, authorizePermission('finance:billing:write'), billingWorkflow.reconcile);
+router.patch('/billing/:id/philhealth-status', authorize('admin','doctor'), authorizePermission('finance:billing:write'), billingWorkflow.updatePhilHealthStatus);
 
 // ── INVENTORY ─────────────────────────────────────────────────
 router.get('/inventory', authenticate, async (req, res, next) => {

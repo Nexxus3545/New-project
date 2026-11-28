@@ -44,6 +44,7 @@ import EmergencyMapPage from './pages/EmergencyMapPage'
 // Patient portal pages
 import PatientDashboardPage from './pages/patient/PatientDashboardPage'
 import PatientAppointmentsPage from './pages/patient/PatientAppointmentsPage'
+import PatientBillingPage from './pages/patient/PatientBillingPage'
 import PatientVitalsPage from './pages/patient/PatientVitalsPage'
 import PatientRecordsPage from './pages/patient/PatientRecordsPage'
 import PatientEducationPage from './pages/patient/PatientEducationPage'
@@ -174,6 +175,7 @@ export default function App() {
           <Route path="/my/notifications" element={<PatientNotificationsPage />} />
           <Route path="/my/reports" element={<PatientReportsPage />} />
           <Route path="/my/appointments" element={<PatientAppointmentsPage />} />
+          <Route path="/my/billing" element={<PatientBillingPage />} />
           <Route path="/my/visit-progress" element={<PatientFlowPage />} />
           <Route path="/my/scheduling" element={<SchedulingPage />} />
           <Route path="/my/vitals" element={<PatientVitalsPage />} />

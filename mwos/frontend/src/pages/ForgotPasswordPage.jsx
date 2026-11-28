@@ -17,7 +17,8 @@ export default function ForgotPasswordPage() {
   return (
     <div>
       <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100 mb-1">Forgot password</h2>
-      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Enter your existing MWOS account email. For Google-linked accounts, recovery goes to the email verified through Google. This changes only your MWOS password.</p>
+      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">For a Google-linked account, enter your MWOS or Google email. The MWOS password reset link goes to your verified Google email. For other accounts, contact the clinic for assistance.</p>
+      <a className="block mb-4 text-sm underline" href="https://accounts.google.com/signin/recovery" target="_blank" rel="noopener noreferrer">Recover access to your Google account</a>
       <Link className="inline-block mb-4 text-sm underline" to="/reactivate-account">Reactivate a temporarily deactivated account</Link>
 
       {error ? <div className="alert-critical mb-4 text-sm">{error}</div> : null}

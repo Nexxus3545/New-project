@@ -11,6 +11,7 @@ const completeWorkflowSql = fs.readFileSync(path.join(__dirname, '../config/migr
 const birthPlanSql = fs.readFileSync(path.join(__dirname, '../config/migrations/20261121-birth-plans.sql'), 'utf8');
 const newbornScreeningSql = fs.readFileSync(path.join(__dirname, '../config/migrations/20261121-newborn-screening.sql'), 'utf8');
 const wardOperationsSql = fs.readFileSync(path.join(__dirname, '../config/migrations/20261128-ward-operations.sql'), 'utf8');
+const philhealthPaymentStatusSql = fs.readFileSync(path.join(__dirname, '../config/migrations/20261128-philhealth-payment-status.sql'), 'utf8');
 
 async function migratePatientCare(client) {
   await client.query('BEGIN');
@@ -29,6 +30,7 @@ async function migratePatientCare(client) {
     await client.query(birthPlanSql);
     await client.query(newbornScreeningSql);
     await client.query(wardOperationsSql);
+    await client.query(philhealthPaymentStatusSql);
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');

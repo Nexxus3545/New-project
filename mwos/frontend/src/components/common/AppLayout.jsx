@@ -54,7 +54,7 @@ const staffNavSections = [
 const patientNavSections = [
   { title: 'Care Overview', items: [...patientNav.slice(0, 2), { to: '/my/birth-plan', icon: 'delivery', label: 'My Birth Plan' }] },
   { title: 'Appointments', items: [patientNav[2],{to:'/my/scheduling',icon:'calendar',label:'Doctor schedules & booking'}] },
-  { title: 'My Care', items: [...patientNav.slice(3, 5), { to: '/my/visit-progress', icon: 'calendar', label: 'Visit Progress' }] },
+  { title: 'My Care', items: [...patientNav.slice(3, 5), { to: '/my/visit-progress', icon: 'calendar', label: 'Visit Progress' }, { to: '/my/billing', icon: 'billing', label: 'My Billing' }] },
   { title: 'Communication', items: patientNav.slice(5, 7) },
   { title: 'Learning', items: patientNav.slice(7, 8) },
 ]
@@ -128,6 +128,8 @@ export default function AppLayout({ patient = false }) {
   })()
 
   const hasFocusedWorkspaceHeader = [
+    '/billing',
+    '/my/billing',
     '/users',
     '/staff-qualifications',
     '/notifications',

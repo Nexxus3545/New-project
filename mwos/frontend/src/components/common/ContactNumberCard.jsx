@@ -26,7 +26,7 @@ export default function ContactNumberCard() {
       queryClient.setQueryData(['auth-me'], nextUser)
       setPhone(null)
       queryClient.invalidateQueries({ queryKey: ['patients-me-settings'] })
-      setNotice('Contact number saved. It is not SMS-verified and cannot be used for account recovery yet.')
+      setNotice('Contact number saved for clinic follow-up.')
     },
   })
   return (
@@ -48,8 +48,7 @@ export default function ContactNumberCard() {
       {save.error ? <p role="alert" className="text-sm text-red-600">{save.error.response?.data?.message || save.error.message}</p> : null}
       {notice ? <p role="status" className="text-sm text-emerald-700">{notice}</p> : null}
       <p className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">
-        SMS verification and SMS recovery are not connected yet. No verification code will be sent.
-        For Google accounts, recover access through Google, then return to MWOS.
+        A clinic administrator or doctor may text you about a follow-up. For Google accounts, recover access through Google, then return to MWOS.
       </p>
       <a href="https://accounts.google.com/signin/recovery" target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-[var(--accent)] underline">
         Open Google account recovery

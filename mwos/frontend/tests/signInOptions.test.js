@@ -65,7 +65,8 @@ test('contact screen never claims an unverified phone is ready for recovery', as
   const { default: Card } = await server.ssrLoadModule('/src/components/common/ContactNumberCard.jsx')
   const html = renderToStaticMarkup(React.createElement(QueryClientProvider, { client: new QueryClient() }, React.createElement(Card)))
   assert.match(html, /Saving it does not verify ownership/)
-  assert.match(html, /SMS verification and SMS recovery are not connected yet/)
+  assert.match(html, /clinic administrator or doctor may text you/)
+  assert.match(html, /accounts.google.com\/signin\/recovery/)
   assert.doesNotMatch(html, /Send verification code/)
 })
 
@@ -165,13 +166,14 @@ test('every patient, staff, and admin navigation module uses an icon without rem
   const originalUser = snapshot.user
   // SSR needs each fixture's current role rather than Zustand's module-load snapshot.
   try {
-    for (const [role, count, isSuperAdmin=false] of [['patient', 11], ['nurse', 16], ['midwife', 16], ['doctor', 17], ['admin', 17], ['admin',20,true]]) {
+    for (const [role, count, isSuperAdmin=false] of [['patient', 12], ['nurse', 16], ['midwife', 16], ['doctor', 17], ['admin', 17], ['admin',20,true]]) {
       snapshot.user = { id: 'test-user', role, isSuperAdmin, firstName: 'Test', lastName: 'User', careType: 'maternal' }
       const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: role === 'patient' ? '/my/settings' : '/settings' },
         React.createElement(QueryClientProvider, { client: new QueryClient() }, React.createElement(Layout, { patient: role === 'patient' }))))
       const nav = html.match(/<nav aria-label="(?:Patient|Clinic) modules"[\s\S]*?<\/nav>/)[0]
       const links = [...nav.matchAll(/<a\s[^>]*>[\s\S]*?<\/a>/g)].map((match) => match[0])
       assert.equal(links.length, count)
+      assert.equal(nav.includes('href="/my/billing"'), role === 'patient')
       assert.ok(links.some(link => link.includes(`href="${role === 'patient' ? '/my/messages' : '/messages'}"`) && link.includes('Messages')))
       assert.doesNotMatch(html, /MWOS Support/)
       for (const link of links) {

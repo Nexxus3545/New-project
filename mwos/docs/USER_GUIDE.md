@@ -77,20 +77,20 @@ These are facility descriptions based on the supplied photographs. They do not s
 
 ## 5 Download Center and platform access
 
-The Windows, Android, macOS, and iOS cards open the corresponding setup section. MWOS uses the same account and online care workspace across supported browsers and the installed web app. Installation support depends on the browser and device; the page provides platform-specific instructions when a direct installation prompt is unavailable.
+The Windows and Android cards open the corresponding setup section. Select Open MWOS in your browser on other devices. MWOS uses the same account and online care workspace across supported browsers and the installed web app. The setup section provides manual browser instructions when the direct installation prompt is unavailable.
 
 | Clickable control | How to use it | Expected result |
 | Clinic homepage | Select the back link or clinic identity. | Returns to the public website. |
 | Explore your options | Select the link near the introduction. | Moves to the platform choices. |
 | Open Web Version or Open MWOS | Select the action. | Opens the role-appropriate portal or sign-in page. |
 | Create an account | Select the link. | Opens patient registration. |
-| Set up on Windows, Android, macOS, or iOS | Select the relevant platform. | Moves to that device's installation guidance. |
+| Set up on Windows or Android | Select the relevant platform. | Moves to that device's installation guidance. |
 | Install MWOS | Select it when offered, then confirm through the browser. | Installs the web app if the browser supports the installation flow. |
 | Platform instructions | Follow the instructions displayed for the device. | Adds browser-based access where supported; it is not proof of a native store release. |
 | Rating buttons from 1 to 5 | Select the rating in Leave a review. | Sets the rating to accompany the feedback form. |
 | Submit Review | Enter the display name, role, rating, and feedback, then submit. | Sends feedback to the review system; publication follows its processing rules. |
 
-Internet access and sign-in are required for the care workspace. Do not describe the platform cards as downloadable signed Windows, macOS, Android, or iOS installers unless a corresponding release is actually supplied. Public reviews should discuss the system experience without including patient records, ID numbers, passwords, or private clinical details.
+Internet access and sign-in are required for the care workspace. The Windows and Android setup cards install the browser-based MWOS app. Public reviews should discuss the system experience without including patient records, ID numbers, passwords, or private clinical details.
 
 ## 6 Sign in registration and account recovery
 
@@ -307,20 +307,11 @@ The Pharmacy pickup requests panel lists patient, selected medicines, quantities
 
 The patient Pharmacy page uses these entries for browsing and pickup requests. Adding an item to a patient's cart is not an inventory release, payment, prescription, or dispensing authorization. A prescription-required indicator must not be treated as an automatic approval merely because the item can be viewed.
 
-## 19 Billing and PhilHealth preparation
+## 19 Billing and PhilHealth payment status
 
-Billing & Payments is available to the roles permitted by the application, including administrators and doctors. The page provides Payment records and PhilHealth preparation tabs. Payment records displays patient, service, total, cumulative amount paid, remaining balance, status, and available actions. Create bill opens the service, amount, discount, reference, and notes form. Record payment records money actually received, its payment method, transaction reference, and notes. Repeated submissions with the same reference do not double-charge the bill; an amount above the balance is rejected. View statement opens payment history, Download statement saves a text statement, and Export billing downloads CSV. Reconcile records an evidence-based historical paid amount for legacy partial bills whose payment details were not previously retained. These entries represent clinic records; no online payment gateway is connected through this screen.
+Open **Billing & Payments** as an administrator or doctor to create a bill, record money received, and view the balance and payment history. Use **Update PhilHealth status** on a bill to select **In process** while waiting for payment, or **Paid to clinic** after confirming receipt. **Not recorded** indicates that the clinic has yet to enter a status. Verify access with a passkey in **Account settings** before saving a protected change.
 
-| PhilHealth control | Operation and result |
-| Find a patient and Search patients | Enter at least two characters and retrieve matching patient records. |
-| Select patient | Load that patient's saved member information and documents. |
-| Care package for document review | Change the preparation checklist used for the review. |
-| Reveal or hide member information control | Show or conceal the saved identifier where offered. |
-| Patient or record links | Open the related clinic record for authorized follow-up. |
-| Reference links | Open the linked external reference material. |
-| Try again | Retry a failed search or record request. |
-
-The visible status is Not connected to PhilHealth. The workspace assists with member and document preparation; it does not perform live eligibility checks, transmit claims, obtain claim decisions, or confirm reimbursement. Recorded amounts and references are not evidence of an approved claim. External enrollment, authorized service access, and separate integration work remain necessary before such services can be described as live.
+Patients open **My Billing** in the web portal or under **Profile** on Android. Each bill shows the total, recorded payments, balance, and its clinic-recorded PhilHealth status. Recording a status and recording an actual payment are two separate billing actions. Staff can use View statement, Download statement, or Export billing to review and share approved records.
 
 ## 20 Health education reports and analytics
 
@@ -520,7 +511,7 @@ Para sa staff: tiyaking verified ang professional credential at may kinakailanga
 The following distinctions should remain explicit in a manuscript, demonstration, or evaluation. They prevent a visible label or planned integration from being described as a completed operational service.
 
 | Area | Current documented behavior | Claim to avoid |
-| PhilHealth | Member, document, and billing-reference preparation. | Live eligibility verification, eClaims transmission, approved benefits, or reimbursement. |
+| PhilHealth payment status | Clinic-recorded status for each bill and a patient view of their own bills. | Automated updates from PhilHealth. |
 | Online payments | Stored billing information and pickup-request coordination. | A connected payment gateway or completed online charge. |
 | ID scanning | Readability and consistency checks with clinic review. | Guaranteed fake-ID detection or automatic proof of identity. |
 | Professional verification | Reviewed credential information and links to external checking services. | Automatic government-registry certification based solely on a file upload. |
@@ -557,7 +548,7 @@ The system allows patients to request an in-person appointment or a virtual cons
 
 ### Records and operational support
 
-Clinical pages organize recorded observations, laboratory results, ultrasound findings, immunizations, and delivery information around the selected patient. Patients review their own saved information through the portal and use messages to coordinate with the clinic. Operational pages support medicine-catalogue maintenance, recorded billing information, audit review, and available summary reports. The PhilHealth workspace assists with preparation, while live claims integration and online payment processing remain outside the connected functions of the documented version.
+Clinical pages organize recorded observations, laboratory results, ultrasound findings, immunizations, and delivery information around the selected patient. Patients review their own saved information through the portal and use messages to coordinate with the clinic. Operational pages support medicine-catalogue maintenance, recorded billing information, audit review, and available summary reports. Patients can review whether the clinic recorded a PhilHealth payment as in process or paid to clinic.
 
 ### Evaluation boundary
 

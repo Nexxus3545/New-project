@@ -39,7 +39,7 @@ const requestCode = async (req, res, next) => {
       (SELECT provider_email FROM oauth_identities WHERE user_id = u.id AND provider = 'google' LIMIT 1) AS google_email
       FROM users u WHERE ${recovery ? 'LOWER(u.email) = $1 OR u.id IN (SELECT user_id FROM oauth_identities WHERE provider = \'google\' AND LOWER(provider_email) = $1)' : 'u.id = $1'} FOR UPDATE`, [recovery ? email : req.user.id]);
     const user = owner.rows[0];
-    let allowed = Boolean(user && (recovery ? !user.is_active && user.role === 'patient' : user.is_active));
+    let allowed = Boolean(user && (recovery ? !user.is_active && user.role === 'patient' && user.google_email?.trim() : user.is_active));
     if (user && ['deactivate', 'delete'].includes(purpose) && user.role !== 'patient') allowed = false;
     if (user && ['deactivate', 'delete'].includes(purpose) && !user.google_email &&
         (typeof req.body.currentPassword !== 'string' || !await bcrypt.compare(req.body.currentPassword, user.password))) {

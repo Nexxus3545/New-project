@@ -9,7 +9,7 @@ const OTP_LENGTH = 6;
 const OTP_EXPIRY_MINUTES = Number(process.env.OTP_EXPIRY_MINUTES || 10);
 const STEP_UP_EXPIRY = process.env.STEP_UP_TOKEN_EXPIRES_IN || '15m';
 const WEB_AUTHN_RP_NAME = process.env.WEBAUTHN_RP_NAME || 'TMC Copino MWOS';
-const WEB_AUTHN_ORIGIN = process.env.WEBAUTHN_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:3000';
+const WEB_AUTHN_ORIGIN = process.env.WEBAUTHN_ORIGIN || process.env.FRONTEND_URL?.split(',')[0].trim() || 'http://localhost:3000';
 const WEB_AUTHN_RP_ID = process.env.WEBAUTHN_RP_ID || (() => {
   try {
     return new URL(WEB_AUTHN_ORIGIN).hostname;

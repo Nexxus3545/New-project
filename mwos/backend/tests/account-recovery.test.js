@@ -38,6 +38,17 @@ test('password recovery goes to the Google-verified address and a real single-or
   assert.doesNotMatch(messages[0].text, /preview\.example/);
   assert.ok(statements.some((sql) => sql.includes('u.is_active = TRUE')));
 });
+test('a password-only account receives the generic response without an automated recovery email', async () => {
+  const controller = runtime(async (sql) => {
+    assert.match(sql, /FROM users u JOIN oauth_identities oi/);
+    assert.match(sql, /oi\.provider = 'google'/);
+    assert.match(sql, /NULLIF\(BTRIM\(oi\.provider_email\), ''\) IS NOT NULL/);
+    return { rows: [] };
+  }, { sendMail: async () => { throw new Error('Do not send automated email for this account'); } });
+  const response = await invoke(controller.forgotPassword, { email: 'password-only@example.invalid' });
+  assert.equal(response.status, 200);
+  assert.equal(response.body.message, 'If the account is eligible, a reset link will be sent to its Google-verified email.');
+});
 test('unavailable recovery cannot falsely claim a reset email or mutate accounts', async () => {
   const controller = runtime(() => { throw new Error('Must not query'); }, { configured: false });
   assert.equal((await invoke(controller.forgotPassword, { email: 'fixture@example.invalid' })).status, 503);

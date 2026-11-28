@@ -226,34 +226,6 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  requestOtp: async (purpose = 'critical') => {
-    set({ isLoading: true, error: null })
-    try {
-      const res = await api.post('/auth/otp/request', { purpose })
-      set({ isLoading: false, error: null })
-      return { success: true, ...res.data.data }
-    } catch (err) {
-      const msg = friendlyAuthError(err, 'Request failed. Please try again.')
-      set({ isLoading: false, error: msg })
-      return { success: false, error: msg }
-    }
-  },
-
-  verifyOtp: async ({ challengeId, code, purpose = 'critical' }) => {
-    set({ isLoading: true, error: null })
-    try {
-      const res = await api.post('/auth/otp/verify', { challengeId, code, purpose })
-      const { stepUpToken } = res.data.data
-      persistStepUpToken(stepUpToken)
-      set({ isLoading: false, error: null, stepUpToken })
-      return { success: true, stepUpToken }
-    } catch (err) {
-      const msg = friendlyAuthError(err, 'OTP verification failed. Please try again.')
-      set({ isLoading: false, error: msg })
-      return { success: false, error: msg }
-    }
-  },
-
   forgotPassword: async (email) => {
     set({ isLoading: true, error: null })
     try {

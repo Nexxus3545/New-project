@@ -86,8 +86,7 @@ export default function AccountCenterPage({ section = 'profile' }) {
   const updateCurrentUser = useAuthStore((state) => state.updateCurrentUser)
   const logout = useAuthStore((state) => state.logout)
   const stepUpToken = useAuthStore((state) => state.stepUpToken)
-  const requestOtp = useAuthStore((state) => state.requestOtp)
-  const verifyOtp = useAuthStore((state) => state.verifyOtp)
+  const loginWithPasskey = useAuthStore((state) => state.loginWithPasskey)
   const registerPasskey = useAuthStore((state) => state.registerPasskey)
   const clearStepUp = useAuthStore((state) => state.clearStepUp)
   const themePreferences = useThemeStore((state) => state.preferences)
@@ -145,11 +144,6 @@ export default function AccountCenterPage({ section = 'profile' }) {
     confirmPassword: '',
   })
   const [emailPassword, setEmailPassword] = useState('')
-  const [stepUpForm, setStepUpForm] = useState({
-    purpose: 'critical',
-    code: '',
-    challengeId: '',
-  })
   const [documentForm, setDocumentForm] = useState({
     documentType: 'Medical Document',
     file: null,
@@ -298,44 +292,19 @@ export default function AccountCenterPage({ section = 'profile' }) {
 
   const isStaff = ['admin', 'doctor', 'midwife', 'nurse'].includes(account?.role)
 
-  const handleRequestStepUp = async () => {
-    const result = await requestOtp(stepUpForm.purpose)
+  const handleVerifyPasskey = async () => {
+    if (!account?.email) return
+    setLocalError('')
+    const result = await loginWithPasskey(account.email)
     if (!result.success) {
       setLocalError(result.error)
       return
     }
-
-    setStepUpForm((current) => ({
-      ...current,
-      challengeId: result.challengeId || '',
-      code: '',
-    }))
-    setSecurityNotice(`Verification code sent to ${result.destination || 'your clinic contact'}.`)
-    setLocalError('')
-  }
-
-  const handleVerifyStepUp = async (event) => {
-    event.preventDefault()
-    if (!stepUpForm.code.trim()) return
-
-    const result = await verifyOtp({
-      challengeId: stepUpForm.challengeId,
-      code: stepUpForm.code.trim(),
-      purpose: stepUpForm.purpose,
-    })
-
-    if (!result.success) {
-      setLocalError(result.error)
-      return
-    }
-
-    setSecurityNotice('Step-up authentication is active for protected actions.')
-    setLocalError('')
-    setStepUpForm((current) => ({ ...current, code: '' }))
+    setSecurityNotice('Passkey verified. You can continue with protected actions.')
   }
 
   const handleRegisterPasskey = async () => {
-    const result = await registerPasskey(stepUpForm.purpose)
+    const result = await registerPasskey()
     if (!result.success) {
       setLocalError(result.error)
       return
@@ -943,59 +912,21 @@ export default function AccountCenterPage({ section = 'profile' }) {
                 <div>
                   <h2 className="section-title mb-1">Step-up access</h2>
                   <p className="text-sm text-gray-500 dark:text-slate-400">
-                    Request an OTP or register a passkey before protected clinical or admin actions.
+                    Register a passkey on your device, then verify with it before protected clinical or admin actions.
                   </p>
                 </div>
                 {stepUpToken ? <span className="badge badge-success">Step-up active</span> : <span className="badge badge-gray">Step-up inactive</span>}
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="label">Purpose</label>
-                  <select
-                    className="input"
-                    value={stepUpForm.purpose}
-                    onChange={(event) => setStepUpForm((current) => ({ ...current, purpose: event.target.value }))}
-                  >
-                    <option value="critical">Critical actions</option>
-                    <option value="clinical-signature">Clinical signature</option>
-                    <option value="billing">Billing</option>
-                    <option value="backup-restore">Backup / restore</option>
-                    <option value="license-change">License change</option>
-                    <option value="record-delete">Record deletion</option>
-                    <option value="export-sensitive">Sensitive export</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Challenge ID</label>
-                  <input className="input" value={stepUpForm.challengeId} readOnly placeholder="Send an OTP to generate a challenge" />
-                </div>
-                <div>
-                  <label className="label">Verification code</label>
-                  <input
-                    className="input"
-                    value={stepUpForm.code}
-                    onChange={(event) => setStepUpForm((current) => ({ ...current, code: event.target.value }))}
-                    placeholder="Enter the six-digit code"
-                  />
-                </div>
-              </div>
-
               <div className="flex flex-wrap gap-3">
-                <button type="button" onClick={handleRequestStepUp} className="btn-secondary">
-                  Send OTP
+                <button type="button" onClick={handleVerifyPasskey} className="btn-primary">
+                  Verify with passkey
                 </button>
                 <button type="button" onClick={handleRegisterPasskey} className="btn-secondary">
                   Register passkey
                 </button>
                 <button type="button" onClick={handleClearStepUp} className="btn-ghost">
                   Clear step-up
-                </button>
-              </div>
-
-              <div className="flex justify-end">
-                <button type="button" onClick={handleVerifyStepUp} className="btn-primary" disabled={!stepUpForm.code.trim()}>
-                  Verify OTP
                 </button>
               </div>
             </div>

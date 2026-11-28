@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../utils/api'
 import { PregnancyRecords, ClinicalEntries, prescriptionFields } from './ClinicalWorkflows'
 import { useAuthStore } from '../store/authStore'
+import PhilHealthStatus from '../components/billing/PhilHealthStatus'
 
 const tabs = ['Overview', 'Vitals', 'Pregnancies', 'Labs', 'Prescriptions', 'Deliveries', 'Billing']
 
@@ -76,6 +77,8 @@ export default function PatientDetailPage() {
 
   const patient = summary?.patient
   if (!patient) return null
+  const phone = (patient.phone || '').replace(/[\s()-]/g, '')
+  const canTextPatient = ['admin', 'doctor'].includes(role) && /^\+?\d{7,15}$/.test(phone)
 
   const bpColor = (cat) => ({
     normal: 'badge-success', elevated: 'badge-warning',
@@ -106,6 +109,7 @@ export default function PatientDetailPage() {
         <div className="card text-sm">
           <p className="text-gray-500 text-xs mb-1">Phone</p>
           <p className="font-medium">{patient.phone || '—'}</p>
+          {canTextPatient ? <a className="btn-secondary btn-sm mt-2" href={'sms:' + phone}>Text patient manually</a> : null}
         </div>
         <div className="card text-sm">
           <p className="text-gray-500 text-xs mb-1">PhilHealth</p>
@@ -345,14 +349,14 @@ export default function PatientDetailPage() {
           ) : (
             <div className="table-container">
               <table className="table">
-                <thead><tr><th>Date</th><th>Service</th><th>Amount</th><th>PhilHealth</th><th>Status</th></tr></thead>
+                <thead><tr><th>Date</th><th>Service</th><th>Amount</th><th>PhilHealth payment</th><th>Bill status</th></tr></thead>
                 <tbody>
                   {billingData.map(b => (
                     <tr key={b.id}>
                       <td>{new Date(b.bill_date).toLocaleDateString('en-PH')}</td>
                       <td>{b.service_type || '—'}</td>
                       <td>₱{parseFloat(b.total_amount).toLocaleString()}</td>
-                      <td>{b.philhealth_amount > 0 ? `₱${parseFloat(b.philhealth_amount).toLocaleString()}` : '—'}</td>
+                      <td><PhilHealthStatus bill={b} /></td>
                       <td><span className={`badge ${b.payment_status === 'paid' ? 'badge-success' : b.payment_status === 'partial' ? 'badge-warning' : 'badge-danger'}`}>{b.payment_status}</span></td>
                     </tr>
                   ))}

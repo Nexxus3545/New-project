@@ -214,7 +214,7 @@ const startWebAuthnRegistration = async (req, res, next) => {
       attestationType: 'none',
       authenticatorSelection: {
         residentKey: 'preferred',
-        userVerification: 'preferred',
+        userVerification: 'required',
       },
       excludeCredentials: credentials.map((credential) => ({
         id: credential.credential_id,
@@ -259,7 +259,7 @@ const startWebAuthnRegistration = async (req, res, next) => {
 };
 
 const finishWebAuthnRegistration = async (req, res, next) => {
-  const client = await getClient();
+  let client;
 
   try {
     const { credential, sessionToken, label } = req.body;
@@ -285,6 +285,7 @@ const finishWebAuthnRegistration = async (req, res, next) => {
       expectedChallenge: session.challenge,
       expectedOrigin: session.origin,
       expectedRPID: session.rpId,
+      requireUserVerification: true,
     });
 
     if (!verification.verified) {
@@ -299,6 +300,7 @@ const finishWebAuthnRegistration = async (req, res, next) => {
     const staffProfile = await getStaffOrReject(req, res);
     if (!staffProfile) return;
 
+    client = await getClient();
     await client.query('BEGIN');
 
     const publicKey = Buffer.from(verification.registrationInfo.credential.publicKey).toString('base64');
@@ -339,10 +341,10 @@ const finishWebAuthnRegistration = async (req, res, next) => {
       },
     });
   } catch (err) {
-    await client.query('ROLLBACK');
+    if (client) await client.query('ROLLBACK');
     next(err);
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
@@ -407,7 +409,7 @@ const startWebAuthnLogin = async (req, res, next) => {
         id: credential.credential_id,
         transports: credential.transports || undefined,
       })),
-      userVerification: 'preferred',
+      userVerification: 'required',
     });
 
     const sessionToken = issueWebAuthnSessionToken({
@@ -435,7 +437,7 @@ const startWebAuthnLogin = async (req, res, next) => {
 };
 
 const finishWebAuthnLogin = async (req, res, next) => {
-  const client = await getClient();
+  let client;
 
   try {
     const { credential, sessionToken } = req.body;
@@ -449,7 +451,7 @@ const finishWebAuthnLogin = async (req, res, next) => {
 
     const session = verifyWebAuthnSessionToken(sessionToken, 'login');
     const credentialRecord = await getWebAuthnCredentialById(credential.id);
-    if (!credentialRecord) {
+    if (!credentialRecord?.row.is_active) {
       return res.status(404).json({
         success: false,
         message: 'Registered WebAuthn credential not found',
@@ -524,6 +526,9 @@ const finishWebAuthnLogin = async (req, res, next) => {
       });
     }
 
+    const staffProfile = await getStaffOrReject({ ...req, user }, res);
+    if (!staffProfile) return;
+
     const { accessToken, refreshToken } = generateSessionTokens(user.id, user.role);
     const stepUpToken = issueStepUpToken({
       userId: user.id,
@@ -534,6 +539,7 @@ const finishWebAuthnLogin = async (req, res, next) => {
       credentialId: credentialRecord.id,
     });
 
+    client = await getClient();
     await client.query('BEGIN');
     await client.query(
       `UPDATE users
@@ -560,12 +566,6 @@ const finishWebAuthnLogin = async (req, res, next) => {
       [credentialRecord.row.auth_credential_id]
     );
 
-    const staffProfile = await getStaffOrReject({ ...req, user }, res);
-    if (!staffProfile) {
-      await client.query('ROLLBACK');
-      return;
-    }
-
     await recordSecurityAudit({
       client,
       staffId: staffProfile.staffId,
@@ -582,6 +582,7 @@ const finishWebAuthnLogin = async (req, res, next) => {
       },
     });
 
+    const userPayload = await authController.buildUserPayload(user, client);
     await client.query('COMMIT');
 
     res.json({
@@ -592,14 +593,14 @@ const finishWebAuthnLogin = async (req, res, next) => {
         refreshToken,
         stepUpToken,
         stepUpExpiresIn: process.env.STEP_UP_TOKEN_EXPIRES_IN || '15m',
-        user: await authController.buildUserPayload(user),
+        user: userPayload,
       },
     });
   } catch (err) {
-    await client.query('ROLLBACK');
+    if (client) await client.query('ROLLBACK');
     next(err);
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
